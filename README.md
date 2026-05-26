@@ -66,6 +66,8 @@ Com terminal para depuração:
 A janela de configuração permite editar a região, testar a captura com preview,
 salvar o perfil, pausar, retomar e fechar o app. Ela também mostra o estado
 do loop de captura: `Rodando`, `Capturando`, `Pausado` ou `Erro`.
+O diagnóstico do pipeline indica o último resultado: `sem texto`,
+`cache imagem`, `cache texto`, `traduzindo` ou `traduzido`.
 O botão `Testar captura` salva a imagem em `captures\preview.png` e mostra o
 preview na própria janela.
 

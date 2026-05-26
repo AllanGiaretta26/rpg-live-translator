@@ -24,11 +24,13 @@ class FakeUi:
         capture_loop: object,
         profile_settings: object,
         capture_preview: object,
+        pipeline_diagnostics: object,
     ) -> None:
         self.overlay = overlay
         self.capture_loop = capture_loop
         self.profile_settings = profile_settings
         self.capture_preview = capture_preview
+        self.pipeline_diagnostics = pipeline_diagnostics
         self.ran = False
 
     def run(self) -> int:
@@ -48,8 +50,15 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
         capture_loop: object,
         profile_settings: object,
         capture_preview: object,
+        pipeline_diagnostics: object,
     ) -> FakeUi:
-        instance = FakeUi(value, capture_loop, profile_settings, capture_preview)
+        instance = FakeUi(
+            value,
+            capture_loop,
+            profile_settings,
+            capture_preview,
+            pipeline_diagnostics,
+        )
         ui_instances.append(instance)
         return instance
 
@@ -71,6 +80,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
     assert runtime.capture_loop is ui_instances[0].capture_loop
     assert runtime.profile_settings_service is ui_instances[0].profile_settings
     assert runtime.capture_preview_service is ui_instances[0].capture_preview
+    assert runtime.pipeline is ui_instances[0].pipeline_diagnostics
     assert runtime.capture_preview_service.preview_path == tmp_path / "preview.png"
     assert any("Ollama indisponivel" in message for message in overlay.messages)
     with runtime.database.open() as connection:

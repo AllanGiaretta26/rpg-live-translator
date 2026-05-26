@@ -49,11 +49,13 @@ class ConsoleUiApp:
         capture_loop: object | None = None,
         profile_settings: object | None = None,
         capture_preview: object | None = None,
+        pipeline_diagnostics: object | None = None,
     ) -> None:
         self._overlay = overlay
         self._capture_loop = capture_loop
         self._profile_settings = profile_settings
         self._capture_preview = capture_preview
+        self._pipeline_diagnostics = pipeline_diagnostics
 
     def run(self) -> int:
         self._overlay.show_text("Live Translator pronto.")
@@ -94,7 +96,13 @@ def bootstrap(
     settings: AppSettings | None = None,
     overlay_factory: Callable[[], Overlay] | None = None,
     ui_factory: Callable[
-        [Overlay, CaptureLoopService, ProfileSettingsService, CapturePreviewService],
+        [
+            Overlay,
+            CaptureLoopService,
+            ProfileSettingsService,
+            CapturePreviewService,
+            TranslationPipelineService,
+        ],
         UiApp,
     ]
     | None = None,
@@ -149,6 +157,7 @@ def bootstrap(
         capture_loop,
         profile_settings_service,
         capture_preview_service,
+        pipeline,
     )
 
     return AppRuntime(
@@ -193,6 +202,7 @@ def _create_ui(
     capture_loop: CaptureLoopService,
     profile_settings: ProfileSettingsService,
     capture_preview: CapturePreviewService,
+    pipeline_diagnostics: TranslationPipelineService,
 ) -> UiApp:
     try:
         from live_translator.ui.main_window import QtUiApp, QtUiSettings
@@ -202,7 +212,14 @@ def _create_ui(
             capture_loop,
             profile_settings,
             capture_preview,
+            pipeline_diagnostics,
             QtUiSettings(),
         )
     except ImportError:
-        return ConsoleUiApp(overlay, capture_loop, profile_settings, capture_preview)
+        return ConsoleUiApp(
+            overlay,
+            capture_loop,
+            profile_settings,
+            capture_preview,
+            pipeline_diagnostics,
+        )

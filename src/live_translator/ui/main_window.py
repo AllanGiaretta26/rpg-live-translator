@@ -50,6 +50,11 @@ class CapturePreview(Protocol):
     ) -> Path: ...
 
 
+class PipelineDiagnostics(Protocol):
+    @property
+    def last_diagnostic(self) -> str | None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class QtUiSettings:
     capture_interval_ms: int = 500
@@ -62,6 +67,7 @@ class QtUiApp:
         capture_loop: TickableCaptureLoop,
         profile_settings: ProfileSettings,
         capture_preview: CapturePreview,
+        pipeline_diagnostics: PipelineDiagnostics,
         settings: QtUiSettings,
     ) -> None:
         from PySide6.QtCore import QTimer
@@ -71,11 +77,17 @@ class QtUiApp:
         self._capture_loop = capture_loop
         self._profile_settings = profile_settings
         self._capture_preview = capture_preview
+        self._pipeline_diagnostics = pipeline_diagnostics
         self._timer = QTimer()
         self._timer.setInterval(settings.capture_interval_ms)
         self._timer.timeout.connect(self._tick_capture_loop)
         self._app = QApplication.instance() or getattr(overlay, "app")
-        self._window = SettingsWindow(capture_loop, profile_settings, capture_preview)
+        self._window = SettingsWindow(
+            capture_loop,
+            profile_settings,
+            capture_preview,
+            pipeline_diagnostics,
+        )
 
     def run(self) -> int:
         self._capture_loop.resume()
@@ -86,6 +98,7 @@ class QtUiApp:
     def _tick_capture_loop(self) -> None:
         self._capture_loop.tick()
         self._window.refresh_capture_status()
+        self._window.refresh_pipeline_status()
 
 
 class SettingsWindow:
@@ -94,6 +107,7 @@ class SettingsWindow:
         capture_loop: TickableCaptureLoop,
         profile_settings: ProfileSettings,
         capture_preview: CapturePreview,
+        pipeline_diagnostics: PipelineDiagnostics,
     ) -> None:
         from PySide6.QtCore import Qt
         from PySide6.QtWidgets import (
@@ -110,11 +124,13 @@ class SettingsWindow:
         self._capture_loop = capture_loop
         self._profile_settings = profile_settings
         self._capture_preview = capture_preview
+        self._pipeline_diagnostics = pipeline_diagnostics
         self._widget = QWidget()
         self._widget.setWindowTitle("RPG Live Translator")
         self._widget.setMinimumWidth(420)
 
         self._capture_status = QLabel("Rodando")
+        self._pipeline_status = QLabel("Pipeline: aguardando")
         self._status = QLabel("")
         self._name = QLineEdit()
         self._window_title = QLineEdit()
@@ -153,6 +169,7 @@ class SettingsWindow:
 
         layout = QVBoxLayout()
         layout.addWidget(self._capture_status)
+        layout.addWidget(self._pipeline_status)
         layout.addWidget(self._status)
         layout.addLayout(form)
         layout.addWidget(self._preview)
@@ -181,6 +198,13 @@ class SettingsWindow:
             self._capture_status.setText("Capturando")
         else:
             self._capture_status.setText("Rodando")
+
+    def refresh_pipeline_status(self) -> None:
+        diagnostic = self._pipeline_diagnostics.last_diagnostic
+        if diagnostic:
+            self._pipeline_status.setText(f"Pipeline: {diagnostic}")
+        else:
+            self._pipeline_status.setText("Pipeline: aguardando")
 
     def _spinbox(self, minimum: int, maximum: int):
         from PySide6.QtWidgets import QSpinBox

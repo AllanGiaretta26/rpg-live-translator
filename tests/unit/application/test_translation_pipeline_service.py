@@ -106,6 +106,7 @@ def test_cache_by_image_avoids_ocr_and_translation():
     assert extractor.calls == 0
     assert translator.calls == []
     assert parts["overlay"].shown == ["Ola"]
+    assert pipeline.last_diagnostic == "cache imagem"
 
 
 def test_cache_by_text_avoids_translation_and_saves_image_cache():
@@ -123,6 +124,7 @@ def test_cache_by_text_avoids_translation_and_saves_image_cache():
     assert translator.calls == []
     assert image_cache.saved == [("image-hash", cached)]
     assert parts["overlay"].shown == ["Ola"]
+    assert pipeline.last_diagnostic == "cache texto"
 
 
 def test_empty_text_does_not_update_overlay_or_translate():
@@ -137,6 +139,7 @@ def test_empty_text_does_not_update_overlay_or_translate():
     assert translator.calls == []
     assert parts["overlay"].hidden == 0
     assert parts["overlay"].shown == []
+    assert pipeline.last_diagnostic == "sem texto"
 
 
 def test_prompt_like_text_does_not_update_overlay_or_translate():
@@ -153,6 +156,7 @@ def test_prompt_like_text_does_not_update_overlay_or_translate():
     assert translator.calls == []
     assert parts["overlay"].hidden == 0
     assert parts["overlay"].shown == []
+    assert pipeline.last_diagnostic == "sem texto"
 
 
 def test_cache_miss_translates_saves_and_keeps_last_five_context_items():
@@ -174,5 +178,20 @@ def test_cache_miss_translates_saves_and_keeps_last_five_context_items():
 
     assert [call[0] for call in translator.calls] == [f"Line {i}" for i in range(6)]
     assert pipeline.context == ("Line 1", "Line 2", "Line 3", "Line 4", "Line 5")
+    assert pipeline.last_diagnostic == "traduzido"
     assert len(translation_cache.saved) == 6
     assert len(image_cache.saved) == 6
+
+
+def test_unchanged_image_records_diagnostic_without_processing():
+    extractor = FakeExtractor()
+    pipeline, parts = build_pipeline(
+        change_detector=FakeChangeDetector(changed=False),
+        text_extractor=extractor,
+    )
+
+    pipeline.process_frame(object())
+
+    assert extractor.calls == 0
+    assert parts["overlay"].shown == []
+    assert pipeline.last_diagnostic == "sem mudanca"
