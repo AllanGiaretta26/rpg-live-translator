@@ -10,6 +10,7 @@ class ScreenRect:
     y: int
     width: int
     height: int
+    scale: float = 1.0
 
 
 def select_screen_for_point(
@@ -27,3 +28,14 @@ def select_screen_for_point(
         ):
             return screen
     return screens[0]
+
+
+def local_to_physical_point(
+    local_x: int,
+    local_y: int,
+    screen: ScreenRect,
+) -> tuple[int, int]:
+    return (
+        screen.x + round(local_x * screen.scale),
+        screen.y + round(local_y * screen.scale),
+    )

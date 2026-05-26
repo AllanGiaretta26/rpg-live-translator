@@ -373,6 +373,7 @@ class SettingsWindow:
         self._overlay.set_edit_mode(False)
         self._overlay_settings.save_placement(placement)
         self._sync_overlay_fields(placement)
+        self._refresh_overlap_warning()
         self._status.setText("Overlay salvo.")
 
     def _sync_overlay_fields(self, placement: OverlayPlacement) -> None:
@@ -434,13 +435,16 @@ class SettingsWindow:
 
     def _show_preview(self, path: Path) -> None:
         from PySide6.QtCore import Qt
-        from PySide6.QtGui import QPixmap
+        from PySide6.QtGui import QImageReader, QPixmap
 
-        pixmap = QPixmap(str(path))
-        if pixmap.isNull():
+        reader = QImageReader(str(path))
+        reader.setAutoTransform(True)
+        image = reader.read()
+        if image.isNull():
             self._preview.setText(f"Preview salvo, mas nao foi possivel abrir: {path}")
             return
 
+        pixmap = QPixmap.fromImage(image)
         scaled = pixmap.scaled(
             460,
             170,
@@ -493,6 +497,7 @@ class SettingsWindow:
             f"x={profile.text_region.x} y={profile.text_region.y} "
             f"{profile.text_region.width}x{profile.text_region.height}"
         )
+        self._refresh_overlap_warning()
 
     def _pause_loop(self) -> None:
         self._capture_loop.pause()
