@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from domain.interfaces import ScreenCapture
-from domain.models import TextRegion
+from live_translator.domain.interfaces import ScreenCapture
+from live_translator.domain.models import TextRegion
 
 
 def _validate_region(region: TextRegion) -> None:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.bootstrap import bootstrap
-from config.settings import AppSettings
+from live_translator.app.bootstrap import bootstrap
+from live_translator.config.settings import AppSettings
 
 
 @dataclass

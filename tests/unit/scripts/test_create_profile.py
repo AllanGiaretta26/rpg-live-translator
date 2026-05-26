@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.create_profile import build_parser, main
+from live_translator.scripts.create_profile import build_parser, main
 
 
 def test_create_profile_command_saves_active_profile(tmp_path, monkeypatch, capsys):

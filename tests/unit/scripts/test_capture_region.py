@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from domain.models import TextRegion
-from scripts.capture_region import _region_from_args
+from live_translator.domain.models import TextRegion
+from live_translator.scripts.capture_region import _region_from_args
 
 
 def test_region_from_args_returns_none_when_no_coordinates_are_given():

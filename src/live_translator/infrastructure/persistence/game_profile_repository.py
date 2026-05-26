@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import sqlite3
 
-from domain.interfaces import GameProfileRepository, SettingsRepository
-from domain.models import GameProfile, TextRegion
+from live_translator.domain.interfaces import GameProfileRepository, SettingsRepository
+from live_translator.domain.models import GameProfile, TextRegion
 
 from .settings_repository import SQLiteSettingsRepository
 from .sqlite_connection import SQLiteConnectionManager

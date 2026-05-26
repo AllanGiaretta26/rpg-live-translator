@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import argparse
 
-from config.settings import AppSettings
-from domain.models import GameProfile, TextRegion
-from infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
-from infrastructure.persistence.settings_repository import SQLiteSettingsRepository
-from infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
+from live_translator.config.settings import AppSettings
+from live_translator.domain.models import GameProfile, TextRegion
+from live_translator.infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
+from live_translator.infrastructure.persistence.settings_repository import SQLiteSettingsRepository
+from live_translator.infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
 
 
 def build_parser() -> argparse.ArgumentParser:

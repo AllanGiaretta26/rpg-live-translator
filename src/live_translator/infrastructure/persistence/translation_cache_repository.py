@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import unicodedata
 
-from domain.interfaces import TranslationCache
-from domain.models import TranslationResult
+from live_translator.domain.interfaces import TranslationCache
+from live_translator.domain.models import TranslationResult
 
 from .sqlite_connection import SQLiteConnectionManager
 

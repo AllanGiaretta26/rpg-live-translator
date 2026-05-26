@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from infrastructure.image.image_hasher import ImageHasher, hash_distance
+from live_translator.infrastructure.image.image_hasher import ImageHasher, hash_distance
 
 
 @dataclass

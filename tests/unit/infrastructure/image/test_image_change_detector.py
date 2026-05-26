@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from infrastructure.image.image_change_detector import ImageChangeDetector
+from live_translator.infrastructure.image.image_change_detector import ImageChangeDetector
 
 
 @dataclass

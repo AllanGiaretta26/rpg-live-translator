@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from domain.models import GameProfile
+from live_translator.domain.models import GameProfile
 
 
 class TickableCaptureLoop(Protocol):

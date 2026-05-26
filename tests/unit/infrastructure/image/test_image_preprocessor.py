@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from infrastructure.image.image_preprocessor import ImagePreprocessor
+from live_translator.infrastructure.image.image_preprocessor import ImagePreprocessor
 
 
 @dataclass

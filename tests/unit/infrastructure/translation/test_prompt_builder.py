@@ -1,4 +1,4 @@
-from infrastructure.translation.prompt_builder import (
+from live_translator.infrastructure.translation.prompt_builder import (
     build_translation_prompt,
     build_vision_translation_prompt,
 )

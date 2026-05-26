@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from domain.interfaces import Translator
-from domain.models import TranslationResult
+from live_translator.domain.interfaces import Translator
+from live_translator.domain.models import TranslationResult
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
 from .prompt_builder import build_translation_prompt

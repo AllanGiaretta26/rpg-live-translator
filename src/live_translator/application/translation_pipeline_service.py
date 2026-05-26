@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import unicodedata
 
-from domain.interfaces import (
+from live_translator.domain.interfaces import (
     ImageCache,
     ImageChangeDetector,
     ImageHasher,

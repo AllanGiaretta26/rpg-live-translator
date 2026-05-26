@@ -3,12 +3,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from config.settings import AppSettings
-from domain.models import TextRegion
-from infrastructure.capture.mss_screen_capture import MSSScreenCapture
-from infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
-from infrastructure.persistence.settings_repository import SQLiteSettingsRepository
-from infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
+from live_translator.config.settings import AppSettings
+from live_translator.domain.models import TextRegion
+from live_translator.infrastructure.capture.mss_screen_capture import MSSScreenCapture
+from live_translator.infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
+from live_translator.infrastructure.persistence.settings_repository import SQLiteSettingsRepository
+from live_translator.infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -45,8 +45,8 @@ def _active_profile_region() -> TextRegion:
     profile = profile_repository.get_active_profile()
     if profile is None:
         raise RuntimeError(
-            "No active profile found. Run scripts.create_profile first or pass "
-            "--x --y --width --height."
+            "No active profile found. Run live_translator.scripts.create_profile "
+            "first or pass --x --y --width --height."
         )
     return profile.text_region
 

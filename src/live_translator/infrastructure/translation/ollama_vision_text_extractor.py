@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.interfaces import TextExtractor
-from domain.models import ExtractedText
+from live_translator.domain.interfaces import TextExtractor
+from live_translator.domain.models import ExtractedText
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
 from .prompt_builder import build_vision_translation_prompt

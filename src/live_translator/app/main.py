@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.bootstrap import bootstrap
+from live_translator.app.bootstrap import bootstrap
 
 
 def main() -> int:

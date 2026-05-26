@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from domain.interfaces import ImageCache
-from domain.models import TranslationResult
+from live_translator.domain.interfaces import ImageCache
+from live_translator.domain.models import TranslationResult
 
 from .sqlite_connection import SQLiteConnectionManager
 

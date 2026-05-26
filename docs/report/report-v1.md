@@ -6,8 +6,8 @@ A primeira versao funcional do RPG Live Translator estabelece a base arquitetura
 
 ## Entregas
 
-- Camada `domain` com modelos imutaveis: `TextRegion`, `ExtractedText`, `TranslationResult` e `GameProfile`.
-- Contratos em `domain/interfaces.py` para captura, OCR, traducao, caches, overlay, perfis e settings.
+- Camada `src/live_translator/domain` com modelos imutaveis: `TextRegion`, `ExtractedText`, `TranslationResult` e `GameProfile`.
+- Contratos em `src/live_translator/domain/interfaces.py` para captura, OCR, traducao, caches, overlay, perfis e settings.
 - `TranslationPipelineService` com cache por imagem, cache por texto, controle de contexto e filtro contra eco de prompt.
 - `CaptureLoopService` com pausa, retomada, intervalo de captura, protecao contra frames paralelos e tratamento local de erros.
 - Persistencia SQLite para `translations`, `image_cache`, `glossary`, `game_profiles` e `settings`.
@@ -16,7 +16,7 @@ A primeira versao funcional do RPG Live Translator estabelece a base arquitetura
 - Captura MSS e detector Win32.
 - Overlay PySide6 com atualizacao por sinais Qt para evitar atualizacao fora da thread principal.
 - Janela de configuracao para editar perfil/regiao, pausar, retomar e fechar.
-- Scripts `scripts.create_profile` e `scripts.capture_region` para validacao manual.
+- Scripts `live_translator.scripts.create_profile` e `live_translator.scripts.capture_region` para validacao manual.
 
 ## Validacao
 
@@ -43,7 +43,7 @@ Tambem foram validados:
 ## Decisoes Arquiteturais
 
 - O projeto permanece como monolito modular desktop.
-- `app/bootstrap.py` e o unico ponto de composicao concreta.
+- `src/live_translator/app/bootstrap.py` e o unico ponto de composicao concreta.
 - UI conversa com servicos da Application, nao com SQLite, Ollama ou MSS diretamente.
 - Infrastructure implementa contratos do Domain.
 - O overlay nao exibe status inicial quando o Ollama esta disponivel, para evitar que o app capture o proprio overlay e gere loop visual.

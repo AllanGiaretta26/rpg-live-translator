@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from application.translation_pipeline_service import TranslationPipelineService
-from domain.models import ExtractedText, TranslationResult
+from live_translator.application.translation_pipeline_service import TranslationPipelineService
+from live_translator.domain.models import ExtractedText, TranslationResult
 
 
 @dataclass

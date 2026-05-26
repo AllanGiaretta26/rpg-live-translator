@@ -6,7 +6,7 @@ from urllib import error
 
 import pytest
 
-from infrastructure.translation.ollama_client import (
+from live_translator.infrastructure.translation.ollama_client import (
     OllamaClient,
     OllamaConnectionError,
     OllamaInvalidResponseError,
@@ -32,7 +32,10 @@ def test_generate_parses_nested_json_response(monkeypatch):
     def fake_urlopen(request, timeout):
         return FakeResponse({"response": '{"translated_text": "Ola"}'})
 
-    monkeypatch.setattr("infrastructure.translation.ollama_client.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
 
     payload = OllamaClient(timeout_seconds=1).generate("prompt")
 
@@ -43,7 +46,10 @@ def test_generate_rejects_invalid_nested_json(monkeypatch):
     def fake_urlopen(request, timeout):
         return FakeResponse({"response": "not-json"})
 
-    monkeypatch.setattr("infrastructure.translation.ollama_client.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
 
     with pytest.raises(OllamaInvalidResponseError):
         OllamaClient(timeout_seconds=1).generate("prompt")
@@ -53,7 +59,10 @@ def test_generate_wraps_timeout(monkeypatch):
     def fake_urlopen(request, timeout):
         raise TimeoutError("slow")
 
-    monkeypatch.setattr("infrastructure.translation.ollama_client.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
 
     with pytest.raises(OllamaTimeoutError):
         OllamaClient(timeout_seconds=0.01).generate("prompt")
@@ -63,7 +72,10 @@ def test_generate_wraps_connection_error(monkeypatch):
     def fake_urlopen(request, timeout):
         raise error.URLError("down")
 
-    monkeypatch.setattr("infrastructure.translation.ollama_client.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
 
     with pytest.raises(OllamaConnectionError):
         OllamaClient(timeout_seconds=0.01).generate("prompt")

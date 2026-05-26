@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.interfaces import OverlayRenderer
+from live_translator.domain.interfaces import OverlayRenderer
 
 
 @dataclass(frozen=True, slots=True)

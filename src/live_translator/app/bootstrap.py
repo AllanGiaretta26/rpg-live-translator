@@ -3,22 +3,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-from application.capture_loop_service import CaptureLoopService
-from application.profile_settings_service import ProfileSettingsService
-from application.translation_pipeline_service import TranslationPipelineService
-from config.settings import AppSettings
-from infrastructure.image.image_change_detector import ImageChangeDetector
-from infrastructure.image.image_hasher import ImageHasher
-from infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
-from infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
-from infrastructure.persistence.settings_repository import SQLiteSettingsRepository
-from infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
-from infrastructure.persistence.translation_cache_repository import (
+from live_translator.application.capture_loop_service import CaptureLoopService
+from live_translator.application.profile_settings_service import ProfileSettingsService
+from live_translator.application.translation_pipeline_service import TranslationPipelineService
+from live_translator.config.settings import AppSettings
+from live_translator.infrastructure.image.image_change_detector import ImageChangeDetector
+from live_translator.infrastructure.image.image_hasher import ImageHasher
+from live_translator.infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
+from live_translator.infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
+from live_translator.infrastructure.persistence.settings_repository import SQLiteSettingsRepository
+from live_translator.infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
+from live_translator.infrastructure.persistence.translation_cache_repository import (
     SQLiteTranslationCacheRepository,
 )
-from infrastructure.translation.ollama_client import OllamaClient
-from infrastructure.translation.ollama_translator import OllamaTranslator
-from infrastructure.translation.ollama_vision_text_extractor import (
+from live_translator.infrastructure.translation.ollama_client import OllamaClient
+from live_translator.infrastructure.translation.ollama_translator import OllamaTranslator
+from live_translator.infrastructure.translation.ollama_vision_text_extractor import (
     OllamaVisionTextExtractor,
 )
 
@@ -154,7 +154,9 @@ def bootstrap(
 
 def _create_capture_service() -> object:
     try:
-        from infrastructure.capture.mss_screen_capture import MSSScreenCapture
+        from live_translator.infrastructure.capture.mss_screen_capture import (
+            MSSScreenCapture,
+        )
     except ImportError:
         return NullScreenCaptureService()
     return MSSScreenCapture()
@@ -162,7 +164,7 @@ def _create_capture_service() -> object:
 
 def _create_overlay() -> Overlay:
     try:
-        from ui.overlay_window import OverlayStyle, OverlayWindow
+        from live_translator.ui.overlay_window import OverlayStyle, OverlayWindow
 
         return OverlayWindow(OverlayStyle())
     except ImportError:
@@ -175,7 +177,7 @@ def _create_ui(
     profile_settings: ProfileSettingsService,
 ) -> UiApp:
     try:
-        from ui.main_window import QtUiApp, QtUiSettings
+        from live_translator.ui.main_window import QtUiApp, QtUiSettings
 
         return QtUiApp(overlay, capture_loop, profile_settings, QtUiSettings())
     except ImportError:

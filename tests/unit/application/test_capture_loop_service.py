@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from application.capture_loop_service import CaptureLoopService
-from domain.models import GameProfile, TextRegion
+from live_translator.application.capture_loop_service import CaptureLoopService
+from live_translator.domain.models import GameProfile, TextRegion
 
 
 @dataclass

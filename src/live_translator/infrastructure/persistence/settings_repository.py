@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from domain.interfaces import SettingsRepository
+from live_translator.domain.interfaces import SettingsRepository
 
 from .sqlite_connection import SQLiteConnectionManager
 

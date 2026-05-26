@@ -5,7 +5,7 @@ from threading import Lock, Thread
 from time import monotonic
 from typing import Callable, Protocol
 
-from domain.interfaces import GameProfileRepository, ScreenCapture
+from live_translator.domain.interfaces import GameProfileRepository, ScreenCapture
 
 logger = logging.getLogger(__name__)
 

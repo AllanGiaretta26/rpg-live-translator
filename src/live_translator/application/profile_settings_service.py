@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.interfaces import GameProfileRepository
-from domain.models import GameProfile, TextRegion
+from live_translator.domain.interfaces import GameProfileRepository
+from live_translator.domain.models import GameProfile, TextRegion
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from domain.models import TextRegion
-from infrastructure.capture.mss_screen_capture import MSSScreenCapture
+from live_translator.domain.models import TextRegion
+from live_translator.infrastructure.capture.mss_screen_capture import MSSScreenCapture
 
 
 class FakeScreenshot:

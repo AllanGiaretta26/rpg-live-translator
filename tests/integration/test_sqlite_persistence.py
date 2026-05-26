@@ -4,15 +4,15 @@ import sqlite3
 
 import pytest
 
-from domain.models import GameProfile, TextRegion, TranslationResult
-from infrastructure.persistence.game_profile_repository import (
+from live_translator.domain.models import GameProfile, TextRegion, TranslationResult
+from live_translator.infrastructure.persistence.game_profile_repository import (
     ACTIVE_PROFILE_SETTING_KEY,
     SQLiteGameProfileRepository,
 )
-from infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
-from infrastructure.persistence.settings_repository import SQLiteSettingsRepository
-from infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
-from infrastructure.persistence.translation_cache_repository import (
+from live_translator.infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
+from live_translator.infrastructure.persistence.settings_repository import SQLiteSettingsRepository
+from live_translator.infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
+from live_translator.infrastructure.persistence.translation_cache_repository import (
     SQLiteTranslationCacheRepository,
 )
 

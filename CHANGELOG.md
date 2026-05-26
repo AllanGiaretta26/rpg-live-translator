@@ -21,6 +21,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- O codigo da aplicacao foi movido para o layout `src/live_translator/`.
+- Comandos de execucao e scripts agora usam o namespace `live_translator.*`.
 - O client Ollama passou a enviar `format=json` para reduzir respostas fora do contrato.
 - O overlay passou a atualizar via sinais Qt para evitar chamadas fora da thread principal.
 - O pipeline passou a ignorar textos que parecem eco de prompt ou instrucoes internas.

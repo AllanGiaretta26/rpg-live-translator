@@ -6,7 +6,7 @@ Aplicativo desktop em Python para traduzir, em tempo real, textos exibidos em jo
 
 O projeto já possui um MVP técnico com:
 
-- arquitetura em camadas: `domain`, `application`, `infrastructure`, `ui` e `app`;
+- arquitetura em camadas dentro de `src/live_translator/`;
 - cache SQLite por texto e por imagem;
 - captura de tela com MSS;
 - integração com Ollama usando `gemma4:e4b`;
@@ -38,13 +38,13 @@ Valide a instalação:
 Crie ou atualize o perfil ativo:
 
 ```powershell
-.venv\Scripts\python.exe -m scripts.create_profile --name "Meu Jogo" --window-title "Manual Region" --x 256 --y 950 --width 2048 --height 360
+.venv\Scripts\python.exe -m live_translator.scripts.create_profile --name "Meu Jogo" --window-title "Manual Region" --x 256 --y 950 --width 2048 --height 360
 ```
 
 Teste a captura:
 
 ```powershell
-.venv\Scripts\python.exe -m scripts.capture_region --output captures\latest.png
+.venv\Scripts\python.exe -m live_translator.scripts.capture_region --output captures\latest.png
 ```
 
 Abra `captures\latest.png` e ajuste `x`, `y`, `width` e `height` até a imagem conter a caixa de diálogo do jogo.
@@ -54,24 +54,24 @@ Abra `captures\latest.png` e ajuste `x`, `y`, `width` e `height` até a imagem c
 Sem terminal:
 
 ```powershell
-.venv\Scripts\pythonw.exe -m app.main
+.venv\Scripts\pythonw.exe -m live_translator.app.main
 ```
 
 Com terminal para depuração:
 
 ```powershell
-.venv\Scripts\python.exe -m app.main
+.venv\Scripts\python.exe -m live_translator.app.main
 ```
 
 A janela de configuração permite editar a região, salvar o perfil, pausar, retomar e fechar o app.
 
 ## Arquitetura
 
-- `domain/`: modelos imutáveis, contratos e erros.
-- `application/`: orquestração do pipeline, loop de captura e configurações de perfil.
-- `infrastructure/`: SQLite, captura MSS, utilitários de imagem e Ollama.
-- `ui/`: overlay e janela de configuração PySide6.
-- `app/`: bootstrap, composition root e entrada principal.
+- `src/live_translator/domain/`: modelos imutáveis, contratos e erros.
+- `src/live_translator/application/`: orquestração do pipeline, loop de captura e configurações de perfil.
+- `src/live_translator/infrastructure/`: SQLite, captura MSS, utilitários de imagem e Ollama.
+- `src/live_translator/ui/`: overlay e janela de configuração PySide6.
+- `src/live_translator/app/`: bootstrap, composition root e entrada principal.
 
 Regra central: UI não acessa SQLite, Ollama ou captura diretamente; o bootstrap conecta implementações concretas.
 

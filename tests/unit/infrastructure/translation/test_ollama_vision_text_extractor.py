@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from infrastructure.translation.ollama_vision_text_extractor import (
+from live_translator.infrastructure.translation.ollama_vision_text_extractor import (
     OllamaVisionTextExtractor,
 )
 
