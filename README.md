@@ -10,7 +10,7 @@ O projeto já possui um MVP técnico com:
 - cache SQLite por texto e por imagem;
 - captura de tela com MSS;
 - integração com Ollama usando `gemma4:e4b`;
-- overlay PySide6 e janela simples de configurações;
+- overlay PySide6 e janela de configurações com preview de captura;
 - scripts de desenvolvimento para criar perfil e testar captura.
 
 ## Requisitos
@@ -63,7 +63,9 @@ Com terminal para depuração:
 .venv\Scripts\python.exe -m live_translator.app.main
 ```
 
-A janela de configuração permite editar a região, salvar o perfil, pausar, retomar e fechar o app.
+A janela de configuração permite editar a região, testar a captura com preview,
+salvar o perfil, pausar, retomar e fechar o app. O botão `Testar captura`
+salva a imagem em `captures\preview.png` e mostra o preview na própria janela.
 
 ## Arquitetura
 

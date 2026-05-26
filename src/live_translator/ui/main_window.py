@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from live_translator.domain.models import GameProfile
@@ -29,6 +30,17 @@ class ProfileSettings(Protocol):
     ) -> GameProfile: ...
 
 
+class CapturePreview(Protocol):
+    def capture_preview(
+        self,
+        *,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> Path: ...
+
+
 @dataclass(frozen=True, slots=True)
 class QtUiSettings:
     capture_interval_ms: int = 500
@@ -40,6 +52,7 @@ class QtUiApp:
         overlay: object,
         capture_loop: TickableCaptureLoop,
         profile_settings: ProfileSettings,
+        capture_preview: CapturePreview,
         settings: QtUiSettings,
     ) -> None:
         from PySide6.QtCore import QTimer
@@ -48,11 +61,12 @@ class QtUiApp:
         self._overlay = overlay
         self._capture_loop = capture_loop
         self._profile_settings = profile_settings
+        self._capture_preview = capture_preview
         self._timer = QTimer()
         self._timer.setInterval(settings.capture_interval_ms)
         self._timer.timeout.connect(self._capture_loop.tick)
         self._app = QApplication.instance() or getattr(overlay, "app")
-        self._window = SettingsWindow(capture_loop, profile_settings)
+        self._window = SettingsWindow(capture_loop, profile_settings, capture_preview)
 
     def run(self) -> int:
         self._capture_loop.resume()
@@ -66,7 +80,9 @@ class SettingsWindow:
         self,
         capture_loop: TickableCaptureLoop,
         profile_settings: ProfileSettings,
+        capture_preview: CapturePreview,
     ) -> None:
+        from PySide6.QtCore import Qt
         from PySide6.QtWidgets import (
             QFormLayout,
             QHBoxLayout,
@@ -80,6 +96,7 @@ class SettingsWindow:
 
         self._capture_loop = capture_loop
         self._profile_settings = profile_settings
+        self._capture_preview = capture_preview
         self._widget = QWidget()
         self._widget.setWindowTitle("RPG Live Translator")
         self._widget.setMinimumWidth(420)
@@ -91,6 +108,13 @@ class SettingsWindow:
         self._y = self._spinbox(-10000, 10000)
         self._width = self._spinbox(1, 10000)
         self._height = self._spinbox(1, 10000)
+        self._preview = QLabel("Sem preview")
+        self._preview.setMinimumHeight(150)
+        self._preview.setStyleSheet(
+            "border: 1px solid #555; background: #111; color: #ddd;"
+        )
+        self._preview.setScaledContents(False)
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         form = QFormLayout()
         form.addRow("Perfil", self._name)
@@ -101,12 +125,14 @@ class SettingsWindow:
         form.addRow("Altura", self._height)
 
         self._save = QPushButton("Salvar perfil")
+        self._test_capture = QPushButton("Testar captura")
         self._pause = QPushButton("Pausar")
         self._resume = QPushButton("Retomar")
         self._quit = QPushButton("Fechar")
 
         buttons = QHBoxLayout()
         buttons.addWidget(self._save)
+        buttons.addWidget(self._test_capture)
         buttons.addWidget(self._pause)
         buttons.addWidget(self._resume)
         buttons.addWidget(self._quit)
@@ -114,10 +140,12 @@ class SettingsWindow:
         layout = QVBoxLayout()
         layout.addWidget(self._status)
         layout.addLayout(form)
+        layout.addWidget(self._preview)
         layout.addLayout(buttons)
         self._widget.setLayout(layout)
 
         self._save.clicked.connect(self._save_profile)
+        self._test_capture.clicked.connect(self._capture_preview_image)
         self._pause.clicked.connect(self._pause_loop)
         self._resume.clicked.connect(self._resume_loop)
         self._quit.clicked.connect(self._widget.close)
@@ -134,6 +162,38 @@ class SettingsWindow:
         spinbox = QSpinBox()
         spinbox.setRange(minimum, maximum)
         return spinbox
+
+    def _capture_preview_image(self) -> None:
+        try:
+            path = self._capture_preview.capture_preview(
+                x=self._x.value(),
+                y=self._y.value(),
+                width=self._width.value(),
+                height=self._height.value(),
+            )
+        except Exception as error:
+            self._status.setText(f"Falha no preview: {error}")
+            return
+
+        self._show_preview(path)
+        self._status.setText(f"Preview salvo: {path}")
+
+    def _show_preview(self, path: Path) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QPixmap
+
+        pixmap = QPixmap(str(path))
+        if pixmap.isNull():
+            self._preview.setText(f"Preview salvo, mas nao foi possivel abrir: {path}")
+            return
+
+        scaled = pixmap.scaled(
+            390,
+            150,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._preview.setPixmap(scaled)
 
     def _load_active_profile(self) -> None:
         profile = self._profile_settings.get_active_profile()

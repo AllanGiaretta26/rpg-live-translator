@@ -15,3 +15,4 @@ DEFAULT_OVERLAY_OPACITY = 0.85
 DEFAULT_OVERLAY_FONT_SIZE = 24
 
 DEFAULT_DATABASE_PATH = Path("data") / "app.sqlite3"
+DEFAULT_CAPTURE_PREVIEW_PATH = Path("captures") / "preview.png"

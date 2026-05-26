@@ -23,10 +23,12 @@ class FakeUi:
         overlay: FakeOverlay,
         capture_loop: object,
         profile_settings: object,
+        capture_preview: object,
     ) -> None:
         self.overlay = overlay
         self.capture_loop = capture_loop
         self.profile_settings = profile_settings
+        self.capture_preview = capture_preview
         self.ran = False
 
     def run(self) -> int:
@@ -45,14 +47,16 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
         value: FakeOverlay,
         capture_loop: object,
         profile_settings: object,
+        capture_preview: object,
     ) -> FakeUi:
-        instance = FakeUi(value, capture_loop, profile_settings)
+        instance = FakeUi(value, capture_loop, profile_settings, capture_preview)
         ui_instances.append(instance)
         return instance
 
     runtime = bootstrap(
         settings=AppSettings(
             database_path=tmp_path / "app.sqlite3",
+            capture_preview_path=tmp_path / "preview.png",
             ollama_base_url="http://127.0.0.1:9",
             ollama_timeout_seconds=0.01,
         ),
@@ -66,6 +70,8 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
     assert ui_instances[0].ran is True
     assert runtime.capture_loop is ui_instances[0].capture_loop
     assert runtime.profile_settings_service is ui_instances[0].profile_settings
+    assert runtime.capture_preview_service is ui_instances[0].capture_preview
+    assert runtime.capture_preview_service.preview_path == tmp_path / "preview.png"
     assert any("Ollama indisponivel" in message for message in overlay.messages)
     with runtime.database.open() as connection:
         tables = connection.execute(

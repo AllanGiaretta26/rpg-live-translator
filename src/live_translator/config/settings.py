@@ -34,6 +34,9 @@ if BaseSettings is not None:
         overlay_font_size: int = Field(default=defaults.DEFAULT_OVERLAY_FONT_SIZE, gt=0)
 
         database_path: Path = Field(default=defaults.DEFAULT_DATABASE_PATH)
+        capture_preview_path: Path = Field(
+            default=defaults.DEFAULT_CAPTURE_PREVIEW_PATH
+        )
 
         model_config = SettingsConfigDict(
             env_prefix="LIVE_TRANSLATOR_",
@@ -54,3 +57,4 @@ else:
         overlay_opacity: float = defaults.DEFAULT_OVERLAY_OPACITY
         overlay_font_size: int = defaults.DEFAULT_OVERLAY_FONT_SIZE
         database_path: Path = defaults.DEFAULT_DATABASE_PATH
+        capture_preview_path: Path = defaults.DEFAULT_CAPTURE_PREVIEW_PATH
