@@ -5,6 +5,12 @@ from typing import Callable
 
 from live_translator.domain.interfaces import OverlayRenderer
 from live_translator.domain.models import OverlayPlacement
+from live_translator.ui.overlay_geometry import (
+    ResizeHandle,
+    WindowGeometry,
+    detect_resize_handle,
+    resize_geometry,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +41,7 @@ class OverlayWindow(OverlayRenderer):
         self._on_changed: Callable[[OverlayPlacement], None] | None = None
         self._drag_start_global = None
         self._drag_start_geometry = None
-        self._resizing = False
+        self._active_handle = ResizeHandle.MOVE
         self._window = QWidget()
         self._window.setWindowFlags(
             Qt.FramelessWindowHint
@@ -190,9 +196,11 @@ class OverlayWindow(OverlayRenderer):
         self._drag_start_global = event.globalPosition().toPoint()
         self._drag_start_geometry = self._window.geometry()
         position = event.position().toPoint()
-        self._resizing = (
-            self._drag_start_geometry.width() - position.x() <= 24
-            and self._drag_start_geometry.height() - position.y() <= 24
+        self._active_handle = detect_resize_handle(
+            position.x(),
+            position.y(),
+            self._drag_start_geometry.width(),
+            self._drag_start_geometry.height(),
         )
         event.accept()
 
@@ -205,16 +213,30 @@ class OverlayWindow(OverlayRenderer):
 
         current_global = event.globalPosition().toPoint()
         delta = current_global - self._drag_start_global
-        if self._resizing:
-            width = max(160, self._drag_start_geometry.width() + delta.x())
-            height = max(60, self._drag_start_geometry.height() + delta.y())
-            self._window.resize(width, height)
-            self._label.setGeometry(0, 0, width, height)
-        else:
+        if self._active_handle == ResizeHandle.MOVE:
             self._window.move(
                 self._drag_start_geometry.x() + delta.x(),
                 self._drag_start_geometry.y() + delta.y(),
             )
+        else:
+            resized = resize_geometry(
+                WindowGeometry(
+                    x=self._drag_start_geometry.x(),
+                    y=self._drag_start_geometry.y(),
+                    width=self._drag_start_geometry.width(),
+                    height=self._drag_start_geometry.height(),
+                ),
+                self._active_handle,
+                delta_x=delta.x(),
+                delta_y=delta.y(),
+            )
+            self._window.setGeometry(
+                resized.x,
+                resized.y,
+                resized.width,
+                resized.height,
+            )
+            self._label.setGeometry(0, 0, resized.width, resized.height)
         self._notify_changed()
         event.accept()
 
@@ -224,7 +246,7 @@ class OverlayWindow(OverlayRenderer):
             return
         self._drag_start_global = None
         self._drag_start_geometry = None
-        self._resizing = False
+        self._active_handle = ResizeHandle.MOVE
         self._notify_changed()
         event.accept()
 
