@@ -94,7 +94,11 @@ class TranslationPipelineService:
                 return
 
             self._set_diagnostic("traduzindo")
-            result = self.translator.translate(normalized_text, self._context)
+            try:
+                result = self.translator.translate(normalized_text, self._context)
+            except Exception as error:
+                self._set_diagnostic(f"traducao falhou: {error}")
+                raise
             self.translation_cache.save_translation(result)
             self.image_cache.save_image_result(image_hash, result)
             self._context.append(normalized_text)
@@ -102,7 +106,11 @@ class TranslationPipelineService:
             self._set_diagnostic("traduzido")
             self.overlay.show_text(result.translated_text)
         except Exception as error:
-            self._set_diagnostic(f"erro: {error}")
+            current_diagnostic = self.last_diagnostic
+            if current_diagnostic is None or not current_diagnostic.startswith(
+                "traducao falhou:"
+            ):
+                self._set_diagnostic(f"erro: {error}")
             raise
 
     def _set_diagnostic(self, diagnostic: str) -> None:

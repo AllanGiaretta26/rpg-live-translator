@@ -4,6 +4,11 @@ from dataclasses import dataclass
 from typing import Callable
 
 from live_translator.domain.models import TextRegion
+from live_translator.ui.screen_geometry import (
+    ScreenRect,
+    local_to_physical_point,
+    select_screen_for_point,
+)
 
 
 def normalize_region(
@@ -29,6 +34,7 @@ class RegionSelectorWindow:
 
         self._start_global = QPoint()
         self._start_local = QPoint()
+        self._selected_screen: ScreenRect | None = None
         self._window = QWidget()
         self._window.setWindowTitle("Selecionar regiao")
         self._window.setWindowFlags(
@@ -36,7 +42,6 @@ class RegionSelectorWindow:
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
-        self._window.setWindowState(Qt.WindowState.WindowFullScreen)
         self._window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._window.setCursor(Qt.CursorShape.CrossCursor)
         self._window.setStyleSheet("background-color: rgba(0, 0, 0, 45);")
@@ -50,6 +55,10 @@ class RegionSelectorWindow:
             self._window,
         )
         self._instruction.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._instruction.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         self._instruction.setStyleSheet(
             "QLabel {"
             "background-color: rgba(0, 0, 0, 180);"
@@ -71,6 +80,33 @@ class RegionSelectorWindow:
         self._window.keyPressEvent = self._key_press_event
 
     def show(self) -> None:
+        from PySide6.QtGui import QCursor, QGuiApplication
+
+        cursor_position = QCursor.pos()
+        screens = []
+        for screen in QGuiApplication.screens():
+            geometry = screen.geometry()
+            screens.append(
+                ScreenRect(
+                    x=geometry.x(),
+                    y=geometry.y(),
+                    width=geometry.width(),
+                    height=geometry.height(),
+                    scale=float(screen.devicePixelRatio()),
+                )
+            )
+
+        self._selected_screen = select_screen_for_point(
+            cursor_position.x(),
+            cursor_position.y(),
+            tuple(screens),
+        )
+        self._window.setGeometry(
+            self._selected_screen.x,
+            self._selected_screen.y,
+            self._selected_screen.width,
+            self._selected_screen.height,
+        )
         self._window.show()
         self._window.raise_()
         self._window.activateWindow()
@@ -78,8 +114,16 @@ class RegionSelectorWindow:
     def _mouse_press_event(self, event) -> None:
         from PySide6.QtCore import QRect
 
-        self._start_global = event.globalPosition().toPoint()
         self._start_local = event.position().toPoint()
+        if self._selected_screen is not None:
+            start_x, start_y = local_to_physical_point(
+                self._start_local.x(),
+                self._start_local.y(),
+                self._selected_screen,
+            )
+            self._start_global = QPoint(start_x, start_y)
+        else:
+            self._start_global = event.globalPosition().toPoint()
         self._instruction.hide()
         self._rubber_band.setGeometry(QRect(self._start_local, self._start_local))
         self._rubber_band.show()
@@ -91,7 +135,18 @@ class RegionSelectorWindow:
         self._rubber_band.setGeometry(QRect(self._start_local, current).normalized())
 
     def _mouse_release_event(self, event) -> None:
-        end_global = event.globalPosition().toPoint()
+        from PySide6.QtCore import QPoint
+
+        end_local = event.position().toPoint()
+        if self._selected_screen is not None:
+            end_x, end_y = local_to_physical_point(
+                end_local.x(),
+                end_local.y(),
+                self._selected_screen,
+            )
+            end_global = QPoint(end_x, end_y)
+        else:
+            end_global = event.globalPosition().toPoint()
         try:
             region = normalize_region(
                 self._start_global.x(),
@@ -100,7 +155,11 @@ class RegionSelectorWindow:
                 end_global.y(),
             )
         except ValueError:
-            self._window.close()
+            self._rubber_band.hide()
+            self._instruction.setText(
+                "Selecao muito pequena\nArraste sobre a caixa de texto do jogo"
+            )
+            self._instruction.show()
             return
 
         self.on_selected(region)

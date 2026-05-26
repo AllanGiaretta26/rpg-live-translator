@@ -2,6 +2,21 @@
 
 Todas as mudancas relevantes deste projeto serao registradas aqui.
 
+## Unreleased
+
+### Added
+
+- Aviso na UI quando o overlay cruza a area capturada pelo OCR.
+- Helpers testaveis para sobreposicao de retangulos, geometria de overlay e selecao de monitor.
+- Testes unitarios para redimensionamento do overlay, selecao de tela e validacao do tradutor Ollama.
+
+### Changed
+
+- Overlay agora pode ser redimensionado pelas bordas e cantos, nao apenas pelo canto inferior direito.
+- Seletor de area agora escolhe o monitor pelo cursor e usa geometria explicita da tela.
+- Prompt de traducao reforca traducao completa, sem resumo ou omissao de frases.
+- Diagnostico do pipeline diferencia falha de traducao de erro generico.
+
 ## [0.1.0] - 2026-05-26
 
 ### Added
