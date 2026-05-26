@@ -1,0 +1,44 @@
+[project]
+name = "rpg-live-translator"
+version = "0.1.0"
+description = "Desktop live translator for RPG Maker games."
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic-settings>=2.0",
+    "pillow>=10.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+desktop = [
+    "pyside6>=6.7",
+    "mss>=9.0",
+    "pywin32>=306; platform_system == 'Windows'",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "app*",
+    "application*",
+    "config*",
+    "domain*",
+    "infrastructure*",
+    "scripts*",
+    "ui*",
+]

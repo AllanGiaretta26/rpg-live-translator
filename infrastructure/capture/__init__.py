@@ -1,0 +1,1 @@
+"""Screen capture infrastructure adapters."""
