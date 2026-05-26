@@ -30,5 +30,7 @@ def build_translation_prompt(
         f"Contexto recente:\n{context_text}\n"
         f"Texto para traduzir:\n{text}\n"
         "Preserve nomes proprios. Nao explique.\n"
+        "Traduza todo o texto de entrada, incluindo todas as linhas e frases.\n"
+        "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
     )

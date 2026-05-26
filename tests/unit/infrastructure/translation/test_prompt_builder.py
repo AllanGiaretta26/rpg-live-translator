@@ -21,3 +21,11 @@ def test_translation_prompt_includes_text_context_and_expected_json():
     assert "Before" in prompt
     assert "translated_text" in prompt
     assert "source_text" not in prompt
+
+
+def test_translation_prompt_requires_complete_translation_without_summary():
+    prompt = build_translation_prompt("Line one.\nLine two.", [], "pt-BR")
+
+    assert "Traduza todo o texto" in prompt
+    assert "Nao resuma" in prompt
+    assert "Nao omita frases" in prompt

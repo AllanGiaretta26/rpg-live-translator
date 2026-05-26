@@ -23,6 +23,9 @@ class OllamaTranslator(Translator):
         translated_text = payload.get("translated_text")
         if not isinstance(translated_text, str):
             raise OllamaInvalidResponseError("translated_text missing from response")
+        translated_text = translated_text.strip()
+        if not translated_text:
+            raise OllamaInvalidResponseError("translated_text is empty")
         return TranslationResult(
             source_text=text,
             translated_text=translated_text,
