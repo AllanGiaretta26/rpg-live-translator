@@ -117,6 +117,7 @@ def test_capture_loop_pauses_and_resumes():
 
     service.resume()
     assert service.is_paused is False
+    assert service.last_error_message is None
     assert service.tick() is True
     assert len(threads.workers) == 1
     assert service.is_busy is True
@@ -169,8 +170,12 @@ def test_capture_loop_handles_capture_errors_without_stopping():
 
     assert len(errors) == 1
     assert isinstance(errors[0], RuntimeError)
+    assert service.last_error_message == "capture failed"
     assert pipeline.frames == []
     assert service.is_busy is False
+
+    service.resume()
+    assert service.last_error_message is None
 
     clock.advance(1.0)
     assert service.tick() is True
@@ -179,4 +184,3 @@ def test_capture_loop_handles_capture_errors_without_stopping():
     assert profiles.calls == 2
     assert len(capture.calls) == 2
     assert len(pipeline.frames) == 1
-

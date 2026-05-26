@@ -64,8 +64,10 @@ Com terminal para depuração:
 ```
 
 A janela de configuração permite editar a região, testar a captura com preview,
-salvar o perfil, pausar, retomar e fechar o app. O botão `Testar captura`
-salva a imagem em `captures\preview.png` e mostra o preview na própria janela.
+salvar o perfil, pausar, retomar e fechar o app. Ela também mostra o estado
+do loop de captura: `Rodando`, `Capturando`, `Pausado` ou `Erro`.
+O botão `Testar captura` salva a imagem em `captures\preview.png` e mostra o
+preview na própria janela.
 
 ## Arquitetura
 

@@ -8,6 +8,15 @@ from live_translator.domain.models import GameProfile
 
 
 class TickableCaptureLoop(Protocol):
+    @property
+    def is_paused(self) -> bool: ...
+
+    @property
+    def is_busy(self) -> bool: ...
+
+    @property
+    def last_error_message(self) -> str | None: ...
+
     def resume(self) -> None: ...
 
     def pause(self) -> None: ...
@@ -64,7 +73,7 @@ class QtUiApp:
         self._capture_preview = capture_preview
         self._timer = QTimer()
         self._timer.setInterval(settings.capture_interval_ms)
-        self._timer.timeout.connect(self._capture_loop.tick)
+        self._timer.timeout.connect(self._tick_capture_loop)
         self._app = QApplication.instance() or getattr(overlay, "app")
         self._window = SettingsWindow(capture_loop, profile_settings, capture_preview)
 
@@ -73,6 +82,10 @@ class QtUiApp:
         self._timer.start()
         self._window.show()
         return int(self._app.exec())
+
+    def _tick_capture_loop(self) -> None:
+        self._capture_loop.tick()
+        self._window.refresh_capture_status()
 
 
 class SettingsWindow:
@@ -101,7 +114,8 @@ class SettingsWindow:
         self._widget.setWindowTitle("RPG Live Translator")
         self._widget.setMinimumWidth(420)
 
-        self._status = QLabel("Rodando")
+        self._capture_status = QLabel("Rodando")
+        self._status = QLabel("")
         self._name = QLineEdit()
         self._window_title = QLineEdit()
         self._x = self._spinbox(-10000, 10000)
@@ -138,6 +152,7 @@ class SettingsWindow:
         buttons.addWidget(self._quit)
 
         layout = QVBoxLayout()
+        layout.addWidget(self._capture_status)
         layout.addWidget(self._status)
         layout.addLayout(form)
         layout.addWidget(self._preview)
@@ -155,6 +170,17 @@ class SettingsWindow:
 
     def show(self) -> None:
         self._widget.show()
+
+    def refresh_capture_status(self) -> None:
+        error_message = self._capture_loop.last_error_message
+        if error_message:
+            self._capture_status.setText(f"Erro: {error_message}")
+        elif self._capture_loop.is_paused:
+            self._capture_status.setText("Pausado")
+        elif self._capture_loop.is_busy:
+            self._capture_status.setText("Capturando")
+        else:
+            self._capture_status.setText("Rodando")
 
     def _spinbox(self, minimum: int, maximum: int):
         from PySide6.QtWidgets import QSpinBox
@@ -236,11 +262,11 @@ class SettingsWindow:
 
     def _pause_loop(self) -> None:
         self._capture_loop.pause()
-        self._status.setText("Pausado")
+        self.refresh_capture_status()
 
     def _resume_loop(self) -> None:
         self._capture_loop.resume()
-        self._status.setText("Rodando")
+        self.refresh_capture_status()
 
     def _close_event(self, event) -> None:
         from PySide6.QtWidgets import QApplication

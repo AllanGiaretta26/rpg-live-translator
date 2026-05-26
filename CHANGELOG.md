@@ -16,6 +16,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Utilitarios de imagem com hash perceptual, detector de mudanca e preprocessamento.
 - Overlay PySide6 e janela minima de configuracao.
 - Preview de captura na janela de configuracao, salvo em `captures/preview.png`.
+- Status operacional basico do loop de captura na janela de configuracao.
 - Scripts para criar perfil ativo e testar captura de regiao.
 - README inicial, relatorio V1 e guia de contribuicao `AGENTS.md`.
 - Suite de testes automatizados com `pytest`.

@@ -58,6 +58,7 @@ class CaptureLoopService:
         self._error_handler = error_handler or _default_error_handler
         self._paused = paused
         self._in_flight = False
+        self._last_error_message: str | None = None
         self._next_capture_at = 0.0
         self._state_lock = Lock()
 
@@ -71,6 +72,15 @@ class CaptureLoopService:
         with self._state_lock:
             return self._in_flight
 
+    @property
+    def last_error_message(self) -> str | None:
+        with self._state_lock:
+            return self._last_error_message
+
+    def clear_last_error(self) -> None:
+        with self._state_lock:
+            self._last_error_message = None
+
     def pause(self) -> None:
         with self._state_lock:
             self._paused = True
@@ -78,6 +88,7 @@ class CaptureLoopService:
     def resume(self) -> None:
         with self._state_lock:
             self._paused = False
+            self._last_error_message = None
 
     def tick(self) -> bool:
         with self._state_lock:
@@ -127,6 +138,9 @@ class CaptureLoopService:
                 self._in_flight = False
 
     def _report_error(self, error: Exception) -> None:
+        with self._state_lock:
+            self._last_error_message = str(error) or error.__class__.__name__
+
         try:
             self._error_handler(error)
         except Exception:  # pragma: no cover - defensive safety.
