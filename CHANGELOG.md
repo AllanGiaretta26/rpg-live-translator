@@ -19,6 +19,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Status operacional basico do loop de captura na janela de configuracao.
 - Diagnostico basico do pipeline: sem mudanca, sem texto, cache e traducao.
 - Seletor visual de regiao por arraste em overlay transparente.
+- Janela de calibracao guiada com abas para area do texto, overlay e execucao.
+- Overlay ajustavel por mouse, com posicao e tamanho salvos em `settings`.
 - Scripts para criar perfil ativo e testar captura de regiao.
 - README inicial, relatorio V1 e guia de contribuicao `AGENTS.md`.
 - Suite de testes automatizados com `pytest`.
@@ -29,6 +31,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Comandos de execucao e scripts agora usam o namespace `live_translator.*`.
 - O client Ollama passou a enviar `format=json` para reduzir respostas fora do contrato.
 - O overlay passou a atualizar via sinais Qt para evitar chamadas fora da thread principal.
+- O overlay deixou de recentralizar a cada traducao quando existe posicionamento salvo.
 - O pipeline passou a ignorar textos que parecem eco de prompt ou instrucoes internas.
 
 ### Known Issues

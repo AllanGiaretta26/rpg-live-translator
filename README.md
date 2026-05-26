@@ -10,7 +10,7 @@ O projeto já possui um MVP técnico com:
 - cache SQLite por texto e por imagem;
 - captura de tela com MSS;
 - integração com Ollama usando `gemma4:e4b`;
-- overlay PySide6 e janela de configurações com preview de captura;
+- overlay PySide6 com posição ajustável e janela de calibração guiada;
 - scripts de desenvolvimento para criar perfil e testar captura.
 
 ## Requisitos
@@ -33,7 +33,19 @@ Valide a instalação:
 .venv\Scripts\python.exe -m pytest
 ```
 
-## Configurar Região De Captura
+## Configurar Pelo App
+
+Abra o app e use as abas da janela de calibração:
+
+1. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
+   caixa de texto do jogo e confira o recorte em `Ver preview da area`.
+2. `Overlay`: clique em `Ajustar overlay`, arraste a tradução de teste para
+   mover e arraste o canto inferior direito para redimensionar.
+3. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
+
+Clique em `Salvar area` e `Salvar overlay` para manter os ajustes após reiniciar.
+
+## Configurar Região Por Script
 
 Crie ou atualize o perfil ativo:
 
@@ -63,16 +75,8 @@ Com terminal para depuração:
 .venv\Scripts\python.exe -m live_translator.app.main
 ```
 
-A janela de configuração permite editar a região, testar a captura com preview,
-selecionar a região visualmente, salvar o perfil, pausar, retomar e fechar o
-app. Ela também mostra o estado do loop de captura: `Rodando`, `Capturando`,
-`Pausado` ou `Erro`.
-O diagnóstico do pipeline indica o último resultado: `sem texto`,
-`cache imagem`, `cache texto`, `traduzindo` ou `traduzido`.
-O botão `Testar captura` salva a imagem em `captures\preview.png` e mostra o
-preview na própria janela.
-O botão `Selecionar regiao` abre uma camada transparente; arraste o retângulo
-da área de texto do jogo e depois use `Testar captura` para conferir.
+A janela separa a area capturada do overlay de traducao. Os numeros sao
+mantidos para ajuste fino, mas o fluxo principal e por mouse.
 
 ## Arquitetura
 

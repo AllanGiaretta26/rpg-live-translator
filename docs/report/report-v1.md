@@ -14,8 +14,8 @@ A primeira versao funcional do RPG Live Translator estabelece a base arquitetura
 - Integracao Ollama com timeout, tratamento de erro de conexao, `format=json` e validacao de JSON.
 - Utilitarios de imagem com hash perceptual, detector de mudanca e preprocessamento.
 - Captura MSS e detector Win32.
-- Overlay PySide6 com atualizacao por sinais Qt para evitar atualizacao fora da thread principal.
-- Janela de configuracao para editar perfil/regiao, pausar, retomar e fechar.
+- Overlay PySide6 com atualizacao por sinais Qt e posicao ajustavel por mouse.
+- Janela de calibracao guiada para selecionar area do texto, testar preview, ajustar overlay, pausar, retomar e fechar.
 - Scripts `live_translator.scripts.create_profile` e `live_translator.scripts.capture_region` para validacao manual.
 
 ## Validacao
@@ -29,7 +29,7 @@ Ambiente validado com:
 Resultado atual:
 
 ```txt
-39 passed
+52 passed
 ```
 
 Tambem foram validados:
@@ -50,7 +50,6 @@ Tambem foram validados:
 
 ## Pendencias E Riscos
 
-- A selecao de regiao ainda e manual por coordenadas.
 - O OCR via vision model pode hallucinar em imagens sem texto; filtros iniciais foram adicionados, mas ainda podem precisar de ajuste.
 - Ainda nao existe historico visual, diagnostico completo ou logs estruturados.
 - O overlay pode precisar de modos adicionais: lateral, legenda fixa ou click-through.
@@ -58,8 +57,8 @@ Tambem foram validados:
 
 ## Proximos Passos Recomendados
 
-1. Adicionar botao "Testar captura" na janela de configuracao.
-2. Mostrar status operacional: capturando, sem texto, traduzindo, cache hit e erro.
-3. Permitir selecao visual da regiao.
-4. Melhorar logs e diagnostico do Ollama.
+1. Validar a calibracao guiada em jogo real.
+2. Melhorar logs e diagnostico do Ollama.
+3. Adicionar modo click-through configuravel para o overlay.
+4. Avaliar captura relativa a janela quando o campo de titulo voltar a ser necessario.
 5. Criar build Windows empacotado quando o fluxo manual estiver estavel.
