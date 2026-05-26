@@ -39,3 +39,14 @@ def local_to_physical_point(
         screen.x + round(local_x * screen.scale),
         screen.y + round(local_y * screen.scale),
     )
+
+
+def global_to_physical_point(
+    global_x: int,
+    global_y: int,
+    screen: ScreenRect,
+) -> tuple[int, int]:
+    return (
+        screen.x + round((global_x - screen.x) * screen.scale),
+        screen.y + round((global_y - screen.y) * screen.scale),
+    )

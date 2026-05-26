@@ -6,7 +6,7 @@ from typing import Callable
 from live_translator.domain.models import TextRegion
 from live_translator.ui.screen_geometry import (
     ScreenRect,
-    local_to_physical_point,
+    global_to_physical_point,
     select_screen_for_point,
 )
 
@@ -137,15 +137,16 @@ class RegionSelectorWindow:
         self._current_local = self._start_local
         self._selecting = True
         self._instruction_text = "Arraste para cobrir a caixa de texto\nSolte para confirmar"
+        start_global = event.globalPosition().toPoint()
         if self._selected_screen is not None:
-            start_x, start_y = local_to_physical_point(
-                self._start_local.x(),
-                self._start_local.y(),
+            start_x, start_y = global_to_physical_point(
+                start_global.x(),
+                start_global.y(),
                 self._selected_screen,
             )
             self._start_global = QPoint(start_x, start_y)
         else:
-            self._start_global = event.globalPosition().toPoint()
+            self._start_global = start_global
         self._window.update()
         event.accept()
 
@@ -161,16 +162,17 @@ class RegionSelectorWindow:
         from PySide6.QtCore import QPoint
 
         end_local = event.position().toPoint()
+        end_global_position = event.globalPosition().toPoint()
         self._current_local = end_local
         if self._selected_screen is not None:
-            end_x, end_y = local_to_physical_point(
-                end_local.x(),
-                end_local.y(),
+            end_x, end_y = global_to_physical_point(
+                end_global_position.x(),
+                end_global_position.y(),
                 self._selected_screen,
             )
             end_global = QPoint(end_x, end_y)
         else:
-            end_global = event.globalPosition().toPoint()
+            end_global = end_global_position
         try:
             region = normalize_region(
                 self._start_global.x(),
