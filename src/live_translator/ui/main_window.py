@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from live_translator.domain.models import GameProfile
+from live_translator.domain.models import GameProfile, TextRegion
 
 
 class TickableCaptureLoop(Protocol):
@@ -145,6 +145,7 @@ class SettingsWindow:
         )
         self._preview.setScaledContents(False)
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._region_selector = None
 
         form = QFormLayout()
         form.addRow("Perfil", self._name)
@@ -155,6 +156,7 @@ class SettingsWindow:
         form.addRow("Altura", self._height)
 
         self._save = QPushButton("Salvar perfil")
+        self._select_region = QPushButton("Selecionar regiao")
         self._test_capture = QPushButton("Testar captura")
         self._pause = QPushButton("Pausar")
         self._resume = QPushButton("Retomar")
@@ -162,6 +164,7 @@ class SettingsWindow:
 
         buttons = QHBoxLayout()
         buttons.addWidget(self._save)
+        buttons.addWidget(self._select_region)
         buttons.addWidget(self._test_capture)
         buttons.addWidget(self._pause)
         buttons.addWidget(self._resume)
@@ -177,6 +180,7 @@ class SettingsWindow:
         self._widget.setLayout(layout)
 
         self._save.clicked.connect(self._save_profile)
+        self._select_region.clicked.connect(self._select_region_on_screen)
         self._test_capture.clicked.connect(self._capture_preview_image)
         self._pause.clicked.connect(self._pause_loop)
         self._resume.clicked.connect(self._resume_loop)
@@ -227,6 +231,23 @@ class SettingsWindow:
 
         self._show_preview(path)
         self._status.setText(f"Preview salvo: {path}")
+
+    def _select_region_on_screen(self) -> None:
+        from live_translator.ui.region_selector_window import RegionSelectorWindow
+
+        self._status.setText("Arraste na tela para selecionar a regiao.")
+        self._region_selector = RegionSelectorWindow(self._apply_selected_region)
+        self._region_selector.show()
+
+    def _apply_selected_region(self, region: TextRegion) -> None:
+        self._x.setValue(region.x)
+        self._y.setValue(region.y)
+        self._width.setValue(region.width)
+        self._height.setValue(region.height)
+        self._status.setText(
+            "Regiao selecionada: "
+            f"x={region.x} y={region.y} {region.width}x{region.height}"
+        )
 
     def _show_preview(self, path: Path) -> None:
         from PySide6.QtCore import Qt

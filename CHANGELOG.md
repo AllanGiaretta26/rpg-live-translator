@@ -18,6 +18,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Preview de captura na janela de configuracao, salvo em `captures/preview.png`.
 - Status operacional basico do loop de captura na janela de configuracao.
 - Diagnostico basico do pipeline: sem mudanca, sem texto, cache e traducao.
+- Seletor visual de regiao por arraste em overlay transparente.
 - Scripts para criar perfil ativo e testar captura de regiao.
 - README inicial, relatorio V1 e guia de contribuicao `AGENTS.md`.
 - Suite de testes automatizados com `pytest`.
@@ -32,6 +33,5 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Known Issues
 
-- A regiao de captura ainda precisa ser ajustada manualmente.
 - O modelo vision pode falhar ou hallucinar quando a imagem nao contem texto claro.
-- Ainda nao existe selecao visual de regiao nem build empacotado para Windows.
+- Ainda nao existe build empacotado para Windows.
