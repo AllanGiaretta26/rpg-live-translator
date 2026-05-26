@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from live_translator.domain.models import TextRegion
+from live_translator.ui.screen_geometry import ScreenRect, select_screen_for_point
 
 
 def normalize_region(
@@ -36,7 +37,6 @@ class RegionSelectorWindow:
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
-        self._window.setWindowState(Qt.WindowState.WindowFullScreen)
         self._window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._window.setCursor(Qt.CursorShape.CrossCursor)
         self._window.setStyleSheet("background-color: rgba(0, 0, 0, 45);")
@@ -71,6 +71,32 @@ class RegionSelectorWindow:
         self._window.keyPressEvent = self._key_press_event
 
     def show(self) -> None:
+        from PySide6.QtGui import QCursor, QGuiApplication
+
+        cursor_position = QCursor.pos()
+        screens = []
+        for screen in QGuiApplication.screens():
+            geometry = screen.geometry()
+            screens.append(
+                ScreenRect(
+                    x=geometry.x(),
+                    y=geometry.y(),
+                    width=geometry.width(),
+                    height=geometry.height(),
+                )
+            )
+
+        selected = select_screen_for_point(
+            cursor_position.x(),
+            cursor_position.y(),
+            tuple(screens),
+        )
+        self._window.setGeometry(
+            selected.x,
+            selected.y,
+            selected.width,
+            selected.height,
+        )
         self._window.show()
         self._window.raise_()
         self._window.activateWindow()
