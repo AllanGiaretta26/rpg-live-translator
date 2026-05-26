@@ -62,3 +62,27 @@ class GameProfile:
             raise ValueError("name must not be blank")
         if not self.window_title.strip():
             raise ValueError("window_title must not be blank")
+
+
+@dataclass(frozen=True)
+class OverlayPlacement:
+    x: int
+    y: int
+    width: int
+    height: int
+    opacity: float = 0.85
+    font_size: int = 24
+
+    def __post_init__(self) -> None:
+        if self.x < 0:
+            raise ValueError("x must be zero or greater")
+        if self.y < 0:
+            raise ValueError("y must be zero or greater")
+        if self.width <= 0:
+            raise ValueError("width must be greater than zero")
+        if self.height <= 0:
+            raise ValueError("height must be greater than zero")
+        if not 0.0 < self.opacity <= 1.0:
+            raise ValueError("opacity must be greater than zero and at most one")
+        if self.font_size <= 0:
+            raise ValueError("font_size must be greater than zero")
