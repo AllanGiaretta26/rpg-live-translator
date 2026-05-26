@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
+from live_translator.application.geometry import rectangles_overlap
 from live_translator.domain.models import GameProfile, OverlayPlacement, TextRegion
 
 
@@ -161,6 +162,17 @@ class SettingsWindow:
         self._capture_status = QLabel("Rodando")
         self._pipeline_status = QLabel("Pipeline: aguardando")
         self._status = QLabel("")
+        self._overlap_warning = QLabel("")
+        self._overlap_warning.setWordWrap(True)
+        self._overlap_warning.setStyleSheet(
+            "QLabel {"
+            "color: #ffd166;"
+            "background-color: rgba(80, 45, 0, 120);"
+            "border: 1px solid #b7791f;"
+            "padding: 8px;"
+            "}"
+        )
+        self._overlap_warning.hide()
 
         self._name = QLineEdit()
         self._x = self._spinbox(-10000, 10000)
@@ -201,6 +213,7 @@ class SettingsWindow:
 
         layout = QVBoxLayout()
         layout.addWidget(tabs)
+        layout.addWidget(self._overlap_warning)
         layout.addWidget(self._status)
         self._widget.setLayout(layout)
 
@@ -213,6 +226,17 @@ class SettingsWindow:
         self._resume.clicked.connect(self._resume_loop)
         self._quit.clicked.connect(self._widget.close)
         self._widget.closeEvent = self._close_event
+        for widget in (
+            self._x,
+            self._y,
+            self._width,
+            self._height,
+            self._overlay_x,
+            self._overlay_y,
+            self._overlay_width,
+            self._overlay_height,
+        ):
+            widget.valueChanged.connect(self._refresh_overlap_warning)
 
         self._load_active_profile()
         self._load_overlay_placement()
@@ -332,6 +356,7 @@ class SettingsWindow:
             "Area selecionada: "
             f"x={region.x} y={region.y} {region.width}x{region.height}"
         )
+        self._refresh_overlap_warning()
         self._capture_preview_image()
 
     def _start_overlay_adjustment(self) -> None:
@@ -340,7 +365,7 @@ class SettingsWindow:
         self._overlay.show_calibration_text()
         self._overlay.set_edit_mode(True, self._sync_overlay_fields)
         self._status.setText(
-            "Arraste o overlay para mover. Arraste o canto inferior direito para redimensionar."
+            "Arraste o overlay para mover. Arraste bordas ou cantos para redimensionar."
         )
 
     def _save_overlay_placement(self) -> None:
@@ -369,6 +394,15 @@ class SettingsWindow:
         self._overlay_opacity.setValue(placement.opacity)
         for widget in widgets:
             widget.blockSignals(False)
+        self._refresh_overlap_warning()
+
+    def _text_region_from_fields(self) -> TextRegion:
+        return TextRegion(
+            x=self._x.value(),
+            y=self._y.value(),
+            width=self._width.value(),
+            height=self._height.value(),
+        )
 
     def _placement_from_fields(self) -> OverlayPlacement:
         return OverlayPlacement(
@@ -379,6 +413,24 @@ class SettingsWindow:
             opacity=self._overlay_opacity.value(),
             font_size=self._overlay_font_size.value(),
         )
+
+    def _refresh_overlap_warning(self, *_unused: object) -> None:
+        try:
+            region = self._text_region_from_fields()
+            placement = self._placement_from_fields()
+        except ValueError:
+            self._overlap_warning.hide()
+            return
+
+        if rectangles_overlap(region, placement):
+            self._overlap_warning.setText(
+                "O overlay esta sobre a area capturada. "
+                "Isso pode fazer o OCR ler a traducao em vez do texto do jogo."
+            )
+            self._overlap_warning.show()
+            return
+
+        self._overlap_warning.hide()
 
     def _show_preview(self, path: Path) -> None:
         from PySide6.QtCore import Qt
@@ -406,6 +458,7 @@ class SettingsWindow:
             self._width.setValue(2048)
             self._height.setValue(360)
             self._status.setText("Selecione a area do texto ou ajuste os numeros.")
+            self._refresh_overlap_warning()
             return
 
         self._name.setText(profile.name)
@@ -413,11 +466,13 @@ class SettingsWindow:
         self._y.setValue(profile.text_region.y)
         self._width.setValue(profile.text_region.width)
         self._height.setValue(profile.text_region.height)
+        self._refresh_overlap_warning()
 
     def _load_overlay_placement(self) -> None:
         placement = self._overlay_settings.get_placement()
         self._overlay.apply_placement(placement)
         self._sync_overlay_fields(placement)
+        self._refresh_overlap_warning()
 
     def _save_profile(self) -> None:
         try:
