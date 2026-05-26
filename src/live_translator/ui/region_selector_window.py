@@ -25,7 +25,7 @@ class RegionSelectorWindow:
 
     def __post_init__(self) -> None:
         from PySide6.QtCore import QPoint, Qt
-        from PySide6.QtWidgets import QRubberBand, QWidget
+        from PySide6.QtWidgets import QLabel, QRubberBand, QVBoxLayout, QWidget
 
         self._start_global = QPoint()
         self._start_local = QPoint()
@@ -39,8 +39,31 @@ class RegionSelectorWindow:
         self._window.setWindowState(Qt.WindowState.WindowFullScreen)
         self._window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._window.setCursor(Qt.CursorShape.CrossCursor)
-        self._window.setStyleSheet("background-color: rgba(0, 0, 0, 90);")
+        self._window.setStyleSheet("background-color: rgba(0, 0, 0, 45);")
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self._window)
+        self._rubber_band.setStyleSheet(
+            "border: 3px solid #39ff88; background-color: rgba(57, 255, 136, 35);"
+        )
+
+        self._instruction = QLabel(
+            "Arraste sobre a caixa de texto do jogo\nESC cancela",
+            self._window,
+        )
+        self._instruction.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._instruction.setStyleSheet(
+            "QLabel {"
+            "background-color: rgba(0, 0, 0, 180);"
+            "color: white;"
+            "font-size: 24px;"
+            "padding: 18px;"
+            "border-radius: 8px;"
+            "}"
+        )
+        layout = QVBoxLayout()
+        layout.addStretch(1)
+        layout.addWidget(self._instruction, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addStretch(2)
+        self._window.setLayout(layout)
 
         self._window.mousePressEvent = self._mouse_press_event
         self._window.mouseMoveEvent = self._mouse_move_event
@@ -57,6 +80,7 @@ class RegionSelectorWindow:
 
         self._start_global = event.globalPosition().toPoint()
         self._start_local = event.position().toPoint()
+        self._instruction.hide()
         self._rubber_band.setGeometry(QRect(self._start_local, self._start_local))
         self._rubber_band.show()
 

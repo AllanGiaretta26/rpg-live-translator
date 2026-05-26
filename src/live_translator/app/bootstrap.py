@@ -5,9 +5,11 @@ from typing import Callable, Protocol
 
 from live_translator.application.capture_loop_service import CaptureLoopService
 from live_translator.application.capture_preview_service import CapturePreviewService
+from live_translator.application.overlay_settings_service import OverlaySettingsService
 from live_translator.application.profile_settings_service import ProfileSettingsService
 from live_translator.application.translation_pipeline_service import TranslationPipelineService
 from live_translator.config.settings import AppSettings
+from live_translator.domain.models import OverlayPlacement
 from live_translator.infrastructure.image.image_change_detector import ImageChangeDetector
 from live_translator.infrastructure.image.image_hasher import ImageHasher
 from live_translator.infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
@@ -50,12 +52,14 @@ class ConsoleUiApp:
         profile_settings: object | None = None,
         capture_preview: object | None = None,
         pipeline_diagnostics: object | None = None,
+        overlay_settings: object | None = None,
     ) -> None:
         self._overlay = overlay
         self._capture_loop = capture_loop
         self._profile_settings = profile_settings
         self._capture_preview = capture_preview
         self._pipeline_diagnostics = pipeline_diagnostics
+        self._overlay_settings = overlay_settings
 
     def run(self) -> int:
         self._overlay.show_text("Live Translator pronto.")
@@ -77,6 +81,7 @@ class AppRuntime:
     image_cache_repository: SQLiteImageCacheRepository
     profile_settings_service: ProfileSettingsService
     capture_preview_service: CapturePreviewService
+    overlay_settings_service: OverlaySettingsService
     ollama_client: OllamaClient
     capture_service: object
     pipeline: TranslationPipelineService
@@ -102,6 +107,7 @@ def bootstrap(
             ProfileSettingsService,
             CapturePreviewService,
             TranslationPipelineService,
+            OverlaySettingsService,
         ],
         UiApp,
     ]
@@ -130,6 +136,11 @@ def bootstrap(
     image_hasher = ImageHasher()
     change_detector = ImageChangeDetector()
     overlay = (overlay_factory or _create_overlay)()
+    overlay_settings_service = OverlaySettingsService(
+        settings_repository,
+        _default_overlay_placement(overlay),
+    )
+    _apply_overlay_placement(overlay, overlay_settings_service.get_placement())
     pipeline = TranslationPipelineService(
         text_extractor=OllamaVisionTextExtractor(
             ollama_client,
@@ -158,6 +169,7 @@ def bootstrap(
         profile_settings_service,
         capture_preview_service,
         pipeline,
+        overlay_settings_service,
     )
 
     return AppRuntime(
@@ -169,6 +181,7 @@ def bootstrap(
         image_cache_repository=image_cache_repository,
         profile_settings_service=profile_settings_service,
         capture_preview_service=capture_preview_service,
+        overlay_settings_service=overlay_settings_service,
         ollama_client=ollama_client,
         capture_service=capture_service,
         pipeline=pipeline,
@@ -203,6 +216,7 @@ def _create_ui(
     profile_settings: ProfileSettingsService,
     capture_preview: CapturePreviewService,
     pipeline_diagnostics: TranslationPipelineService,
+    overlay_settings: OverlaySettingsService,
 ) -> UiApp:
     try:
         from live_translator.ui.main_window import QtUiApp, QtUiSettings
@@ -213,6 +227,7 @@ def _create_ui(
             profile_settings,
             capture_preview,
             pipeline_diagnostics,
+            overlay_settings,
             QtUiSettings(),
         )
     except ImportError:
@@ -222,4 +237,18 @@ def _create_ui(
             profile_settings,
             capture_preview,
             pipeline_diagnostics,
+            overlay_settings,
         )
+
+
+def _default_overlay_placement(overlay: Overlay) -> OverlayPlacement:
+    current_placement = getattr(overlay, "current_placement", None)
+    if callable(current_placement):
+        return current_placement()
+    return OverlayPlacement(x=0, y=0, width=900, height=120)
+
+
+def _apply_overlay_placement(overlay: Overlay, placement: OverlayPlacement) -> None:
+    apply_placement = getattr(overlay, "apply_placement", None)
+    if callable(apply_placement):
+        apply_placement(placement)
