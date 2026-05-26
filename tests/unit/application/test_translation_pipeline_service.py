@@ -66,6 +66,14 @@ class FakeTranslator:
 
 
 @dataclass
+class FailingTranslator:
+    message: str = "translated_text is empty"
+
+    def translate(self, text: str, context: list[str]) -> TranslationResult:
+        raise ValueError(self.message)
+
+
+@dataclass
 class FakeOverlay:
     shown: list[str] = field(default_factory=list)
     hidden: int = 0
@@ -195,3 +203,15 @@ def test_unchanged_image_records_diagnostic_without_processing():
     assert extractor.calls == 0
     assert parts["overlay"].shown == []
     assert pipeline.last_diagnostic == "sem mudanca"
+
+
+def test_translation_failure_records_clear_diagnostic_and_does_not_update_overlay():
+    pipeline, parts = build_pipeline(translator=FailingTranslator())
+
+    try:
+        pipeline.process_frame(object())
+    except ValueError:
+        pass
+
+    assert pipeline.last_diagnostic == "traducao falhou: translated_text is empty"
+    assert parts["overlay"].shown == []
