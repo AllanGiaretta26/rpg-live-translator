@@ -991,6 +991,24 @@ Menor latência em textos simples.
 
 ## Fase 7 — Suporte específico a RPG Maker
 
+Objetivo da fase:
+
+```txt
+reduzir dependencia de OCR
+preencher cache com textos limpos do jogo
+melhorar consistencia de traducao
+manter o jogo original sem modificacoes
+```
+
+Escopo inicial recomendado:
+
+```txt
+RPG Maker MV/MZ primeiro
+somente leitura dos arquivos do jogo
+sem patchar ou sobrescrever arquivos
+OCR/vision continua como fallback
+```
+
 ### 7.1 Detector de versão
 
 Entregáveis:
@@ -998,6 +1016,8 @@ Entregáveis:
 ```txt
 detectar RPG Maker MV/MZ
 detectar VX/VX Ace quando possível
+localizar pasta data ou www/data
+validar JSONs conhecidos: System.json, MapInfos.json, CommonEvents.json
 ```
 
 ### 7.2 Leitor MV/MZ
@@ -1009,6 +1029,32 @@ ler arquivos JSON
 extrair eventos
 extrair diálogos
 extrair nomes de personagens
+extrair escolhas e texto rolante
+preservar origem: arquivo, mapa, evento, pagina, indice do comando
+```
+
+Comandos de evento prioritarios em MV/MZ:
+
+```txt
+101 inicio de mensagem
+401 linha de mensagem
+102 escolhas
+402 ramo de escolha
+405 texto rolante
+```
+
+Arquivos prioritarios:
+
+```txt
+MapXXX.json
+CommonEvents.json
+System.json
+Actors.json
+Items.json
+Skills.json
+Weapons.json
+Armors.json
+Enemies.json
 ```
 
 ### 7.3 Pré-cache
@@ -1019,6 +1065,7 @@ Entregáveis:
 traduzir textos conhecidos previamente
 salvar no cache
 usar OCR apenas para localizar texto atual
+casar texto OCR com texto extraido por normalizacao/fuzzy matching simples
 ```
 
 Critério de pronto:
@@ -1302,6 +1349,26 @@ O MVP estará pronto quando:
 6. O usuário consegue pausar e retomar.
 ```
 
+### Status em 2026-05-27
+
+O MVP esta funcionalmente concluido para o fluxo externo por captura de tela:
+
+```txt
+regiao selecionavel
+captura MSS
+OCR/vision via Ollama
+traducao PT-BR
+overlay ajustavel
+cache por imagem e texto
+pausa/retomada
+diagnostico de pipeline e tempo
+```
+
+Validacoes manuais indicaram melhora de latencia apos desligar contexto recente
+por padrao e resolucao aparente da contaminacao de falas anteriores. O projeto
+deve entrar em fase de estabilizacao e evolucao especifica, em vez de expandir o
+MVP com novas features grandes.
+
 Não precisa ter ainda:
 
 ```txt
@@ -1312,6 +1379,9 @@ tradução em lote
 suporte Linux
 UI bonita
 ```
+
+O proximo eixo tecnico recomendado e suporte especifico a RPG Maker MV/MZ por
+leitura dos arquivos do jogo, mantendo OCR/vision como fallback.
 
 ---
 

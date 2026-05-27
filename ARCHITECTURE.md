@@ -645,6 +645,71 @@ translated_text
 
 ---
 
+## 14.1 Suporte RPG Maker MV/MZ
+
+Depois do MVP por captura de tela, a principal evolucao arquitetural e adicionar
+leitura externa de dados RPG Maker MV/MZ. Essa leitura deve complementar o
+pipeline atual, nao substituir OCR/vision imediatamente.
+
+Fluxo recomendado:
+
+```txt
+Usuario aponta pasta do jogo
+    ↓
+Detector identifica MV/MZ por www/data ou data
+    ↓
+Leitor extrai textos de JSONs conhecidos
+    ↓
+Textos entram em catalogo local e/ou cache SQLite
+    ↓
+Runtime usa OCR para identificar a fala atual
+    ↓
+Pipeline busca traducao conhecida antes de chamar o modelo
+    ↓
+Fallback continua sendo OCR/vision + traducao
+```
+
+Responsabilidades por camada:
+
+```txt
+domain
+  modelos para texto extraido, origem do texto e versao RPG Maker
+  regras puras de normalizacao/matching
+
+application
+  servico de importacao/pre-cache
+  orquestracao entre catalogo, cache e pipeline
+
+infrastructure/rpgmaker
+  detector de pasta MV/MZ
+  parser de JSONs MapXXX, CommonEvents, System e bancos de dados
+
+ui
+  selecao da pasta do jogo
+  status da importacao
+```
+
+Escopo inicial MV/MZ:
+
+```txt
+MapXXX.json
+CommonEvents.json
+comandos 101, 401, 102, 402 e 405
+preservar origem: arquivo, mapa, evento, pagina e indice do comando
+somente leitura; nao modificar arquivos do jogo
+```
+
+Limites conhecidos:
+
+```txt
+plugins podem montar texto por script
+variaveis e codigos de controle precisam ser preservados
+textos em imagem continuam dependendo de OCR
+jogos empacotados ou criptografados podem exigir fallback
+```
+
+---
+
 ## 15. Banco de dados SQLite
 
 Schema inicial:

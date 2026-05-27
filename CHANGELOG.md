@@ -9,6 +9,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Aviso na UI quando o overlay cruza a area capturada pelo OCR.
 - Helpers testaveis para sobreposicao de retangulos, geometria de overlay e selecao de monitor.
 - Testes unitarios para redimensionamento do overlay, selecao de tela e validacao do tradutor Ollama.
+- Relatorio V5 sobre fechamento do MVP e proxima evolucao RPG Maker MV/MZ.
 
 ### Changed
 
@@ -18,7 +19,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Prompt de traducao agora separa contexto recente do texto atual para reduzir vazamento de falas anteriores.
 - Pipeline de traducao agora desliga o contexto recente por padrao para evitar contaminacao do output.
 - Prompt de traducao omite o bloco de contexto quando nao ha contexto enviado, reduzindo a chamada ao modelo.
+- Painel de status agora mostra tempo total, OCR, traducao e caminho do ultimo frame processado.
 - Diagnostico do pipeline diferencia falha de traducao de erro generico.
+- Documentacao atualizada para marcar o MVP de captura como funcionalmente concluido e detalhar o suporte futuro a RPG Maker MV/MZ.
 
 ### Fixed
 

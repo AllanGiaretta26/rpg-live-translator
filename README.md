@@ -4,7 +4,9 @@ Aplicativo desktop em Python para traduzir, em tempo real, textos exibidos em jo
 
 ## Estado Atual
 
-O projeto já possui um MVP técnico com:
+O projeto possui um MVP funcional de traducao em tempo real por captura de tela.
+O fluxo principal ja cobre calibracao, captura, OCR/vision, traducao, cache,
+overlay, pausa/retomada e diagnostico basico de tempo.
 
 - arquitetura em camadas dentro de `src/live_translator/`;
 - cache SQLite por texto e por imagem;
@@ -12,8 +14,13 @@ O projeto já possui um MVP técnico com:
 - integração com Ollama usando `gemma4:e4b`;
 - overlay PySide6 com posição ajustável e janela de calibração guiada;
 - seletor fullscreen de area de texto com preview de captura e ajuste para DPI;
-- prompt de traducao separado por contexto/texto atual para reduzir vazamento de falas anteriores;
+- contexto recente desligado por padrao para evitar vazamento de falas anteriores;
+- painel de status com tempo total, OCR, traducao e caminho do ultimo frame;
 - scripts de desenvolvimento para criar perfil e testar captura.
+
+O proximo eixo de evolucao e suporte especifico a RPG Maker MV/MZ: ler arquivos
+JSON do jogo, extrair textos conhecidos e preencher o cache antes ou durante a
+execucao para reduzir dependencia de OCR e melhorar consistencia.
 
 ## Requisitos
 
@@ -46,6 +53,8 @@ Abra o app e use as abas da janela de calibração:
    mover e arraste bordas ou cantos para redimensionar. Mantenha o overlay
    fora da area capturada para evitar que o OCR leia a traducao em vez do jogo.
 3. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
+   A linha `Tempo` mostra o ultimo frame processado, por exemplo:
+   `total 3.40s | ocr 1.42s | traducao 1.36s | cache miss`.
 
 Clique em `Salvar area` e `Salvar overlay` para manter os ajustes após reiniciar.
 
@@ -86,6 +95,24 @@ mouse.
 Se a traducao parecer repetir falas antigas, verifique primeiro se o preview
 contem apenas a caixa de texto atual e se o overlay nao esta dentro da area
 capturada.
+
+## Proxima Evolucao: RPG Maker MV/MZ
+
+O MVP atual nao modifica arquivos do jogo. A proxima fase tambem deve comecar
+somente com leitura externa dos dados do jogo.
+
+RPG Maker MV/MZ normalmente armazena dialogos e comandos em JSON, principalmente
+em `www/data/` ou `data/`. O primeiro alvo deve ser:
+
+- detectar uma pasta MV/MZ valida;
+- ler `MapXXX.json` e `CommonEvents.json`;
+- extrair comandos de mensagem, escolhas e texto rolante;
+- salvar textos extraidos em uma estrutura rastreavel por arquivo, mapa, evento
+  e ordem;
+- usar esses textos para pre-cache de traducoes e matching com o OCR em runtime.
+
+Isso deve reduzir latencia percebida, evitar erros de OCR em textos conhecidos e
+melhorar consistencia entre falas repetidas.
 
 ## Arquitetura
 

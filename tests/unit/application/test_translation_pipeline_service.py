@@ -7,6 +7,17 @@ from live_translator.domain.models import ExtractedText, TranslationResult
 
 
 @dataclass
+class StepClock:
+    current: float = 0.0
+    step: float = 1.0
+
+    def __call__(self) -> float:
+        value = self.current
+        self.current += self.step
+        return value
+
+
+@dataclass
 class FakeChangeDetector:
     changed: bool = True
 
@@ -107,6 +118,7 @@ def test_cache_by_image_avoids_ocr_and_translation():
         image_cache=FakeImageCache(result=cached),
         text_extractor=extractor,
         translator=translator,
+        clock=StepClock(step=0.25),
     )
 
     pipeline.process_frame(object())
@@ -115,6 +127,7 @@ def test_cache_by_image_avoids_ocr_and_translation():
     assert translator.calls == []
     assert parts["overlay"].shown == ["Ola"]
     assert pipeline.last_diagnostic == "cache imagem"
+    assert pipeline.last_timing_summary == "total 0.25s | cache imagem"
 
 
 def test_cache_by_text_avoids_translation_and_saves_image_cache():
@@ -125,6 +138,7 @@ def test_cache_by_text_avoids_translation_and_saves_image_cache():
         translation_cache=FakeTranslationCache(result=cached),
         image_cache=image_cache,
         translator=translator,
+        clock=StepClock(step=1.0),
     )
 
     pipeline.process_frame(object())
@@ -133,6 +147,7 @@ def test_cache_by_text_avoids_translation_and_saves_image_cache():
     assert image_cache.saved == [("image-hash", cached)]
     assert parts["overlay"].shown == ["Ola"]
     assert pipeline.last_diagnostic == "cache texto"
+    assert pipeline.last_timing_summary == "total 3.00s | ocr 1.00s | cache texto"
 
 
 def test_empty_text_does_not_update_overlay_or_translate():
@@ -177,6 +192,7 @@ def test_cache_miss_translates_saves_without_context():
         translator=translator,
         translation_cache=translation_cache,
         image_cache=image_cache,
+        clock=StepClock(step=1.0),
     )
 
     for index in range(6):
@@ -188,6 +204,10 @@ def test_cache_miss_translates_saves_without_context():
     assert [call[1] for call in translator.calls] == [() for _ in range(6)]
     assert pipeline.context == ()
     assert pipeline.last_diagnostic == "traduzido"
+    assert (
+        pipeline.last_timing_summary
+        == "total 5.00s | ocr 1.00s | traducao 1.00s | cache miss"
+    )
     assert len(translation_cache.saved) == 6
     assert len(image_cache.saved) == 6
 
@@ -197,6 +217,7 @@ def test_unchanged_image_records_diagnostic_without_processing():
     pipeline, parts = build_pipeline(
         change_detector=FakeChangeDetector(changed=False),
         text_extractor=extractor,
+        clock=StepClock(step=0.5),
     )
 
     pipeline.process_frame(object())
@@ -204,10 +225,14 @@ def test_unchanged_image_records_diagnostic_without_processing():
     assert extractor.calls == 0
     assert parts["overlay"].shown == []
     assert pipeline.last_diagnostic == "sem mudanca"
+    assert pipeline.last_timing_summary == "total 0.50s | sem mudanca"
 
 
 def test_translation_failure_records_clear_diagnostic_and_does_not_update_overlay():
-    pipeline, parts = build_pipeline(translator=FailingTranslator())
+    pipeline, parts = build_pipeline(
+        translator=FailingTranslator(),
+        clock=StepClock(step=1.0),
+    )
 
     try:
         pipeline.process_frame(object())
@@ -215,4 +240,8 @@ def test_translation_failure_records_clear_diagnostic_and_does_not_update_overla
         pass
 
     assert pipeline.last_diagnostic == "traducao falhou: translated_text is empty"
+    assert (
+        pipeline.last_timing_summary
+        == "total 5.00s | ocr 1.00s | traducao 1.00s | erro"
+    )
     assert parts["overlay"].shown == []

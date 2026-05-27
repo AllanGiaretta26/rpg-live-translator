@@ -55,6 +55,9 @@ class PipelineDiagnostics(Protocol):
     @property
     def last_diagnostic(self) -> str | None: ...
 
+    @property
+    def last_timing_summary(self) -> str | None: ...
+
 
 class OverlaySettings(Protocol):
     def get_placement(self) -> OverlayPlacement: ...
@@ -161,6 +164,8 @@ class SettingsWindow:
 
         self._capture_status = QLabel("Rodando")
         self._pipeline_status = QLabel("Pipeline: aguardando")
+        self._pipeline_timing = QLabel("Tempo: aguardando")
+        self._pipeline_timing.setWordWrap(True)
         self._status = QLabel("")
         self._overlap_warning = QLabel("")
         self._overlap_warning.setWordWrap(True)
@@ -262,6 +267,12 @@ class SettingsWindow:
         else:
             self._pipeline_status.setText("Pipeline: aguardando")
 
+        timing_summary = self._pipeline_diagnostics.last_timing_summary
+        if timing_summary:
+            self._pipeline_timing.setText(f"Tempo: {timing_summary}")
+        else:
+            self._pipeline_timing.setText("Tempo: aguardando")
+
     def _build_capture_tab(self, form_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
         form = form_cls()
@@ -301,6 +312,7 @@ class SettingsWindow:
         status_layout = vbox_cls()
         status_layout.addWidget(self._capture_status)
         status_layout.addWidget(self._pipeline_status)
+        status_layout.addWidget(self._pipeline_timing)
         status_group.setLayout(status_layout)
         buttons = hbox_cls()
         buttons.addWidget(self._pause)
