@@ -6,7 +6,7 @@ from typing import Callable
 from live_translator.domain.models import TextRegion
 from live_translator.ui.screen_geometry import (
     ScreenRect,
-    global_to_physical_point,
+    local_to_physical_point,
     select_screen_for_point,
 )
 
@@ -22,6 +22,31 @@ def normalize_region(
     width = abs(end_x - start_x)
     height = abs(end_y - start_y)
     return TextRegion(x=left, y=top, width=width, height=height)
+
+
+def region_from_local_points(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    screen: ScreenRect,
+) -> TextRegion:
+    start_physical_x, start_physical_y = local_to_physical_point(
+        start_x,
+        start_y,
+        screen,
+    )
+    end_physical_x, end_physical_y = local_to_physical_point(
+        end_x,
+        end_y,
+        screen,
+    )
+    return normalize_region(
+        start_physical_x,
+        start_physical_y,
+        end_physical_x,
+        end_physical_y,
+    )
 
 
 @dataclass
@@ -73,7 +98,6 @@ class RegionSelectorWindow:
                 painter.setPen(QPen(QColor(57, 255, 136), 3))
                 painter.drawRect(selection_rect)
 
-        self._start_global = QPoint()
         self._start_local = QPoint()
         self._current_local = QPoint()
         self._selected_screen: ScreenRect | None = None
@@ -137,16 +161,6 @@ class RegionSelectorWindow:
         self._current_local = self._start_local
         self._selecting = True
         self._instruction_text = "Arraste para cobrir a caixa de texto\nSolte para confirmar"
-        start_global = event.globalPosition().toPoint()
-        if self._selected_screen is not None:
-            start_x, start_y = global_to_physical_point(
-                start_global.x(),
-                start_global.y(),
-                self._selected_screen,
-            )
-            self._start_global = QPoint(start_x, start_y)
-        else:
-            self._start_global = start_global
         self._window.update()
         event.accept()
 
@@ -159,27 +173,24 @@ class RegionSelectorWindow:
         event.accept()
 
     def _mouse_release_event(self, event) -> None:
-        from PySide6.QtCore import QPoint
-
         end_local = event.position().toPoint()
-        end_global_position = event.globalPosition().toPoint()
         self._current_local = end_local
-        if self._selected_screen is not None:
-            end_x, end_y = global_to_physical_point(
-                end_global_position.x(),
-                end_global_position.y(),
-                self._selected_screen,
-            )
-            end_global = QPoint(end_x, end_y)
-        else:
-            end_global = end_global_position
         try:
-            region = normalize_region(
-                self._start_global.x(),
-                self._start_global.y(),
-                end_global.x(),
-                end_global.y(),
-            )
+            if self._selected_screen is None:
+                region = normalize_region(
+                    self._start_local.x(),
+                    self._start_local.y(),
+                    end_local.x(),
+                    end_local.y(),
+                )
+            else:
+                region = region_from_local_points(
+                    self._start_local.x(),
+                    self._start_local.y(),
+                    end_local.x(),
+                    end_local.y(),
+                    self._selected_screen,
+                )
         except ValueError:
             self._selecting = False
             self._instruction_text = (
