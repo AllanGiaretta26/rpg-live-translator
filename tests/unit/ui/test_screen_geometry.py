@@ -2,6 +2,7 @@ import pytest
 
 from live_translator.ui.screen_geometry import (
     ScreenRect,
+    global_to_physical_point,
     local_to_physical_point,
     select_screen_for_point,
 )
@@ -34,3 +35,9 @@ def test_converts_local_point_to_physical_coordinates():
     screen = ScreenRect(x=100, y=200, width=1920, height=1080, scale=1.5)
 
     assert local_to_physical_point(20, 40, screen) == (130, 260)
+
+
+def test_converts_global_point_to_physical_coordinates():
+    screen = ScreenRect(x=100, y=200, width=1920, height=1080, scale=1.5)
+
+    assert global_to_physical_point(120, 240, screen) == (130, 260)
