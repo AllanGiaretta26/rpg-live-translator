@@ -23,14 +23,19 @@ def build_translation_prompt(
     context: Sequence[str] = (),
     target_language: str = "pt-BR",
 ) -> str:
-    context_text = "\n".join(context[-5:])
+    context_text = "\n".join(item for item in context[-5:] if item.strip())
+    context_section = ""
+    if context_text:
+        context_section = (
+            "Use o contexto apenas para escolher sentido, pronomes e tom.\n"
+            "Nao traduza, copie ou inclua nenhuma linha do contexto na resposta.\n"
+            f"<context_only_do_not_translate>\n{context_text}\n"
+            "</context_only_do_not_translate>\n"
+        )
     return (
         "Voce e um tradutor de dialogos de RPG para portugues brasileiro.\n"
         f"Idioma destino: {target_language}.\n"
-        "Use o contexto apenas para escolher sentido, pronomes e tom.\n"
-        "Nao traduza, copie ou inclua nenhuma linha do contexto na resposta.\n"
-        f"<context_only_do_not_translate>\n{context_text}\n"
-        "</context_only_do_not_translate>\n"
+        f"{context_section}"
         f"<text_to_translate>\n{text}\n"
         "</text_to_translate>\n"
         "Preserve nomes proprios. Nao explique.\n"

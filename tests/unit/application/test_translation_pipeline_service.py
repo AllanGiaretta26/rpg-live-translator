@@ -167,7 +167,7 @@ def test_prompt_like_text_does_not_update_overlay_or_translate():
     assert pipeline.last_diagnostic == "sem texto"
 
 
-def test_cache_miss_translates_saves_and_keeps_last_five_context_items():
+def test_cache_miss_translates_saves_without_context():
     translator = FakeTranslator()
     translation_cache = FakeTranslationCache()
     image_cache = FakeImageCache()
@@ -185,7 +185,8 @@ def test_cache_miss_translates_saves_and_keeps_last_five_context_items():
         pipeline.process_frame(object())
 
     assert [call[0] for call in translator.calls] == [f"Line {i}" for i in range(6)]
-    assert pipeline.context == ("Line 1", "Line 2", "Line 3", "Line 4", "Line 5")
+    assert [call[1] for call in translator.calls] == [() for _ in range(6)]
+    assert pipeline.context == ()
     assert pipeline.last_diagnostic == "traduzido"
     assert len(translation_cache.saved) == 6
     assert len(image_cache.saved) == 6

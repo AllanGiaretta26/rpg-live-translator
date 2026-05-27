@@ -25,6 +25,13 @@ def test_translation_prompt_includes_text_context_and_expected_json():
     assert "source_text" not in prompt
 
 
+def test_translation_prompt_omits_context_block_when_context_is_empty():
+    prompt = build_translation_prompt("Hello", [], "pt-BR")
+
+    assert "<context_only_do_not_translate>" not in prompt
+    assert "Use o contexto apenas" not in prompt
+
+
 def test_translation_prompt_requires_complete_translation_without_summary():
     prompt = build_translation_prompt("Line one.\nLine two.", [], "pt-BR")
 

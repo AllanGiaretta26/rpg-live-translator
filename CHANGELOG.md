@@ -16,6 +16,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Seletor de area agora escolhe o monitor pelo cursor e usa geometria explicita da tela.
 - Prompt de traducao reforca traducao completa, sem resumo ou omissao de frases.
 - Prompt de traducao agora separa contexto recente do texto atual para reduzir vazamento de falas anteriores.
+- Pipeline de traducao agora desliga o contexto recente por padrao para evitar contaminacao do output.
+- Prompt de traducao omite o bloco de contexto quando nao ha contexto enviado, reduzindo a chamada ao modelo.
 - Diagnostico do pipeline diferencia falha de traducao de erro generico.
 
 ### Fixed
