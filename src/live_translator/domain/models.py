@@ -1,6 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+
+
+class OperationMode(str, Enum):
+    UNIVERSAL = "universal"
+    RPG_MAKER_MV_MZ = "rpg_maker_mv_mz"
+
+
+class RpgMakerVersion(str, Enum):
+    MV = "MV"
+    MZ = "MZ"
+    MV_MZ = "MV/MZ"
+
+
+class RpgMakerTextType(str, Enum):
+    MESSAGE = "message"
+    SPEAKER = "speaker"
+    CHOICE = "choice"
+    SCROLLING_TEXT = "scrolling_text"
 
 
 @dataclass(frozen=True)
@@ -86,3 +106,55 @@ class OverlayPlacement:
             raise ValueError("opacity must be greater than zero and at most one")
         if self.font_size <= 0:
             raise ValueError("font_size must be greater than zero")
+
+
+@dataclass(frozen=True)
+class RpgMakerProject:
+    root_path: Path
+    data_path: Path
+    version: RpgMakerVersion
+
+    def __post_init__(self) -> None:
+        if not self.root_path:
+            raise ValueError("root_path must not be blank")
+        if not self.data_path:
+            raise ValueError("data_path must not be blank")
+
+
+@dataclass(frozen=True)
+class RpgMakerTextOrigin:
+    file_name: str
+    origin_key: str
+    map_id: int | None = None
+    event_id: int | None = None
+    page_index: int | None = None
+    command_index: int | None = None
+    parameter_index: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.file_name.strip():
+            raise ValueError("file_name must not be blank")
+        if not self.origin_key.strip():
+            raise ValueError("origin_key must not be blank")
+
+
+@dataclass(frozen=True)
+class RpgMakerTextEntry:
+    source_text: str
+    text_type: RpgMakerTextType
+    origin: RpgMakerTextOrigin
+    id: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.source_text.strip():
+            raise ValueError("source_text must not be blank")
+
+
+@dataclass(frozen=True)
+class RpgMakerImportResult:
+    project: RpgMakerProject
+    imported_count: int
+
+    def __post_init__(self) -> None:
+        if self.imported_count < 0:
+            raise ValueError("imported_count must be zero or greater")

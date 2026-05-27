@@ -4,12 +4,24 @@ import sqlite3
 
 import pytest
 
-from live_translator.domain.models import GameProfile, TextRegion, TranslationResult
+from live_translator.domain.models import (
+    GameProfile,
+    RpgMakerProject,
+    RpgMakerTextEntry,
+    RpgMakerTextOrigin,
+    RpgMakerTextType,
+    RpgMakerVersion,
+    TextRegion,
+    TranslationResult,
+)
 from live_translator.infrastructure.persistence.game_profile_repository import (
     ACTIVE_PROFILE_SETTING_KEY,
     SQLiteGameProfileRepository,
 )
 from live_translator.infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
+from live_translator.infrastructure.persistence.rpg_maker_catalog_repository import (
+    SQLiteRpgMakerTextCatalogRepository,
+)
 from live_translator.infrastructure.persistence.settings_repository import SQLiteSettingsRepository
 from live_translator.infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
 from live_translator.infrastructure.persistence.translation_cache_repository import (
@@ -197,3 +209,54 @@ def test_game_profile_repository_updates_existing_profile(connection_manager):
         window_title="Window Two",
         text_region=TextRegion(x=5, y=6, width=7, height=8),
     )
+
+
+def test_rpg_maker_catalog_replaces_project_entries(connection_manager, tmp_path):
+    repository = SQLiteRpgMakerTextCatalogRepository(connection_manager)
+    project = RpgMakerProject(
+        root_path=tmp_path / "Game",
+        data_path=tmp_path / "Game" / "www" / "data",
+        version=RpgMakerVersion.MZ,
+    )
+    first_entry = RpgMakerTextEntry(
+        source_text="Hello",
+        text_type=RpgMakerTextType.MESSAGE,
+        origin=RpgMakerTextOrigin(
+            file_name="Map001.json",
+            origin_key="Map001.json|1|2|0|3|0",
+            map_id=1,
+            event_id=2,
+            page_index=0,
+            command_index=3,
+            parameter_index=0,
+        ),
+    )
+    second_entry = RpgMakerTextEntry(
+        source_text="Goodbye",
+        text_type=RpgMakerTextType.MESSAGE,
+        origin=RpgMakerTextOrigin(
+            file_name="Map001.json",
+            origin_key="Map001.json|1|2|0|4|0",
+            map_id=1,
+            event_id=2,
+            page_index=0,
+            command_index=4,
+            parameter_index=0,
+        ),
+    )
+
+    assert repository.replace_project_entries(project, [first_entry, second_entry]) == 2
+    assert repository.replace_project_entries(project, [second_entry]) == 1
+
+    entries = repository.list_project_entries(project)
+
+    assert entries == [
+        RpgMakerTextEntry(
+            id=entries[0].id,
+            source_text="Goodbye",
+            text_type=RpgMakerTextType.MESSAGE,
+            origin=second_entry.origin,
+        )
+    ]
+    assert repository.count_project_entries(project) == 1
+    assert repository.get_entry(entries[0].id) == entries[0]

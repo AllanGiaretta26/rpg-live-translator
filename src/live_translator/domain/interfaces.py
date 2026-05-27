@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol, Sequence
 
-from .models import ExtractedText, GameProfile, TextRegion, TranslationResult
+from .models import (
+    ExtractedText,
+    GameProfile,
+    RpgMakerProject,
+    RpgMakerTextEntry,
+    TextRegion,
+    TranslationResult,
+)
 
 
 class ScreenCapture(Protocol):
@@ -76,3 +84,31 @@ class SettingsRepository(Protocol):
 
     def delete(self, key: str) -> None:
         """Remove a settings entry when it exists."""
+
+
+class RpgMakerProjectDetector(Protocol):
+    def detect(self, path: str | Path) -> RpgMakerProject:
+        """Detect an RPG Maker MV/MZ project from a root or data path."""
+
+
+class RpgMakerTextParser(Protocol):
+    def parse_project(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
+        """Return text entries extracted from an RPG Maker MV/MZ project."""
+
+
+class RpgMakerTextCatalog(Protocol):
+    def replace_project_entries(
+        self,
+        project: RpgMakerProject,
+        entries: Sequence[RpgMakerTextEntry],
+    ) -> int:
+        """Replace all catalog entries for a project and return the saved count."""
+
+    def count_project_entries(self, project: RpgMakerProject) -> int:
+        """Return the number of catalog entries stored for a project."""
+
+    def list_project_entries(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
+        """Return catalog entries stored for a project."""
+
+    def get_entry(self, entry_id: int) -> RpgMakerTextEntry | None:
+        """Return one catalog entry by identifier."""

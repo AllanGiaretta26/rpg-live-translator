@@ -1,0 +1,179 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Sequence
+
+from live_translator.application.mode_settings_service import ModeSettingsService
+from live_translator.domain.models import (
+    OperationMode,
+    RpgMakerProject,
+    RpgMakerTextEntry,
+    RpgMakerTextOrigin,
+    RpgMakerTextType,
+    RpgMakerVersion,
+    TranslationResult,
+)
+
+
+@dataclass
+class FakeSettingsRepository:
+    values: dict[str, str] = field(default_factory=dict)
+
+    def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    def set(self, key: str, value: str) -> None:
+        self.values[key] = value
+
+    def delete(self, key: str) -> None:
+        self.values.pop(key, None)
+
+
+@dataclass
+class FakeDetector:
+    project: RpgMakerProject
+
+    def detect(self, path: str | Path) -> RpgMakerProject:
+        return self.project
+
+
+@dataclass
+class FakeParser:
+    entries: list[RpgMakerTextEntry]
+
+    def parse_project(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
+        return self.entries
+
+
+@dataclass
+class FakeCatalog:
+    entries: list[RpgMakerTextEntry] = field(default_factory=list)
+
+    def replace_project_entries(
+        self,
+        project: RpgMakerProject,
+        entries: Sequence[RpgMakerTextEntry],
+    ) -> int:
+        self.entries = list(entries)
+        return len(self.entries)
+
+    def count_project_entries(self, project: RpgMakerProject) -> int:
+        return len(self.entries)
+
+    def list_project_entries(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
+        return self.entries
+
+    def get_entry(self, entry_id: int) -> RpgMakerTextEntry | None:
+        for entry in self.entries:
+            if entry.id == entry_id:
+                return entry
+        return None
+
+
+@dataclass
+class FakeTranslationCache:
+    result: TranslationResult | None = None
+    saved: list[TranslationResult] = field(default_factory=list)
+
+    def get_by_text(self, source_text: str) -> TranslationResult | None:
+        return self.result
+
+    def save_translation(self, result: TranslationResult) -> None:
+        self.saved.append(result)
+
+
+@dataclass
+class FakeTranslator:
+    calls: list[str] = field(default_factory=list)
+
+    def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
+        self.calls.append(text)
+        return TranslationResult(source_text=text, translated_text=f"pt:{text}")
+
+
+def _entry(entry_id: int = 1) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        id=entry_id,
+        source_text="Hello there",
+        text_type=RpgMakerTextType.MESSAGE,
+        origin=RpgMakerTextOrigin(
+            file_name="Map001.json",
+            origin_key="Map001.json|1|2|0|3|0",
+            map_id=1,
+            event_id=2,
+            page_index=0,
+            command_index=3,
+            parameter_index=0,
+        ),
+    )
+
+
+def _service(
+    *,
+    settings: FakeSettingsRepository | None = None,
+    catalog: FakeCatalog | None = None,
+    cache: FakeTranslationCache | None = None,
+    translator: FakeTranslator | None = None,
+) -> ModeSettingsService:
+    project = RpgMakerProject(
+        root_path=Path("C:/game"),
+        data_path=Path("C:/game/www/data"),
+        version=RpgMakerVersion.MZ,
+    )
+    return ModeSettingsService(
+        settings_repository=settings or FakeSettingsRepository(),
+        rpg_maker_detector=FakeDetector(project),
+        rpg_maker_parser=FakeParser([_entry()]),
+        rpg_maker_catalog=catalog or FakeCatalog(),
+        translation_cache=cache or FakeTranslationCache(),
+        translator=translator or FakeTranslator(),
+    )
+
+
+def test_mode_defaults_to_universal_and_persists_changes():
+    settings = FakeSettingsRepository()
+    service = _service(settings=settings)
+
+    assert service.get_active_mode() == OperationMode.UNIVERSAL
+
+    service.set_active_mode(OperationMode.RPG_MAKER_MV_MZ)
+
+    assert service.get_active_mode() == OperationMode.RPG_MAKER_MV_MZ
+
+
+def test_import_rpg_maker_project_detects_parses_and_saves_catalog():
+    catalog = FakeCatalog()
+    service = _service(catalog=catalog)
+
+    result = service.import_rpg_maker_project("C:/game")
+
+    assert result.imported_count == 1
+    assert catalog.entries == [_entry()]
+    assert service.get_rpg_maker_project_path() == Path("C:/game")
+
+
+def test_translate_catalog_entry_uses_existing_cache():
+    cached = TranslationResult(source_text="Hello there", translated_text="Ola")
+    cache = FakeTranslationCache(result=cached)
+    translator = FakeTranslator()
+    service = _service(catalog=FakeCatalog([_entry()]), cache=cache, translator=translator)
+
+    result = service.translate_catalog_entry(1)
+
+    assert result == cached
+    assert translator.calls == []
+    assert cache.saved == []
+
+
+def test_translate_catalog_entry_translates_and_saves_cache_miss():
+    cache = FakeTranslationCache()
+    translator = FakeTranslator()
+    service = _service(catalog=FakeCatalog([_entry()]), cache=cache, translator=translator)
+
+    result = service.translate_catalog_entry(1)
+
+    assert result is not None
+    assert result.translated_text == "pt:Hello there"
+    assert translator.calls == ["Hello there"]
+    assert cache.saved == [result]

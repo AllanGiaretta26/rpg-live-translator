@@ -16,11 +16,13 @@ overlay, pausa/retomada e diagnostico basico de tempo.
 - seletor fullscreen de area de texto com preview de captura e ajuste para DPI;
 - contexto recente desligado por padrao para evitar vazamento de falas anteriores;
 - painel de status com tempo total, OCR, traducao e caminho do ultimo frame;
+- modo RPG Maker MV/MZ com importacao de catalogo, traducao sob demanda e
+  bridge runtime local;
 - scripts de desenvolvimento para criar perfil e testar captura.
 
-O proximo eixo de evolucao e suporte especifico a RPG Maker MV/MZ: ler arquivos
-JSON do jogo, extrair textos conhecidos e preencher o cache antes ou durante a
-execucao para reduzir dependencia de OCR e melhorar consistencia.
+O modo universal continua sendo o caminho mais compativel. O modo RPG Maker
+MV/MZ reduz dependencia de OCR em jogos suportados ao ler os arquivos JSON do
+jogo e receber falas do runtime por plugin.
 
 ## Requisitos
 
@@ -46,13 +48,17 @@ Valide a instalação:
 
 Abra o app e use as abas da janela de calibração:
 
-1. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
+1. `Modo`: escolha `Universal` ou `RPG Maker MV/MZ`. No modo MV/MZ, selecione
+   a pasta do jogo e clique em `Importar catalogo`.
+2. `Catalogo`: confira textos importados e use `Traduzir selecionado` para
+   testar traducao sob demanda, reaproveitando o cache quando existir.
+3. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
    caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
    preview deve mostrar somente a area enviada ao OCR.
-2. `Overlay`: clique em `Ajustar overlay`, arraste a tradução de teste para
+4. `Overlay`: clique em `Ajustar overlay`, arraste a tradução de teste para
    mover e arraste bordas ou cantos para redimensionar. Mantenha o overlay
    fora da area capturada para evitar que o OCR leia a traducao em vez do jogo.
-3. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
+5. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
    A linha `Tempo` mostra o ultimo frame processado, por exemplo:
    `total 3.40s | ocr 1.42s | traducao 1.36s | cache miss`.
 
@@ -96,23 +102,33 @@ Se a traducao parecer repetir falas antigas, verifique primeiro se o preview
 contem apenas a caixa de texto atual e se o overlay nao esta dentro da area
 capturada.
 
-## Proxima Evolucao: RPG Maker MV/MZ
+## Modo RPG Maker MV/MZ
 
-O MVP atual nao modifica arquivos do jogo. A proxima fase tambem deve comecar
-somente com leitura externa dos dados do jogo.
+O app nao modifica arquivos do jogo. O suporte MV/MZ tem duas partes:
 
-RPG Maker MV/MZ normalmente armazena dialogos e comandos em JSON, principalmente
-em `www/data/` ou `data/`. O primeiro alvo deve ser:
+- importacao read-only dos JSONs em `www/data/` ou `data`;
+- plugin runtime opcional para enviar falas atuais ao app sem OCR.
 
-- detectar uma pasta MV/MZ valida;
-- ler `MapXXX.json` e `CommonEvents.json`;
-- extrair comandos de mensagem, escolhas e texto rolante;
-- salvar textos extraidos em uma estrutura rastreavel por arquivo, mapa, evento
-  e ordem;
-- usar esses textos para pre-cache de traducoes e matching com o OCR em runtime.
+Importacao atual:
 
-Isso deve reduzir latencia percebida, evitar erros de OCR em textos conhecidos e
-melhorar consistencia entre falas repetidas.
+- detecta pasta MV/MZ valida;
+- le `MapXXX.json` e `CommonEvents.json`;
+- extrai comandos de mensagem, escolhas e texto rolante;
+- salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
+- salva traducoes geradas no cache `translations`.
+
+Bridge runtime:
+
+1. Copie `src/live_translator/infrastructure/rpgmaker/plugin/LiveTranslatorBridge.js`
+   para `js/plugins/` do jogo.
+2. Ative `LiveTranslatorBridge` no Plugin Manager do RPG Maker.
+3. Rode o app no modo `RPG Maker MV/MZ`.
+4. Mantenha o endpoint padrao `http://127.0.0.1:8765/rpgmaker/text`, salvo se
+   tiver alterado `LIVE_TRANSLATOR_RPG_MAKER_BRIDGE_PORT`.
+
+Quando o jogo chama mensagens ou escolhas, o plugin envia o texto para o app. O
+app busca no cache, traduz quando necessario e atualiza o overlay sem passar por
+captura/OCR.
 
 ## Known Issues
 
@@ -120,8 +136,8 @@ melhorar consistencia entre falas repetidas.
   Python local.
 - A captura usa coordenadas absolutas da tela. Se o jogo ou monitor mudar de
   posicao, a area precisa ser recalibrada.
-- O modo universal ainda depende de OCR/vision. Na evolucao MV/MZ, o objetivo e
-  capturar texto direto do runtime/arquivos e deixar OCR apenas como fallback.
+- O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
+  dependencia, mas textos gerados por plugins custom podem exigir fallback.
 - Logs persistentes e exportaveis ainda nao foram implementados; o diagnostico
   atual fica no painel `Status`.
 - O modo click-through do overlay ainda nao e configuravel pela UI.
