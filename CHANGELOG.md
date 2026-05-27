@@ -15,7 +15,13 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Overlay agora pode ser redimensionado pelas bordas e cantos, nao apenas pelo canto inferior direito.
 - Seletor de area agora escolhe o monitor pelo cursor e usa geometria explicita da tela.
 - Prompt de traducao reforca traducao completa, sem resumo ou omissao de frases.
+- Prompt de traducao agora separa contexto recente do texto atual para reduzir vazamento de falas anteriores.
 - Diagnostico do pipeline diferencia falha de traducao de erro generico.
+
+### Fixed
+
+- Preview da area selecionada agora usa coordenadas fisicas derivadas da selecao local e escala DPI.
+- Tradutor Ollama rejeita respostas que parecem incluir linhas do contexto em vez de apenas o texto atual.
 
 ## [0.1.0] - 2026-05-26
 

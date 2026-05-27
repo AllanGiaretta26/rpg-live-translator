@@ -11,6 +11,8 @@ O projeto já possui um MVP técnico com:
 - captura de tela com MSS;
 - integração com Ollama usando `gemma4:e4b`;
 - overlay PySide6 com posição ajustável e janela de calibração guiada;
+- seletor fullscreen de area de texto com preview de captura e ajuste para DPI;
+- prompt de traducao separado por contexto/texto atual para reduzir vazamento de falas anteriores;
 - scripts de desenvolvimento para criar perfil e testar captura.
 
 ## Requisitos
@@ -38,9 +40,11 @@ Valide a instalação:
 Abra o app e use as abas da janela de calibração:
 
 1. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
-   caixa de texto do jogo e confira o recorte em `Ver preview da area`.
+   caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
+   preview deve mostrar somente a area enviada ao OCR.
 2. `Overlay`: clique em `Ajustar overlay`, arraste a tradução de teste para
-   mover e arraste o canto inferior direito para redimensionar.
+   mover e arraste bordas ou cantos para redimensionar. Mantenha o overlay
+   fora da area capturada para evitar que o OCR leia a traducao em vez do jogo.
 3. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
 
 Clique em `Salvar area` e `Salvar overlay` para manter os ajustes após reiniciar.
@@ -75,8 +79,13 @@ Com terminal para depuração:
 .venv\Scripts\python.exe -m live_translator.app.main
 ```
 
-A janela separa a area capturada do overlay de traducao. Os numeros sao
-mantidos para ajuste fino, mas o fluxo principal e por mouse.
+A janela separa a area capturada do overlay de traducao. Os numeros `X`, `Y`,
+`Largura` e `Altura` sao mantidos para ajuste fino; o fluxo principal e por
+mouse.
+
+Se a traducao parecer repetir falas antigas, verifique primeiro se o preview
+contem apenas a caixa de texto atual e se o overlay nao esta dentro da area
+capturada.
 
 ## Arquitetura
 
