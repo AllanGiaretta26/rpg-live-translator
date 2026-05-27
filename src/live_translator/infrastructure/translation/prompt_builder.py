@@ -27,10 +27,16 @@ def build_translation_prompt(
     return (
         "Voce e um tradutor de dialogos de RPG para portugues brasileiro.\n"
         f"Idioma destino: {target_language}.\n"
-        f"Contexto recente:\n{context_text}\n"
-        f"Texto para traduzir:\n{text}\n"
+        "Use o contexto apenas para escolher sentido, pronomes e tom.\n"
+        "Nao traduza, copie ou inclua nenhuma linha do contexto na resposta.\n"
+        f"<context_only_do_not_translate>\n{context_text}\n"
+        "</context_only_do_not_translate>\n"
+        f"<text_to_translate>\n{text}\n"
+        "</text_to_translate>\n"
         "Preserve nomes proprios. Nao explique.\n"
-        "Traduza todo o texto de entrada, incluindo todas as linhas e frases.\n"
+        "Traduza apenas o texto dentro de <text_to_translate>.\n"
+        "Traduza todo o texto atual, incluindo todas as linhas e frases.\n"
         "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
+        "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
     )

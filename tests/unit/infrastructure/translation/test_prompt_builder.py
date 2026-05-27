@@ -19,6 +19,8 @@ def test_translation_prompt_includes_text_context_and_expected_json():
 
     assert "Hello" in prompt
     assert "Before" in prompt
+    assert "<context_only_do_not_translate>" in prompt
+    assert "<text_to_translate>" in prompt
     assert "translated_text" in prompt
     assert "source_text" not in prompt
 
@@ -29,3 +31,11 @@ def test_translation_prompt_requires_complete_translation_without_summary():
     assert "Traduza todo o texto" in prompt
     assert "Nao resuma" in prompt
     assert "Nao omita frases" in prompt
+
+
+def test_translation_prompt_forbids_translating_context():
+    prompt = build_translation_prompt("Current line", ["Previous line"], "pt-BR")
+
+    assert "Nao traduza, copie ou inclua nenhuma linha do contexto" in prompt
+    assert "Traduza apenas o texto dentro de <text_to_translate>" in prompt
+    assert "Nao inclua falas anteriores" in prompt

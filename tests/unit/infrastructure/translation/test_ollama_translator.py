@@ -31,3 +31,24 @@ def test_translator_rejects_blank_translated_text():
 
     with pytest.raises(OllamaInvalidResponseError, match="translated_text is empty"):
         translator.translate("Hello world", [])
+
+
+def test_translator_rejects_response_that_includes_context_lines():
+    translator = OllamaTranslator(
+        FakeClient(
+            {
+                "translated_text": (
+                    "Mas a gente deveria ficar aqui.\n"
+                    "Eu sei, e.\n"
+                    "Agora ela vai falar sobre seguranca.\n"
+                    "A festa de hoje e especial, certo?"
+                )
+            }
+        )
+    )
+
+    with pytest.raises(
+        OllamaInvalidResponseError,
+        match="translated_text appears to include context",
+    ):
+        translator.translate("S-Still... today's festival is special, right?", [])
