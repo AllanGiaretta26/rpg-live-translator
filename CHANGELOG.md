@@ -4,6 +4,14 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+### Added
+
+- Modo RPG Maker MV/MZ com importacao de catalogo por `MapXXX.json` e `CommonEvents.json`.
+- Aba `Catalogo` para listar textos importados e traduzir a entrada selecionada sob demanda.
+- Catalogo SQLite `rpg_maker_text_catalog` separado do cache de traducoes.
+- Bridge runtime HTTP local para receber falas de plugin MV/MZ sem passar por captura/OCR.
+- Plugin `LiveTranslatorBridge.js` para enviar mensagens e escolhas do jogo ao app.
+
 ## [0.2.0] - 2026-05-27
 
 ### Added

@@ -37,6 +37,17 @@ if BaseSettings is not None:
         capture_preview_path: Path = Field(
             default=defaults.DEFAULT_CAPTURE_PREVIEW_PATH
         )
+        rpg_maker_bridge_enabled: bool = Field(
+            default=defaults.DEFAULT_RPG_MAKER_BRIDGE_ENABLED
+        )
+        rpg_maker_bridge_host: str = Field(
+            default=defaults.DEFAULT_RPG_MAKER_BRIDGE_HOST
+        )
+        rpg_maker_bridge_port: int = Field(
+            default=defaults.DEFAULT_RPG_MAKER_BRIDGE_PORT,
+            gt=0,
+            le=65535,
+        )
 
         model_config = SettingsConfigDict(
             env_prefix="LIVE_TRANSLATOR_",
@@ -58,3 +69,6 @@ else:
         overlay_font_size: int = defaults.DEFAULT_OVERLAY_FONT_SIZE
         database_path: Path = defaults.DEFAULT_DATABASE_PATH
         capture_preview_path: Path = defaults.DEFAULT_CAPTURE_PREVIEW_PATH
+        rpg_maker_bridge_enabled: bool = defaults.DEFAULT_RPG_MAKER_BRIDGE_ENABLED
+        rpg_maker_bridge_host: str = defaults.DEFAULT_RPG_MAKER_BRIDGE_HOST
+        rpg_maker_bridge_port: int = defaults.DEFAULT_RPG_MAKER_BRIDGE_PORT

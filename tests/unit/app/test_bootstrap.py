@@ -26,6 +26,7 @@ class FakeUi:
         capture_preview: object,
         pipeline_diagnostics: object,
         overlay_settings: object,
+        mode_settings: object,
     ) -> None:
         self.overlay = overlay
         self.capture_loop = capture_loop
@@ -33,6 +34,7 @@ class FakeUi:
         self.capture_preview = capture_preview
         self.pipeline_diagnostics = pipeline_diagnostics
         self.overlay_settings = overlay_settings
+        self.mode_settings = mode_settings
         self.ran = False
 
     def run(self) -> int:
@@ -54,6 +56,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
         capture_preview: object,
         pipeline_diagnostics: object,
         overlay_settings: object,
+        mode_settings: object,
     ) -> FakeUi:
         instance = FakeUi(
             value,
@@ -62,6 +65,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
             capture_preview,
             pipeline_diagnostics,
             overlay_settings,
+            mode_settings,
         )
         ui_instances.append(instance)
         return instance
@@ -72,6 +76,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
             capture_preview_path=tmp_path / "preview.png",
             ollama_base_url="http://127.0.0.1:9",
             ollama_timeout_seconds=0.01,
+            rpg_maker_bridge_enabled=False,
         ),
         overlay_factory=_overlay_factory,
         ui_factory=_ui_factory,
@@ -86,6 +91,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
     assert runtime.capture_preview_service is ui_instances[0].capture_preview
     assert runtime.pipeline is ui_instances[0].pipeline_diagnostics
     assert runtime.overlay_settings_service is ui_instances[0].overlay_settings
+    assert runtime.mode_settings_service is ui_instances[0].mode_settings
     assert runtime.capture_preview_service.preview_path == tmp_path / "preview.png"
     assert any("Ollama indisponivel" in message for message in overlay.messages)
     with runtime.database.open() as connection:

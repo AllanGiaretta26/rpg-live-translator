@@ -48,6 +48,25 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS rpg_maker_text_catalog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_root TEXT NOT NULL,
+    data_path TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    source_text TEXT NOT NULL,
+    normalized_source_text TEXT NOT NULL,
+    text_type TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    origin_key TEXT NOT NULL,
+    map_id INTEGER,
+    event_id INTEGER,
+    page_index INTEGER,
+    command_index INTEGER,
+    parameter_index INTEGER,
+    created_at TEXT NOT NULL,
+    UNIQUE(project_root, origin_key, normalized_source_text)
+);
 """
 
 

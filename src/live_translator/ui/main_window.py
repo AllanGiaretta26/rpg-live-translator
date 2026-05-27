@@ -5,7 +5,15 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from live_translator.application.geometry import rectangles_overlap
-from live_translator.domain.models import GameProfile, OverlayPlacement, TextRegion
+from live_translator.domain.models import (
+    GameProfile,
+    OperationMode,
+    OverlayPlacement,
+    RpgMakerImportResult,
+    RpgMakerTextEntry,
+    TranslationResult,
+    TextRegion,
+)
 
 
 class TickableCaptureLoop(Protocol):
@@ -65,6 +73,22 @@ class OverlaySettings(Protocol):
     def save_placement(self, placement: OverlayPlacement) -> None: ...
 
 
+class ModeSettings(Protocol):
+    def get_active_mode(self) -> OperationMode: ...
+
+    def set_active_mode(self, mode: OperationMode) -> None: ...
+
+    def get_rpg_maker_project_path(self) -> Path | None: ...
+
+    def set_rpg_maker_project_path(self, path: str | Path | None) -> None: ...
+
+    def import_rpg_maker_project(self, path: str | Path) -> RpgMakerImportResult: ...
+
+    def list_rpg_maker_entries(self) -> list[RpgMakerTextEntry]: ...
+
+    def translate_catalog_entry(self, entry_id: int) -> TranslationResult | None: ...
+
+
 class EditableOverlay(Protocol):
     def apply_placement(self, placement: OverlayPlacement) -> None: ...
 
@@ -82,6 +106,7 @@ class EditableOverlay(Protocol):
 @dataclass(frozen=True, slots=True)
 class QtUiSettings:
     capture_interval_ms: int = 500
+    rpg_maker_bridge_endpoint: str = "http://127.0.0.1:8765/rpgmaker/text"
 
 
 class QtUiApp:
@@ -93,6 +118,7 @@ class QtUiApp:
         capture_preview: CapturePreview,
         pipeline_diagnostics: PipelineDiagnostics,
         overlay_settings: OverlaySettings,
+        mode_settings: ModeSettings,
         settings: QtUiSettings,
     ) -> None:
         from PySide6.QtCore import QTimer
@@ -100,6 +126,8 @@ class QtUiApp:
 
         self._overlay = overlay
         self._capture_loop = capture_loop
+        self._mode_settings = mode_settings
+        self._settings = settings
         self._timer = QTimer()
         self._timer.setInterval(settings.capture_interval_ms)
         self._timer.timeout.connect(self._tick_capture_loop)
@@ -111,16 +139,22 @@ class QtUiApp:
             capture_preview,
             pipeline_diagnostics,
             overlay_settings,
+            mode_settings,
+            settings,
         )
 
     def run(self) -> int:
-        self._capture_loop.resume()
+        if self._mode_settings.get_active_mode() == OperationMode.UNIVERSAL:
+            self._capture_loop.resume()
+        else:
+            self._capture_loop.pause()
         self._timer.start()
         self._window.show()
         return int(self._app.exec())
 
     def _tick_capture_loop(self) -> None:
-        self._capture_loop.tick()
+        if self._mode_settings.get_active_mode() == OperationMode.UNIVERSAL:
+            self._capture_loop.tick()
         self._window.refresh_capture_status()
         self._window.refresh_pipeline_status()
 
@@ -134,16 +168,21 @@ class SettingsWindow:
         capture_preview: CapturePreview,
         pipeline_diagnostics: PipelineDiagnostics,
         overlay_settings: OverlaySettings,
+        mode_settings: ModeSettings,
+        settings: QtUiSettings,
     ) -> None:
         from PySide6.QtCore import Qt
         from PySide6.QtWidgets import (
             QDoubleSpinBox,
+            QFileDialog,
             QFormLayout,
             QGroupBox,
             QHBoxLayout,
             QLabel,
             QLineEdit,
+            QComboBox,
             QPushButton,
+            QTableWidget,
             QTabWidget,
             QVBoxLayout,
             QWidget,
@@ -155,6 +194,9 @@ class SettingsWindow:
         self._capture_preview = capture_preview
         self._pipeline_diagnostics = pipeline_diagnostics
         self._overlay_settings = overlay_settings
+        self._mode_settings = mode_settings
+        self._settings = settings
+        self._file_dialog = QFileDialog
         self._region_selector = None
 
         self._widget = QWidget()
@@ -165,6 +207,8 @@ class SettingsWindow:
         self._pipeline_status = QLabel("Pipeline: aguardando")
         self._pipeline_timing = QLabel("Tempo: aguardando")
         self._pipeline_timing.setWordWrap(True)
+        self._mode_status = QLabel("Modo: Universal")
+        self._mode_status.setWordWrap(True)
         self._status = QLabel("")
         self._overlap_warning = QLabel("")
         self._overlap_warning.setWordWrap(True)
@@ -201,6 +245,29 @@ class SettingsWindow:
         self._overlay_opacity.setSingleStep(0.05)
         self._overlay_opacity.setDecimals(2)
 
+        self._mode = QComboBox()
+        self._mode.addItem("Universal", OperationMode.UNIVERSAL.value)
+        self._mode.addItem("RPG Maker MV/MZ", OperationMode.RPG_MAKER_MV_MZ.value)
+        self._rpg_maker_path = QLineEdit()
+        self._rpg_maker_path.setPlaceholderText("Pasta do jogo RPG Maker MV/MZ")
+        self._choose_rpg_maker_path = QPushButton("Selecionar pasta")
+        self._save_mode = QPushButton("Salvar modo")
+        self._import_rpg_maker = QPushButton("Importar catalogo")
+        self._catalog_table = QTableWidget(0, 4)
+        self._catalog_table.setHorizontalHeaderLabels(
+            ("Origem", "Tipo", "Texto", "ID")
+        )
+        self._catalog_table.setColumnHidden(3, True)
+        self._catalog_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self._catalog_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._catalog_table.verticalHeader().hide()
+        self._catalog_table.horizontalHeader().setStretchLastSection(False)
+        self._catalog_table.setMinimumHeight(220)
+        self._refresh_catalog = QPushButton("Atualizar catalogo")
+        self._translate_catalog_entry = QPushButton("Traduzir selecionado")
+
         self._select_region = QPushButton("Selecionar area do texto")
         self._preview_capture = QPushButton("Ver preview da area")
         self._save = QPushButton("Salvar area")
@@ -211,9 +278,11 @@ class SettingsWindow:
         self._quit = QPushButton("Fechar")
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_capture_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "1. Area do texto")
-        tabs.addTab(self._build_overlay_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "2. Overlay")
-        tabs.addTab(self._build_run_tab(QGroupBox, QHBoxLayout, QVBoxLayout), "3. Executar")
+        tabs.addTab(self._build_mode_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "0. Modo")
+        tabs.addTab(self._build_catalog_tab(QHBoxLayout, QVBoxLayout), "1. Catalogo")
+        tabs.addTab(self._build_capture_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "2. Area do texto")
+        tabs.addTab(self._build_overlay_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "3. Overlay")
+        tabs.addTab(self._build_run_tab(QGroupBox, QHBoxLayout, QVBoxLayout), "4. Executar")
 
         layout = QVBoxLayout()
         layout.addWidget(tabs)
@@ -222,6 +291,13 @@ class SettingsWindow:
         self._widget.setLayout(layout)
 
         self._select_region.clicked.connect(self._select_region_on_screen)
+        self._choose_rpg_maker_path.clicked.connect(self._choose_rpg_maker_folder)
+        self._save_mode.clicked.connect(self._save_mode_settings)
+        self._import_rpg_maker.clicked.connect(self._import_rpg_maker_catalog)
+        self._refresh_catalog.clicked.connect(self._load_catalog_entries)
+        self._translate_catalog_entry.clicked.connect(
+            self._translate_selected_catalog_entry
+        )
         self._preview_capture.clicked.connect(self._capture_preview_image)
         self._save.clicked.connect(self._save_profile)
         self._show_overlay.clicked.connect(self._start_overlay_adjustment)
@@ -244,11 +320,17 @@ class SettingsWindow:
 
         self._load_active_profile()
         self._load_overlay_placement()
+        self._load_mode_settings()
+        self._load_catalog_entries()
 
     def show(self) -> None:
         self._widget.show()
 
     def refresh_capture_status(self) -> None:
+        if self._mode_settings.get_active_mode() == OperationMode.RPG_MAKER_MV_MZ:
+            self._capture_status.setText("Captura: desativada no modo RPG Maker MV/MZ")
+            return
+
         error_message = self._capture_loop.last_error_message
         if error_message:
             self._capture_status.setText(f"Captura: erro - {error_message}")
@@ -271,6 +353,29 @@ class SettingsWindow:
             self._pipeline_timing.setText(f"Tempo: {timing_summary}")
         else:
             self._pipeline_timing.setText("Tempo: aguardando")
+
+    def _build_mode_tab(self, form_cls, hbox_cls, vbox_cls):
+        tab = vbox_cls()
+        form = form_cls()
+        form.addRow("Modo", self._mode)
+        form.addRow("Pasta MV/MZ", self._rpg_maker_path)
+        buttons = hbox_cls()
+        buttons.addWidget(self._choose_rpg_maker_path)
+        buttons.addWidget(self._save_mode)
+        buttons.addWidget(self._import_rpg_maker)
+        tab.addLayout(form)
+        tab.addWidget(self._mode_status)
+        tab.addLayout(buttons)
+        return self._wrap(tab)
+
+    def _build_catalog_tab(self, hbox_cls, vbox_cls):
+        tab = vbox_cls()
+        buttons = hbox_cls()
+        buttons.addWidget(self._refresh_catalog)
+        buttons.addWidget(self._translate_catalog_entry)
+        tab.addWidget(self._catalog_table)
+        tab.addLayout(buttons)
+        return self._wrap(tab)
 
     def _build_capture_tab(self, form_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
@@ -350,6 +455,120 @@ class SettingsWindow:
         self._show_preview(path)
         self._status.setText(f"Preview atualizado: {path}")
         return True
+
+    def _choose_rpg_maker_folder(self) -> None:
+        selected_path = self._file_dialog.getExistingDirectory(
+            self._widget,
+            "Selecionar pasta RPG Maker MV/MZ",
+            self._rpg_maker_path.text(),
+        )
+        if selected_path:
+            self._rpg_maker_path.setText(selected_path)
+
+    def _save_mode_settings(self) -> None:
+        mode = self._selected_mode()
+        self._mode_settings.set_active_mode(mode)
+        if self._rpg_maker_path.text().strip():
+            self._mode_settings.set_rpg_maker_project_path(self._rpg_maker_path.text())
+
+        if mode == OperationMode.RPG_MAKER_MV_MZ:
+            self._capture_loop.pause()
+            self._status.setText("Modo RPG Maker MV/MZ salvo.")
+        else:
+            self._capture_loop.resume()
+            self._status.setText("Modo Universal salvo.")
+        self._refresh_mode_status()
+        self.refresh_capture_status()
+
+    def _import_rpg_maker_catalog(self) -> bool:
+        try:
+            result = self._mode_settings.import_rpg_maker_project(
+                self._rpg_maker_path.text()
+            )
+        except Exception as error:
+            self._status.setText(f"Importacao MV/MZ falhou: {error}")
+            self._refresh_mode_status()
+            return False
+
+        self._mode_settings.set_active_mode(OperationMode.RPG_MAKER_MV_MZ)
+        self._mode.setCurrentIndex(
+            self._mode.findData(OperationMode.RPG_MAKER_MV_MZ.value)
+        )
+        self._capture_loop.pause()
+        self._status.setText(
+            "Catalogo MV/MZ importado: "
+            f"{result.imported_count} textos de {result.project.data_path}"
+        )
+        self._refresh_mode_status(result)
+        self._load_catalog_entries()
+        self.refresh_capture_status()
+        return True
+
+    def _load_catalog_entries(self) -> None:
+        try:
+            entries = self._mode_settings.list_rpg_maker_entries()
+        except Exception as error:
+            self._status.setText(f"Catalogo MV/MZ indisponivel: {error}")
+            self._catalog_table.setRowCount(0)
+            return
+
+        visible_entries = entries[:500]
+        self._catalog_table.setRowCount(len(visible_entries))
+        for row, entry in enumerate(visible_entries):
+            origin_item = self._table_item(self._format_origin(entry))
+            type_item = self._table_item(entry.text_type.value)
+            text_item = self._table_item(entry.source_text)
+            id_item = self._table_item(str(entry.id or ""))
+            self._catalog_table.setItem(row, 0, origin_item)
+            self._catalog_table.setItem(row, 1, type_item)
+            self._catalog_table.setItem(row, 2, text_item)
+            self._catalog_table.setItem(row, 3, id_item)
+
+        self._catalog_table.resizeColumnsToContents()
+        suffix = "" if len(entries) <= 500 else f" Mostrando 500 de {len(entries)}."
+        self._status.setText(f"Catalogo carregado: {len(entries)} textos.{suffix}")
+
+    def _translate_selected_catalog_entry(self) -> bool:
+        selected_rows = self._catalog_table.selectionModel().selectedRows()
+        if not selected_rows:
+            self._status.setText("Selecione uma linha do catalogo.")
+            return False
+
+        row = selected_rows[0].row()
+        id_item = self._catalog_table.item(row, 3)
+        if id_item is None or not id_item.text().strip():
+            self._status.setText("Entrada do catalogo sem ID persistido.")
+            return False
+
+        try:
+            result = self._mode_settings.translate_catalog_entry(int(id_item.text()))
+        except Exception as error:
+            self._status.setText(f"Traducao do catalogo falhou: {error}")
+            return False
+
+        if result is None:
+            self._status.setText("Entrada do catalogo nao encontrada.")
+            return False
+
+        self._overlay.show_text(result.translated_text)
+        self._status.setText(f"Traduzido: {result.translated_text}")
+        return True
+
+    def _table_item(self, text: str):
+        from PySide6.QtWidgets import QTableWidgetItem
+
+        return QTableWidgetItem(text)
+
+    def _format_origin(self, entry: RpgMakerTextEntry) -> str:
+        origin = entry.origin
+        parts = [origin.file_name]
+        if origin.event_id is not None:
+            parts.append(f"ev {origin.event_id}")
+        if origin.page_index is not None:
+            parts.append(f"pg {origin.page_index}")
+        if origin.command_index is not None:
+            parts.append(f"cmd {origin.command_index}")
+        return " | ".join(parts)
 
     def _select_region_on_screen(self) -> None:
         from live_translator.ui.region_selector_window import RegionSelectorWindow
@@ -488,6 +707,52 @@ class SettingsWindow:
         self._overlay.apply_placement(placement)
         self._sync_overlay_fields(placement)
         self._refresh_overlap_warning()
+
+    def _load_mode_settings(self) -> None:
+        mode = self._mode_settings.get_active_mode()
+        mode_index = self._mode.findData(mode.value)
+        if mode_index >= 0:
+            self._mode.setCurrentIndex(mode_index)
+
+        project_path = self._mode_settings.get_rpg_maker_project_path()
+        if project_path is not None:
+            self._rpg_maker_path.setText(str(project_path))
+        self._refresh_mode_status()
+
+    def _selected_mode(self) -> OperationMode:
+        return OperationMode(self._mode.currentData())
+
+    def _refresh_mode_status(
+        self,
+        import_result: RpgMakerImportResult | None = None,
+    ) -> None:
+        mode = self._mode_settings.get_active_mode()
+        if mode == OperationMode.UNIVERSAL:
+            self._mode_status.setText(
+                "Modo: Universal. Usa captura de tela, OCR/vision, cache e overlay."
+            )
+            return
+
+        project_path = self._mode_settings.get_rpg_maker_project_path()
+        if import_result is not None:
+            self._mode_status.setText(
+                "Modo: RPG Maker MV/MZ. "
+                f"{import_result.imported_count} textos importados de "
+                f"{import_result.project.version.value}."
+            )
+            return
+
+        if project_path is None:
+            self._mode_status.setText(
+                "Modo: RPG Maker MV/MZ. Selecione a pasta do jogo e importe o catalogo."
+            )
+            return
+
+        self._mode_status.setText(
+            "Modo: RPG Maker MV/MZ. "
+            f"Pasta configurada: {project_path}. "
+            f"Bridge: {self._settings.rpg_maker_bridge_endpoint}."
+        )
 
     def _save_profile(self) -> None:
         try:
