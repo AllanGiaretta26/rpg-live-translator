@@ -104,3 +104,7 @@ Regra central: UI não acessa SQLite, Ollama ou captura diretamente; o bootstrap
 ```
 
 A suíte cobre cache SQLite, pipeline de tradução, loop de captura, utilitários de imagem, client Ollama, scripts de perfil/captura e bootstrap.
+
+## Licença
+
+Este projeto usa a licença MIT. Consulte `LICENSE` para os termos completos.
