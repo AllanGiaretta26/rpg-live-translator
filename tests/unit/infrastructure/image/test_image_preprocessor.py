@@ -56,7 +56,6 @@ class MemoryImage:
 
         if self.mode == "RGB":
             channel_pixels = list(self.pixels)
-            channel_count = 3
             channels = list(zip(*channel_pixels, strict=True))
             adjusted_channels = []
             for channel in channels:
@@ -120,4 +119,3 @@ def test_preprocessor_can_convert_to_grayscale_and_adjust_contrast():
     assert processed.mode == "L"
     assert processed.size == (2, 1)
     assert processed.getdata() == (0, 255)
-

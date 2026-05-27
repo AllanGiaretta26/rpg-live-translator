@@ -114,6 +114,18 @@ em `www/data/` ou `data/`. O primeiro alvo deve ser:
 Isso deve reduzir latencia percebida, evitar erros de OCR em textos conhecidos e
 melhorar consistencia entre falas repetidas.
 
+## Known Issues
+
+- Ainda nao existe build empacotado para Windows; o app roda pelo ambiente
+  Python local.
+- A captura usa coordenadas absolutas da tela. Se o jogo ou monitor mudar de
+  posicao, a area precisa ser recalibrada.
+- O modo universal ainda depende de OCR/vision. Na evolucao MV/MZ, o objetivo e
+  capturar texto direto do runtime/arquivos e deixar OCR apenas como fallback.
+- Logs persistentes e exportaveis ainda nao foram implementados; o diagnostico
+  atual fica no painel `Status`.
+- O modo click-through do overlay ainda nao e configuravel pela UI.
+
 ## Arquitetura
 
 - `src/live_translator/domain/`: modelos imutáveis, contratos e erros.

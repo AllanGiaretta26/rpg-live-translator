@@ -4,12 +4,15 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+## [0.2.0] - 2026-05-27
+
 ### Added
 
 - Aviso na UI quando o overlay cruza a area capturada pelo OCR.
 - Helpers testaveis para sobreposicao de retangulos, geometria de overlay e selecao de monitor.
 - Testes unitarios para redimensionamento do overlay, selecao de tela e validacao do tradutor Ollama.
 - Relatorio V5 sobre fechamento do MVP e proxima evolucao RPG Maker MV/MZ.
+- `ruff` no extra de desenvolvimento para alinhar o ambiente ao comando documentado.
 
 ### Changed
 
@@ -22,6 +25,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Painel de status agora mostra tempo total, OCR, traducao e caminho do ultimo frame processado.
 - Diagnostico do pipeline diferencia falha de traducao de erro generico.
 - Documentacao atualizada para marcar o MVP de captura como funcionalmente concluido e detalhar o suporte futuro a RPG Maker MV/MZ.
+- README documenta Known Issues reais antes da evolucao MV/MZ.
+- Versao do pacote atualizada para `0.2.0` como checkpoint MVP.
 
 ### Fixed
 

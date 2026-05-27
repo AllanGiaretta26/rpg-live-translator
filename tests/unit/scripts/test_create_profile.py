@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from live_translator.scripts.create_profile import build_parser, main
 
 

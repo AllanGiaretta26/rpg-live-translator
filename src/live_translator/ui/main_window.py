@@ -144,7 +144,6 @@ class SettingsWindow:
             QLabel,
             QLineEdit,
             QPushButton,
-            QSpinBox,
             QTabWidget,
             QVBoxLayout,
             QWidget,

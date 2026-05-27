@@ -1,2 +1,1 @@
-from .capture_loop_service import CaptureLoopService
-
+from .capture_loop_service import CaptureLoopService as CaptureLoopService

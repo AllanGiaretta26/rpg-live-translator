@@ -24,7 +24,7 @@ class OverlayStyle:
 
 class OverlayWindow(OverlayRenderer):
     def __init__(self, style: OverlayStyle | None = None) -> None:
-        from PySide6.QtCore import QObject, Qt, Signal, Slot
+        from PySide6.QtCore import QObject, Qt, Signal
         from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
         class OverlayBridge(QObject):
