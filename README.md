@@ -50,8 +50,10 @@ Abra o app e use as abas da janela de calibração:
 
 1. `Modo`: escolha `Universal` ou `RPG Maker MV/MZ`. No modo MV/MZ, selecione
    a pasta do jogo e clique em `Importar catalogo`.
-2. `Catalogo`: confira textos importados e use `Traduzir selecionado` para
-   testar traducao sob demanda, reaproveitando o cache quando existir.
+2. `Catalogo`: confira textos importados, use `Traduzir selecionado` para
+   testar uma entrada ou `Traduzir catalogo` para preencher o cache em lote.
+   O lote permite escolher `100`, `500` ou `Todos`, mostra progresso, pula
+   textos ja cacheados e pode ser cancelado.
 3. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
    caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
    preview deve mostrar somente a area enviada ao OCR.
@@ -61,6 +63,8 @@ Abra o app e use as abas da janela de calibração:
 5. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
    A linha `Tempo` mostra o ultimo frame processado, por exemplo:
    `total 3.40s | ocr 1.42s | traducao 1.36s | cache miss`.
+   No modo MV/MZ, esta aba tambem mostra a ultima fonte recebida pela bridge e
+   a ultima traducao aceita pelo runtime.
 
 Clique em `Salvar area` e `Salvar overlay` para manter os ajustes após reiniciar.
 
@@ -115,7 +119,8 @@ Importacao atual:
 - le `MapXXX.json` e `CommonEvents.json`;
 - extrai comandos de mensagem, escolhas e texto rolante;
 - salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
-- salva traducoes geradas no cache `translations`.
+- salva traducoes geradas no cache `translations`;
+- permite pre-cache em lote com limite, progresso, cache hits e cancelamento.
 
 Bridge runtime:
 
@@ -130,6 +135,30 @@ Quando o jogo chama mensagens ou escolhas, o plugin envia o texto para o app. O
 app busca no cache, traduz quando necessario e atualiza o overlay sem passar por
 captura/OCR.
 
+### Diagnostico MV/MZ
+
+No modo `RPG Maker MV/MZ`, a aba `Executar` mostra:
+
+- `Fonte MV/MZ`: ultimo texto recebido pela bridge;
+- `Traducao MV/MZ`: ultima traducao aceita pelo runtime;
+- `Pipeline`: caminho usado, como `runtime cache texto`, `runtime cache invalido`
+  ou `runtime traduzido`;
+- `Tempo`: tempo do runtime MV/MZ.
+
+Use esses campos para separar a causa de problemas:
+
+- se `Fonte MV/MZ` ja vier errada, o problema esta no plugin ou no fluxo do jogo;
+- se `Fonte MV/MZ` vier limpa e `Traducao MV/MZ` vier contaminada, o problema
+  esta no modelo ou no cache;
+- se `Pipeline` mostrar `runtime cache texto`, a traducao veio do cache
+  `translations`;
+- se `Pipeline` mostrar `runtime cache invalido`, o cache antigo foi ignorado e
+  o app esta tentando gerar uma nova traducao.
+
+O runtime MV/MZ valida traducoes vindas do cache. Entradas antigas que parecem
+conter contexto ou instrucoes de prompt sao ignoradas e sobrescritas por uma
+nova traducao quando a fala aparecer novamente.
+
 ## Known Issues
 
 - Ainda nao existe build empacotado para Windows; o app roda pelo ambiente
@@ -138,6 +167,9 @@ captura/OCR.
   posicao, a area precisa ser recalibrada.
 - O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
   dependencia, mas textos gerados por plugins custom podem exigir fallback.
+- O aviso de overlay sobre area capturada ainda pode aparecer no modo MV/MZ,
+  mesmo com a captura desativada; ele e relevante principalmente para o modo
+  Universal.
 - Logs persistentes e exportaveis ainda nao foram implementados; o diagnostico
   atual fica no painel `Status`.
 - O modo click-through do overlay ainda nao e configuravel pela UI.

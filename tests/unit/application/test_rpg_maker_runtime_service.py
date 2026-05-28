@@ -18,9 +18,12 @@ class FakeModeSettings:
 @dataclass
 class FakeCache:
     result: TranslationResult | None = None
+    results: dict[str, TranslationResult] = field(default_factory=dict)
     saved: list[TranslationResult] = field(default_factory=list)
 
     def get_by_text(self, source_text: str) -> TranslationResult | None:
+        if source_text in self.results:
+            return self.results[source_text]
         return self.result
 
     def save_translation(self, result: TranslationResult) -> None:
@@ -33,6 +36,18 @@ class FakeTranslator:
 
     def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
         self.calls.append(text)
+        return TranslationResult(source_text=text, translated_text=f"pt:{text}")
+
+
+@dataclass
+class ReentrantTranslator:
+    service: RpgMakerRuntimeService | None = None
+    calls: list[str] = field(default_factory=list)
+
+    def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
+        self.calls.append(text)
+        if text == "Old" and self.service is not None:
+            self.service.process_text("New")
         return TranslationResult(source_text=text, translated_text=f"pt:{text}")
 
 
@@ -100,6 +115,34 @@ def test_runtime_text_uses_cache_and_updates_overlay():
     assert service.last_timing_summary == "runtime total 0.50s"
 
 
+def test_runtime_text_ignores_contaminated_cache_and_retranslates():
+    cached = TranslationResult(
+        source_text="Hello",
+        translated_text=(
+            "Ola\n"
+            "Preserve nomes proprios. Nao explique.\n"
+            "Responda apenas JSON valido."
+        ),
+    )
+    cache = FakeCache(result=cached)
+    translator = FakeTranslator()
+    overlay = FakeOverlay()
+    service = RpgMakerRuntimeService(
+        mode_settings=FakeModeSettings(),
+        translation_cache=cache,
+        translator=translator,
+        overlay=overlay,
+    )
+
+    result = service.process_text("Hello")
+
+    assert result is not None
+    assert result.translated_text == "pt:Hello"
+    assert translator.calls == ["Hello"]
+    assert cache.saved == [result]
+    assert overlay.shown == ["pt:Hello"]
+
+
 def test_runtime_text_translates_cache_miss_and_updates_overlay():
     cache = FakeCache()
     translator = FakeTranslator()
@@ -123,3 +166,28 @@ def test_runtime_text_translates_cache_miss_and_updates_overlay():
     assert service.last_timing_summary == (
         "runtime total 3.00s | traducao 1.00s | cache miss"
     )
+
+
+def test_stale_runtime_translation_does_not_overwrite_newer_overlay():
+    cache = FakeCache(
+        results={
+            "New": TranslationResult(source_text="New", translated_text="pt:New"),
+        }
+    )
+    translator = ReentrantTranslator()
+    overlay = FakeOverlay()
+    service = RpgMakerRuntimeService(
+        mode_settings=FakeModeSettings(),
+        translation_cache=cache,
+        translator=translator,
+        overlay=overlay,
+    )
+    translator.service = service
+
+    result = service.process_text("Old")
+
+    assert result is not None
+    assert result.translated_text == "pt:Old"
+    assert translator.calls == ["Old"]
+    assert overlay.shown == ["pt:New"]
+    assert service.last_source_text == "New"

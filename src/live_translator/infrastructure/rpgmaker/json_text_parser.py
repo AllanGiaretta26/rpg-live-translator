@@ -106,8 +106,11 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         page_index: int | None = None,
     ) -> list[RpgMakerTextEntry]:
         entries: list[RpgMakerTextEntry] = []
-        for command_index, command in enumerate(commands):
+        command_index = 0
+        while command_index < len(commands):
+            command = commands[command_index]
             if not isinstance(command, dict):
+                command_index += 1
                 continue
 
             code = command.get("code")
@@ -128,17 +131,23 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                 )
             elif code == 401:
                 entries.extend(
-                    self._single_text_entry(
+                    self._grouped_text_entry(
                         text_type=RpgMakerTextType.MESSAGE,
-                        parameter_index=0,
                         file_name=file_name,
-                        parameters=parameters,
+                        commands=commands,
                         map_id=map_id,
                         event_id=event_id,
                         page_index=page_index,
-                        command_index=command_index,
+                        start_index=command_index,
+                        code=401,
                     )
                 )
+                command_index = self._next_non_matching_command(
+                    commands,
+                    command_index,
+                    401,
+                )
+                continue
             elif code == 102:
                 entries.extend(
                     self._choice_entries(
@@ -165,18 +174,81 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                 )
             elif code == 405:
                 entries.extend(
-                    self._single_text_entry(
+                    self._grouped_text_entry(
                         text_type=RpgMakerTextType.SCROLLING_TEXT,
-                        parameter_index=0,
                         file_name=file_name,
-                        parameters=parameters,
+                        commands=commands,
                         map_id=map_id,
                         event_id=event_id,
                         page_index=page_index,
-                        command_index=command_index,
+                        start_index=command_index,
+                        code=405,
                     )
                 )
+                command_index = self._next_non_matching_command(
+                    commands,
+                    command_index,
+                    405,
+                )
+                continue
+            command_index += 1
         return entries
+
+    def _grouped_text_entry(
+        self,
+        *,
+        text_type: RpgMakerTextType,
+        file_name: str,
+        commands: list[Any],
+        map_id: int | None,
+        event_id: int | None,
+        page_index: int | None,
+        start_index: int,
+        code: int,
+    ) -> list[RpgMakerTextEntry]:
+        lines: list[str] = []
+        command_index = start_index
+        while command_index < len(commands):
+            command = commands[command_index]
+            if not isinstance(command, dict) or command.get("code") != code:
+                break
+
+            parameters = command.get("parameters")
+            if isinstance(parameters, list) and parameters:
+                text = parameters[0]
+                if isinstance(text, str) and text.strip():
+                    lines.append(text)
+            command_index += 1
+
+        if not lines:
+            return []
+
+        return [
+            self._entry(
+                text="\n".join(lines),
+                text_type=text_type,
+                file_name=file_name,
+                map_id=map_id,
+                event_id=event_id,
+                page_index=page_index,
+                command_index=start_index,
+                parameter_index=0,
+            )
+        ]
+
+    def _next_non_matching_command(
+        self,
+        commands: list[Any],
+        start_index: int,
+        code: int,
+    ) -> int:
+        command_index = start_index
+        while command_index < len(commands):
+            command = commands[command_index]
+            if not isinstance(command, dict) or command.get("code") != code:
+                break
+            command_index += 1
+        return command_index
 
     def _speaker_entry(
         self,

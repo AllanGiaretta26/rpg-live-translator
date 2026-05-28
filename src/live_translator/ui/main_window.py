@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 from typing import Callable, Protocol
 
 from live_translator.application.geometry import rectangles_overlap
+from live_translator.application.mode_settings_service import (
+    CatalogTranslationProgress,
+    CatalogTranslationResult,
+)
 from live_translator.domain.models import (
     GameProfile,
     OperationMode,
@@ -67,6 +73,20 @@ class PipelineDiagnostics(Protocol):
     def last_timing_summary(self) -> str | None: ...
 
 
+class RuntimeDiagnostics(Protocol):
+    @property
+    def last_diagnostic(self) -> str | None: ...
+
+    @property
+    def last_timing_summary(self) -> str | None: ...
+
+    @property
+    def last_source_text(self) -> str | None: ...
+
+    @property
+    def last_translated_text(self) -> str | None: ...
+
+
 class OverlaySettings(Protocol):
     def get_placement(self) -> OverlayPlacement: ...
 
@@ -87,6 +107,14 @@ class ModeSettings(Protocol):
     def list_rpg_maker_entries(self) -> list[RpgMakerTextEntry]: ...
 
     def translate_catalog_entry(self, entry_id: int) -> TranslationResult | None: ...
+
+    def translate_catalog_entries(
+        self,
+        *,
+        limit: int | None = None,
+        on_progress: Callable[[CatalogTranslationProgress], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> CatalogTranslationResult: ...
 
 
 class EditableOverlay(Protocol):
@@ -117,6 +145,7 @@ class QtUiApp:
         profile_settings: ProfileSettings,
         capture_preview: CapturePreview,
         pipeline_diagnostics: PipelineDiagnostics,
+        runtime_diagnostics: RuntimeDiagnostics | None,
         overlay_settings: OverlaySettings,
         mode_settings: ModeSettings,
         settings: QtUiSettings,
@@ -138,6 +167,7 @@ class QtUiApp:
             profile_settings,
             capture_preview,
             pipeline_diagnostics,
+            runtime_diagnostics,
             overlay_settings,
             mode_settings,
             settings,
@@ -167,11 +197,12 @@ class SettingsWindow:
         profile_settings: ProfileSettings,
         capture_preview: CapturePreview,
         pipeline_diagnostics: PipelineDiagnostics,
+        runtime_diagnostics: RuntimeDiagnostics | None,
         overlay_settings: OverlaySettings,
         mode_settings: ModeSettings,
         settings: QtUiSettings,
     ) -> None:
-        from PySide6.QtCore import Qt
+        from PySide6.QtCore import Qt, QTimer
         from PySide6.QtWidgets import (
             QDoubleSpinBox,
             QFileDialog,
@@ -182,6 +213,7 @@ class SettingsWindow:
             QLineEdit,
             QComboBox,
             QPushButton,
+            QProgressBar,
             QTableWidget,
             QTabWidget,
             QVBoxLayout,
@@ -193,11 +225,19 @@ class SettingsWindow:
         self._profile_settings = profile_settings
         self._capture_preview = capture_preview
         self._pipeline_diagnostics = pipeline_diagnostics
+        self._runtime_diagnostics = runtime_diagnostics
         self._overlay_settings = overlay_settings
         self._mode_settings = mode_settings
         self._settings = settings
         self._file_dialog = QFileDialog
         self._region_selector = None
+        self._bulk_progress_queue: Queue[CatalogTranslationProgress] = Queue()
+        self._bulk_result_queue: Queue[CatalogTranslationResult | Exception] = Queue()
+        self._bulk_cancel_requested = False
+        self._bulk_thread: Thread | None = None
+        self._bulk_timer = QTimer()
+        self._bulk_timer.setInterval(200)
+        self._bulk_timer.timeout.connect(self._poll_bulk_translation)
 
         self._widget = QWidget()
         self._widget.setWindowTitle("RPG Live Translator")
@@ -207,6 +247,10 @@ class SettingsWindow:
         self._pipeline_status = QLabel("Pipeline: aguardando")
         self._pipeline_timing = QLabel("Tempo: aguardando")
         self._pipeline_timing.setWordWrap(True)
+        self._runtime_source = QLabel("Fonte MV/MZ: aguardando")
+        self._runtime_source.setWordWrap(True)
+        self._runtime_translation = QLabel("Traducao MV/MZ: aguardando")
+        self._runtime_translation.setWordWrap(True)
         self._mode_status = QLabel("Modo: Universal")
         self._mode_status.setWordWrap(True)
         self._status = QLabel("")
@@ -267,6 +311,18 @@ class SettingsWindow:
         self._catalog_table.setMinimumHeight(220)
         self._refresh_catalog = QPushButton("Atualizar catalogo")
         self._translate_catalog_entry = QPushButton("Traduzir selecionado")
+        self._bulk_limit = QComboBox()
+        self._bulk_limit.addItem("100", 100)
+        self._bulk_limit.addItem("500", 500)
+        self._bulk_limit.addItem("Todos", 0)
+        self._translate_catalog = QPushButton("Traduzir catalogo")
+        self._cancel_catalog_translation = QPushButton("Cancelar")
+        self._cancel_catalog_translation.setEnabled(False)
+        self._bulk_progress = QProgressBar()
+        self._bulk_progress.setRange(0, 100)
+        self._bulk_progress.setValue(0)
+        self._bulk_status = QLabel("Lote: aguardando")
+        self._bulk_status.setWordWrap(True)
 
         self._select_region = QPushButton("Selecionar area do texto")
         self._preview_capture = QPushButton("Ver preview da area")
@@ -297,6 +353,10 @@ class SettingsWindow:
         self._refresh_catalog.clicked.connect(self._load_catalog_entries)
         self._translate_catalog_entry.clicked.connect(
             self._translate_selected_catalog_entry
+        )
+        self._translate_catalog.clicked.connect(self._start_bulk_catalog_translation)
+        self._cancel_catalog_translation.clicked.connect(
+            self._cancel_bulk_catalog_translation
         )
         self._preview_capture.clicked.connect(self._capture_preview_image)
         self._save.clicked.connect(self._save_profile)
@@ -342,6 +402,10 @@ class SettingsWindow:
             self._capture_status.setText("Captura: rodando")
 
     def refresh_pipeline_status(self) -> None:
+        if self._mode_settings.get_active_mode() == OperationMode.RPG_MAKER_MV_MZ:
+            self._refresh_runtime_status()
+            return
+
         diagnostic = self._pipeline_diagnostics.last_diagnostic
         if diagnostic:
             self._pipeline_status.setText(f"Pipeline: {diagnostic}")
@@ -353,6 +417,35 @@ class SettingsWindow:
             self._pipeline_timing.setText(f"Tempo: {timing_summary}")
         else:
             self._pipeline_timing.setText("Tempo: aguardando")
+        self._runtime_source.setText("Fonte MV/MZ: aguardando")
+        self._runtime_translation.setText("Traducao MV/MZ: aguardando")
+
+    def _refresh_runtime_status(self) -> None:
+        if self._runtime_diagnostics is None:
+            self._pipeline_status.setText("Pipeline: runtime MV/MZ indisponivel")
+            self._pipeline_timing.setText("Tempo: aguardando")
+            return
+
+        diagnostic = self._runtime_diagnostics.last_diagnostic
+        if diagnostic:
+            self._pipeline_status.setText(f"Pipeline: {diagnostic}")
+        else:
+            self._pipeline_status.setText("Pipeline: aguardando runtime MV/MZ")
+
+        timing_summary = self._runtime_diagnostics.last_timing_summary
+        if timing_summary:
+            self._pipeline_timing.setText(f"Tempo: {timing_summary}")
+        else:
+            self._pipeline_timing.setText("Tempo: aguardando")
+
+        source_text = self._runtime_diagnostics.last_source_text
+        self._runtime_source.setText(
+            f"Fonte MV/MZ: {self._short_debug_text(source_text)}"
+        )
+        translated_text = self._runtime_diagnostics.last_translated_text
+        self._runtime_translation.setText(
+            f"Traducao MV/MZ: {self._short_debug_text(translated_text)}"
+        )
 
     def _build_mode_tab(self, form_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
@@ -373,8 +466,15 @@ class SettingsWindow:
         buttons = hbox_cls()
         buttons.addWidget(self._refresh_catalog)
         buttons.addWidget(self._translate_catalog_entry)
+        bulk_buttons = hbox_cls()
+        bulk_buttons.addWidget(self._bulk_limit)
+        bulk_buttons.addWidget(self._translate_catalog)
+        bulk_buttons.addWidget(self._cancel_catalog_translation)
         tab.addWidget(self._catalog_table)
         tab.addLayout(buttons)
+        tab.addWidget(self._bulk_progress)
+        tab.addWidget(self._bulk_status)
+        tab.addLayout(bulk_buttons)
         return self._wrap(tab)
 
     def _build_capture_tab(self, form_cls, hbox_cls, vbox_cls):
@@ -417,6 +517,8 @@ class SettingsWindow:
         status_layout.addWidget(self._capture_status)
         status_layout.addWidget(self._pipeline_status)
         status_layout.addWidget(self._pipeline_timing)
+        status_layout.addWidget(self._runtime_source)
+        status_layout.addWidget(self._runtime_translation)
         status_group.setLayout(status_layout)
         buttons = hbox_cls()
         buttons.addWidget(self._pause)
@@ -553,6 +655,136 @@ class SettingsWindow:
         self._overlay.show_text(result.translated_text)
         self._status.setText(f"Traduzido: {result.translated_text}")
         return True
+
+    def _start_bulk_catalog_translation(self) -> bool:
+        if self._bulk_thread is not None and self._bulk_thread.is_alive():
+            self._status.setText("Traducao em lote ja esta rodando.")
+            return False
+
+        limit = self._selected_bulk_limit()
+        self._clear_bulk_queues()
+        self._bulk_cancel_requested = False
+        self._bulk_progress.setRange(0, 0)
+        self._bulk_status.setText("Lote: iniciando...")
+        self._translate_catalog.setEnabled(False)
+        self._cancel_catalog_translation.setEnabled(True)
+
+        self._bulk_thread = Thread(
+            target=self._run_bulk_catalog_translation,
+            args=(limit,),
+            daemon=True,
+        )
+        self._bulk_thread.start()
+        self._bulk_timer.start()
+        return True
+
+    def _cancel_bulk_catalog_translation(self) -> None:
+        self._bulk_cancel_requested = True
+        self._bulk_status.setText("Lote: cancelando...")
+        self._cancel_catalog_translation.setEnabled(False)
+
+    def _run_bulk_catalog_translation(self, limit: int | None) -> None:
+        try:
+            result = self._mode_settings.translate_catalog_entries(
+                limit=limit,
+                on_progress=self._bulk_progress_queue.put,
+                should_cancel=lambda: self._bulk_cancel_requested,
+            )
+        except Exception as error:
+            self._bulk_result_queue.put(error)
+            return
+
+        self._bulk_result_queue.put(result)
+
+    def _poll_bulk_translation(self) -> None:
+        while True:
+            try:
+                progress = self._bulk_progress_queue.get_nowait()
+            except Empty:
+                break
+            self._apply_bulk_progress(progress)
+
+        try:
+            result = self._bulk_result_queue.get_nowait()
+        except Empty:
+            return
+
+        self._finish_bulk_translation(result)
+
+    def _apply_bulk_progress(self, progress: CatalogTranslationProgress) -> None:
+        if progress.total > 0:
+            self._bulk_progress.setRange(0, progress.total)
+            self._bulk_progress.setValue(progress.processed)
+        else:
+            self._bulk_progress.setRange(0, 1)
+            self._bulk_progress.setValue(0)
+
+        self._bulk_status.setText(
+            "Lote: "
+            f"{progress.processed}/{progress.total} processados | "
+            f"{progress.translated} traduzidos | "
+            f"{progress.cache_hits} cache hits | "
+            f"{progress.errors} erros"
+        )
+
+    def _finish_bulk_translation(
+        self,
+        result: CatalogTranslationResult | Exception,
+    ) -> None:
+        self._bulk_timer.stop()
+        self._translate_catalog.setEnabled(True)
+        self._cancel_catalog_translation.setEnabled(False)
+        self._bulk_thread = None
+
+        if isinstance(result, Exception):
+            self._bulk_progress.setRange(0, 1)
+            self._bulk_progress.setValue(0)
+            self._bulk_status.setText(f"Lote: falhou - {result}")
+            self._status.setText(f"Traducao em lote falhou: {result}")
+            return
+
+        if result.total > 0:
+            self._bulk_progress.setRange(0, result.total)
+            self._bulk_progress.setValue(result.processed)
+        else:
+            self._bulk_progress.setRange(0, 1)
+            self._bulk_progress.setValue(0)
+
+        status = "cancelado" if result.cancelled else "concluido"
+        message = (
+            f"Lote {status}: {result.processed}/{result.total} processados | "
+            f"{result.translated} traduzidos | "
+            f"{result.cache_hits} cache hits | "
+            f"{result.errors} erros"
+        )
+        self._bulk_status.setText(message)
+        self._status.setText(message)
+
+    def _selected_bulk_limit(self) -> int | None:
+        value = int(self._bulk_limit.currentData())
+        if value == 0:
+            return None
+        return value
+
+    def _short_debug_text(self, text: str | None, limit: int = 220) -> str:
+        if text is None or not text.strip():
+            return "aguardando"
+        normalized = " ".join(text.split())
+        if len(normalized) <= limit:
+            return normalized
+        return f"{normalized[:limit]}..."
+
+    def _clear_bulk_queues(self) -> None:
+        while True:
+            try:
+                self._bulk_progress_queue.get_nowait()
+            except Empty:
+                break
+        while True:
+            try:
+                self._bulk_result_queue.get_nowait()
+            except Empty:
+                break
 
     def _table_item(self, text: str):
         from PySide6.QtWidgets import QTableWidgetItem

@@ -6,7 +6,13 @@ from time import monotonic
 from typing import Callable
 
 from live_translator.application.translation_pipeline_service import DefaultTextNormalizer
-from live_translator.domain.interfaces import OverlayRenderer, TextNormalizer, TranslationCache, Translator
+from live_translator.application.translation_quality import looks_like_invalid_translation
+from live_translator.domain.interfaces import (
+    OverlayRenderer,
+    TextNormalizer,
+    TranslationCache,
+    Translator,
+)
 from live_translator.domain.models import OperationMode, TranslationResult
 
 from .mode_settings_service import ModeSettingsService
@@ -26,6 +32,8 @@ class RpgMakerRuntimeService:
     _last_diagnostic: str | None = field(default=None, init=False, repr=False)
     _last_timing_summary: str | None = field(default=None, init=False, repr=False)
     _last_source_text: str | None = field(default=None, init=False, repr=False)
+    _last_translated_text: str | None = field(default=None, init=False, repr=False)
+    _latest_request_id: int = field(default=0, init=False, repr=False)
     _lock: Lock = field(default_factory=Lock, init=False, repr=False)
 
     @property
@@ -43,6 +51,11 @@ class RpgMakerRuntimeService:
         with self._lock:
             return self._last_source_text
 
+    @property
+    def last_translated_text(self) -> str | None:
+        with self._lock:
+            return self._last_translated_text
+
     def process_text(self, text: str) -> TranslationResult | None:
         started_at = self.clock()
         translation_seconds: float | None = None
@@ -55,12 +68,17 @@ class RpgMakerRuntimeService:
             self._set_diagnostics("sem texto runtime", started_at)
             return None
 
+        request_id = self._start_request(normalized_text)
         cached = self.translation_cache.get_by_text(normalized_text)
         if cached is not None:
-            self.overlay.show_text(cached.translated_text)
-            self._set_last_source_text(normalized_text)
-            self._set_diagnostics("runtime cache texto", started_at)
-            return cached
+            if looks_like_invalid_translation(normalized_text, cached.translated_text):
+                self._set_diagnostic("runtime cache invalido")
+            else:
+                if self._is_latest_request(request_id):
+                    self.overlay.show_text(cached.translated_text)
+                    self._set_last_translated_text(cached.translated_text)
+                    self._set_diagnostics("runtime cache texto", started_at)
+                return cached
 
         self._set_diagnostic("runtime traduzindo")
         translation_started_at = self.clock()
@@ -78,19 +96,30 @@ class RpgMakerRuntimeService:
 
         translation_seconds = self.clock() - translation_started_at
         self.translation_cache.save_translation(result)
-        self.overlay.show_text(result.translated_text)
-        self._set_last_source_text(normalized_text)
-        self._set_diagnostics(
-            "runtime traduzido",
-            started_at,
-            translation_seconds=translation_seconds,
-            stage="cache miss",
-        )
+        if self._is_latest_request(request_id):
+            self.overlay.show_text(result.translated_text)
+            self._set_last_translated_text(result.translated_text)
+            self._set_diagnostics(
+                "runtime traduzido",
+                started_at,
+                translation_seconds=translation_seconds,
+                stage="cache miss",
+            )
         return result
 
-    def _set_last_source_text(self, text: str) -> None:
+    def _start_request(self, text: str) -> int:
         with self._lock:
+            self._latest_request_id += 1
             self._last_source_text = text
+            return self._latest_request_id
+
+    def _is_latest_request(self, request_id: int) -> bool:
+        with self._lock:
+            return request_id == self._latest_request_id
+
+    def _set_last_translated_text(self, text: str) -> None:
+        with self._lock:
+            self._last_translated_text = text
 
     def _set_diagnostic(self, diagnostic: str) -> None:
         with self._lock:

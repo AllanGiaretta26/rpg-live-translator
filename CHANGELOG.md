@@ -6,11 +6,36 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V6 com fechamento parcial da evolucao MV/MZ, diagnosticos e riscos
+  restantes.
+- Traducao em lote do catalogo MV/MZ com limite de 100, 500 ou todos os textos.
+- Progresso, contagem de cache hits, contagem de erros e cancelamento para o
+  pre-cache do catalogo.
 - Modo RPG Maker MV/MZ com importacao de catalogo por `MapXXX.json` e `CommonEvents.json`.
 - Aba `Catalogo` para listar textos importados e traduzir a entrada selecionada sob demanda.
 - Catalogo SQLite `rpg_maker_text_catalog` separado do cache de traducoes.
 - Bridge runtime HTTP local para receber falas de plugin MV/MZ sem passar por captura/OCR.
 - Plugin `LiveTranslatorBridge.js` para enviar mensagens e escolhas do jogo ao app.
+
+### Fixed
+
+- Bridge MV/MZ agora captura o texto realmente renderizado pela janela de
+  mensagem, evitando ler a fila interna do RPG Maker quando ela contem falas
+  alem da fala visivel.
+- Runtime MV/MZ agora impede que uma traducao antiga finalize depois e
+  sobrescreva a fala mais recente no overlay.
+- Tradutor Ollama agora rejeita respostas que vazam instrucoes do prompt e tenta
+  uma segunda chamada com prompt mais curto antes de falhar.
+- Runtime MV/MZ agora ignora traducoes antigas do cache quando elas parecem
+  conter contexto ou instrucoes de prompt, forçando nova traducao.
+
+### Changed
+
+- Painel `Status` agora mostra a ultima fonte recebida pela bridge MV/MZ e a
+  ultima traducao aceita pelo runtime, para separar problemas de plugin, cache e
+  modelo.
+- README documenta o diagnostico MV/MZ e como interpretar `Fonte MV/MZ`,
+  `Traducao MV/MZ`, cache valido e cache invalido.
 
 ## [0.2.0] - 2026-05-27
 

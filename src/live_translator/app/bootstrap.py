@@ -66,6 +66,7 @@ class ConsoleUiApp:
         pipeline_diagnostics: object | None = None,
         overlay_settings: object | None = None,
         mode_settings: object | None = None,
+        runtime_diagnostics: object | None = None,
     ) -> None:
         self._overlay = overlay
         self._capture_loop = capture_loop
@@ -74,6 +75,7 @@ class ConsoleUiApp:
         self._pipeline_diagnostics = pipeline_diagnostics
         self._overlay_settings = overlay_settings
         self._mode_settings = mode_settings
+        self._runtime_diagnostics = runtime_diagnostics
 
     def run(self) -> int:
         self._overlay.show_text("Live Translator pronto.")
@@ -212,6 +214,7 @@ def bootstrap(
             profile_settings_service,
             capture_preview_service,
             pipeline,
+            rpg_maker_runtime_service,
             overlay_settings_service,
             mode_settings_service,
             rpg_maker_bridge_server.endpoint,
@@ -275,6 +278,7 @@ def _create_ui(
     profile_settings: ProfileSettingsService,
     capture_preview: CapturePreviewService,
     pipeline_diagnostics: TranslationPipelineService,
+    runtime_diagnostics: RpgMakerRuntimeService,
     overlay_settings: OverlaySettingsService,
     mode_settings: ModeSettingsService,
     rpg_maker_bridge_endpoint: str,
@@ -288,6 +292,7 @@ def _create_ui(
             profile_settings,
             capture_preview,
             pipeline_diagnostics,
+            runtime_diagnostics,
             overlay_settings,
             mode_settings,
             QtUiSettings(
@@ -296,13 +301,14 @@ def _create_ui(
         )
     except ImportError:
         return ConsoleUiApp(
-            overlay,
-            capture_loop,
-            profile_settings,
-            capture_preview,
-            pipeline_diagnostics,
-            overlay_settings,
-            mode_settings,
+            overlay=overlay,
+            capture_loop=capture_loop,
+            profile_settings=profile_settings,
+            capture_preview=capture_preview,
+            pipeline_diagnostics=pipeline_diagnostics,
+            overlay_settings=overlay_settings,
+            mode_settings=mode_settings,
+            runtime_diagnostics=runtime_diagnostics,
         )
 
 
