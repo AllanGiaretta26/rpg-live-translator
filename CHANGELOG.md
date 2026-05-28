@@ -6,6 +6,16 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V7 com fechamento dos controles de cache, erros de lote e
+  diagnostico MV/MZ.
+- Botao `Limpar cache contaminado` para remover traducoes invalidas do cache do
+  catalogo MV/MZ ativo.
+- Botao `Reprocessar fala atual` para apagar o cache da ultima fala MV/MZ e
+  forcar nova traducao.
+- Persistencia dos erros do ultimo lote em `rpg_maker_batch_errors`, com
+  `entry_id`, origem, texto fonte e mensagem do erro.
+- Botao `Ver erros do ultimo lote` para consultar falhas de traducao em lote.
+- Contagem de entradas do catalogo MV/MZ que ja possuem traducao cacheada.
 - Relatorio V6 com fechamento parcial da evolucao MV/MZ, diagnosticos e riscos
   restantes.
 - Traducao em lote do catalogo MV/MZ com limite de 100, 500 ou todos os textos.
@@ -19,6 +29,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Fixed
 
+- Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
+  MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de
   mensagem, evitando ler a fila interna do RPG Maker quando ela contem falas
   alem da fala visivel.
@@ -31,6 +43,10 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Lotes MV/MZ agora limpam os erros anteriores ao iniciar e mantem os erros do
+  ultimo lote para diagnostico.
+- README documenta os novos controles de cache contaminado, reprocessamento e
+  consulta de erros do modo MV/MZ.
 - Painel `Status` agora mostra a ultima fonte recebida pela bridge MV/MZ e a
   ultima traducao aceita pelo runtime, para separar problemas de plugin, cache e
   modelo.

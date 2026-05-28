@@ -18,6 +18,8 @@ overlay, pausa/retomada e diagnostico basico de tempo.
 - painel de status com tempo total, OCR, traducao e caminho do ultimo frame;
 - modo RPG Maker MV/MZ com importacao de catalogo, traducao sob demanda e
   bridge runtime local;
+- controles MV/MZ para limpar cache contaminado, reprocessar fala atual e
+  consultar erros do ultimo lote;
 - scripts de desenvolvimento para criar perfil e testar captura.
 
 O modo universal continua sendo o caminho mais compativel. O modo RPG Maker
@@ -53,7 +55,9 @@ Abra o app e use as abas da janela de calibração:
 2. `Catalogo`: confira textos importados, use `Traduzir selecionado` para
    testar uma entrada ou `Traduzir catalogo` para preencher o cache em lote.
    O lote permite escolher `100`, `500` ou `Todos`, mostra progresso, pula
-   textos ja cacheados e pode ser cancelado.
+   textos ja cacheados e pode ser cancelado. A aba tambem mostra quantas
+   entradas ja possuem traducao cacheada, permite limpar traducoes contaminadas
+   do projeto atual e consultar os erros do ultimo lote.
 3. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
    caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
    preview deve mostrar somente a area enviada ao OCR.
@@ -64,7 +68,8 @@ Abra o app e use as abas da janela de calibração:
    A linha `Tempo` mostra o ultimo frame processado, por exemplo:
    `total 3.40s | ocr 1.42s | traducao 1.36s | cache miss`.
    No modo MV/MZ, esta aba tambem mostra a ultima fonte recebida pela bridge e
-   a ultima traducao aceita pelo runtime.
+   a ultima traducao aceita pelo runtime. Use `Reprocessar fala atual` para
+   apagar o cache da fala runtime atual e forcar uma nova traducao.
 
 Clique em `Salvar area` e `Salvar overlay` para manter os ajustes após reiniciar.
 
@@ -121,6 +126,8 @@ Importacao atual:
 - salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
 - salva traducoes geradas no cache `translations`;
 - permite pre-cache em lote com limite, progresso, cache hits e cancelamento.
+- persiste erros do ultimo lote em `rpg_maker_batch_errors`, com ID da entrada,
+  origem, texto fonte e mensagem do erro.
 
 Bridge runtime:
 
@@ -159,6 +166,17 @@ O runtime MV/MZ valida traducoes vindas do cache. Entradas antigas que parecem
 conter contexto ou instrucoes de prompt sao ignoradas e sobrescritas por uma
 nova traducao quando a fala aparecer novamente.
 
+Controles uteis quando aparecer uma traducao ruim:
+
+- `Limpar cache contaminado`: varre o catalogo MV/MZ ativo e remove do cache
+  apenas traducoes que parecem conter contexto ou instrucoes de prompt;
+- `Reprocessar fala atual`: remove o cache da ultima `Fonte MV/MZ` recebida e
+  traduz novamente;
+- `Ver erros do ultimo lote`: abre a lista de falhas salvas do lote mais
+  recente, com origem e mensagem de erro;
+- `Cache: X/Y entradas ja traduzidas`: mostra quantos textos do catalogo atual
+  ja possuem traducao no cache.
+
 ## Known Issues
 
 - Ainda nao existe build empacotado para Windows; o app roda pelo ambiente
@@ -167,11 +185,10 @@ nova traducao quando a fala aparecer novamente.
   posicao, a area precisa ser recalibrada.
 - O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
   dependencia, mas textos gerados por plugins custom podem exigir fallback.
-- O aviso de overlay sobre area capturada ainda pode aparecer no modo MV/MZ,
-  mesmo com a captura desativada; ele e relevante principalmente para o modo
-  Universal.
-- Logs persistentes e exportaveis ainda nao foram implementados; o diagnostico
-  atual fica no painel `Status`.
+- Os erros do ultimo lote MV/MZ sao persistidos, mas ainda nao existe exportacao
+  para arquivo.
+- Logs persistentes gerais do runtime ainda nao foram implementados; o
+  diagnostico principal fica no painel `Status`.
 - O modo click-through do overlay ainda nao e configuravel pela UI.
 
 ## Arquitetura
