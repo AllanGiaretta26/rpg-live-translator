@@ -6,6 +6,12 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V8 com fechamento dos controles avancados de traducao em lote MV/MZ.
+- Filtro de traducao em lote MV/MZ por `message`, `choice`, `speaker` e
+  `scrolling_text`.
+- Controles para pausar e retomar o lote MV/MZ sem perder progresso na sessao
+  atual.
+- Status final do lote MV/MZ com tempo total e media por traducao real.
 - Relatorio V7 com fechamento dos controles de cache, erros de lote e
   diagnostico MV/MZ.
 - Botao `Limpar cache contaminado` para remover traducoes invalidas do cache do
@@ -43,6 +49,10 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Lote MV/MZ agora deixa `speaker` desativado por padrao para evitar traduzir
+  nomes proprios.
+- Lote MV/MZ agora valida cache existente antes de contar como cache hit; cache
+  contaminado e retraduzido e sobrescrito.
 - Lotes MV/MZ agora limpam os erros anteriores ao iniciar e mantem os erros do
   ultimo lote para diagnostico.
 - README documenta os novos controles de cache contaminado, reprocessamento e
