@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Sequence
 
 from live_translator.application.mode_settings_service import ModeSettingsService
+from live_translator.application.mode_settings_service import (
+    RPG_MAKER_PROJECT_PATH_SETTING_KEY,
+)
 from live_translator.domain.models import (
     OperationMode,
     RpgMakerProject,
@@ -74,9 +77,12 @@ class FakeCatalog:
 @dataclass
 class FakeTranslationCache:
     result: TranslationResult | None = None
+    cached_texts: set[str] = field(default_factory=set)
     saved: list[TranslationResult] = field(default_factory=list)
 
     def get_by_text(self, source_text: str) -> TranslationResult | None:
+        if source_text in self.cached_texts:
+            return TranslationResult(source_text=source_text, translated_text=f"cached:{source_text}")
         return self.result
 
     def save_translation(self, result: TranslationResult) -> None:
@@ -109,6 +115,26 @@ def _entry(entry_id: int = 1) -> RpgMakerTextEntry:
     )
 
 
+def _entries(count: int) -> list[RpgMakerTextEntry]:
+    return [
+        RpgMakerTextEntry(
+            id=index + 1,
+            source_text=f"Line {index + 1}",
+            text_type=RpgMakerTextType.MESSAGE,
+            origin=RpgMakerTextOrigin(
+                file_name="Map001.json",
+                origin_key=f"Map001.json|1|2|0|{index}|0",
+                map_id=1,
+                event_id=2,
+                page_index=0,
+                command_index=index,
+                parameter_index=0,
+            ),
+        )
+        for index in range(count)
+    ]
+
+
 def _service(
     *,
     settings: FakeSettingsRepository | None = None,
@@ -121,8 +147,10 @@ def _service(
         data_path=Path("C:/game/www/data"),
         version=RpgMakerVersion.MZ,
     )
+    resolved_settings = settings or FakeSettingsRepository()
+    resolved_settings.values.setdefault(RPG_MAKER_PROJECT_PATH_SETTING_KEY, "C:/game")
     return ModeSettingsService(
-        settings_repository=settings or FakeSettingsRepository(),
+        settings_repository=resolved_settings,
         rpg_maker_detector=FakeDetector(project),
         rpg_maker_parser=FakeParser([_entry()]),
         rpg_maker_catalog=catalog or FakeCatalog(),
@@ -177,3 +205,58 @@ def test_translate_catalog_entry_translates_and_saves_cache_miss():
     assert result.translated_text == "pt:Hello there"
     assert translator.calls == ["Hello there"]
     assert cache.saved == [result]
+
+
+def test_translate_catalog_entries_respects_limit_and_reports_progress():
+    cache = FakeTranslationCache()
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(_entries(3)),
+        cache=cache,
+        translator=translator,
+    )
+    progress = []
+
+    result = service.translate_catalog_entries(limit=2, on_progress=progress.append)
+
+    assert result.processed == 2
+    assert result.total == 2
+    assert result.translated == 2
+    assert result.cache_hits == 0
+    assert result.errors == 0
+    assert translator.calls == ["Line 1", "Line 2"]
+    assert [item.processed for item in progress] == [1, 2]
+
+
+def test_translate_catalog_entries_skips_cache_hits():
+    cache = FakeTranslationCache(cached_texts={"Line 1"})
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(_entries(2)),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.processed == 2
+    assert result.translated == 1
+    assert result.cache_hits == 1
+    assert translator.calls == ["Line 2"]
+
+
+def test_translate_catalog_entries_can_be_cancelled():
+    cache = FakeTranslationCache()
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(_entries(3)),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries(should_cancel=lambda: bool(translator.calls))
+
+    assert result.cancelled is True
+    assert result.processed == 1
+    assert result.total == 3
+    assert translator.calls == ["Line 1"]

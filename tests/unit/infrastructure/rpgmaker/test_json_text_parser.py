@@ -28,6 +28,7 @@ def test_parser_extracts_map_messages_choices_and_scrolling_text(tmp_path):
                                 "list": [
                                     {"code": 101, "parameters": ["", 0, 0, 2, "Alice"]},
                                     {"code": 401, "parameters": ["Hello."]},
+                                    {"code": 401, "parameters": ["Second line."]},
                                     {"code": 102, "parameters": [["Yes", "No"]]},
                                     {"code": 402, "parameters": [0, "Yes"]},
                                     {"code": 405, "parameters": ["Long ago..."]},
@@ -50,7 +51,7 @@ def test_parser_extracts_map_messages_choices_and_scrolling_text(tmp_path):
 
     assert [(entry.source_text, entry.text_type) for entry in entries] == [
         ("Alice", RpgMakerTextType.SPEAKER),
-        ("Hello.", RpgMakerTextType.MESSAGE),
+        ("Hello.\nSecond line.", RpgMakerTextType.MESSAGE),
         ("Yes", RpgMakerTextType.CHOICE),
         ("No", RpgMakerTextType.CHOICE),
         ("Yes", RpgMakerTextType.CHOICE),

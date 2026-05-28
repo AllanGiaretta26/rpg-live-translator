@@ -45,3 +45,15 @@ def build_translation_prompt(
         "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
     )
+
+
+def build_translation_retry_prompt(
+    text: str,
+    target_language: str = "pt-BR",
+) -> str:
+    return (
+        f"Traduza para {target_language} somente o texto abaixo.\n"
+        "Nao inclua instrucoes, explicacoes, chaves extras ou texto anterior.\n"
+        'Responda apenas JSON valido: {"translated_text": "..."}\n'
+        f"Texto:\n{text}"
+    )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from live_translator.domain.interfaces import (
     RpgMakerProjectDetector,
@@ -21,6 +22,31 @@ from live_translator.domain.models import (
 
 ACTIVE_MODE_SETTING_KEY = "operation.active_mode"
 RPG_MAKER_PROJECT_PATH_SETTING_KEY = "rpg_maker.project_path"
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogTranslationProgress:
+    total: int
+    processed: int
+    translated: int
+    cache_hits: int
+    errors: int
+    cancelled: bool = False
+    current_text: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogTranslationResult:
+    total: int
+    processed: int
+    translated: int
+    cache_hits: int
+    errors: int
+    cancelled: bool = False
+
+
+ProgressCallback = Callable[[CatalogTranslationProgress], None]
+CancelChecker = Callable[[], bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +109,66 @@ class ModeSettingsService:
         result = self.translator.translate(entry.source_text, [])
         self.translation_cache.save_translation(result)
         return result
+
+    def translate_catalog_entries(
+        self,
+        *,
+        limit: int | None = None,
+        on_progress: ProgressCallback | None = None,
+        should_cancel: CancelChecker | None = None,
+    ) -> CatalogTranslationResult:
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be greater than zero")
+
+        entries = self.list_rpg_maker_entries()
+        if limit is not None:
+            entries = entries[:limit]
+
+        total = len(entries)
+        translated = 0
+        cache_hits = 0
+        errors = 0
+        processed = 0
+        cancelled = False
+
+        for entry in entries:
+            if should_cancel is not None and should_cancel():
+                cancelled = True
+                break
+
+            try:
+                cached = self.translation_cache.get_by_text(entry.source_text)
+                if cached is not None:
+                    cache_hits += 1
+                else:
+                    result = self.translator.translate(entry.source_text, [])
+                    self.translation_cache.save_translation(result)
+                    translated += 1
+            except Exception:
+                errors += 1
+            finally:
+                processed += 1
+                if on_progress is not None:
+                    on_progress(
+                        CatalogTranslationProgress(
+                            total=total,
+                            processed=processed,
+                            translated=translated,
+                            cache_hits=cache_hits,
+                            errors=errors,
+                            cancelled=cancelled,
+                            current_text=entry.source_text,
+                        )
+                    )
+
+        return CatalogTranslationResult(
+            total=total,
+            processed=processed,
+            translated=translated,
+            cache_hits=cache_hits,
+            errors=errors,
+            cancelled=cancelled,
+        )
 
     def list_rpg_maker_entries(self) -> list[RpgMakerTextEntry]:
         project_path = self.get_rpg_maker_project_path()
