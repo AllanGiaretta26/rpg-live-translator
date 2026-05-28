@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic
 from typing import Callable
 
 from live_translator.domain.interfaces import (
@@ -18,6 +19,7 @@ from live_translator.domain.models import (
     OperationMode,
     RpgMakerImportResult,
     RpgMakerTextEntry,
+    RpgMakerTextType,
     TranslationResult,
 )
 
@@ -26,6 +28,13 @@ from .translation_quality import looks_like_invalid_translation
 
 ACTIVE_MODE_SETTING_KEY = "operation.active_mode"
 RPG_MAKER_PROJECT_PATH_SETTING_KEY = "rpg_maker.project_path"
+DEFAULT_CATALOG_TRANSLATION_TYPES = frozenset(
+    {
+        RpgMakerTextType.MESSAGE,
+        RpgMakerTextType.CHOICE,
+        RpgMakerTextType.SCROLLING_TEXT,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +45,9 @@ class CatalogTranslationProgress:
     cache_hits: int
     errors: int
     cancelled: bool = False
+    paused: bool = False
+    elapsed_seconds: float = 0.0
+    average_translation_seconds: float = 0.0
     current_text: str = ""
 
 
@@ -47,10 +59,15 @@ class CatalogTranslationResult:
     cache_hits: int
     errors: int
     cancelled: bool = False
+    elapsed_seconds: float = 0.0
+    average_translation_seconds: float = 0.0
 
 
 ProgressCallback = Callable[[CatalogTranslationProgress], None]
 CancelChecker = Callable[[], bool]
+PauseChecker = Callable[[], bool]
+PauseWaiter = Callable[[], None]
+Clock = Callable[[], float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +79,7 @@ class ModeSettingsService:
     translation_cache: TranslationCache
     translator: Translator
     batch_error_repository: CatalogTranslationErrorRepository
+    clock: Clock = monotonic
 
     def get_active_mode(self) -> OperationMode:
         raw_value = self.settings_repository.get(ACTIVE_MODE_SETTING_KEY)
@@ -119,35 +137,76 @@ class ModeSettingsService:
         self,
         *,
         limit: int | None = None,
+        text_types: set[RpgMakerTextType] | frozenset[RpgMakerTextType] | None = None,
         on_progress: ProgressCallback | None = None,
         should_cancel: CancelChecker | None = None,
+        should_pause: PauseChecker | None = None,
+        wait_if_paused: PauseWaiter | None = None,
     ) -> CatalogTranslationResult:
         if limit is not None and limit <= 0:
             raise ValueError("limit must be greater than zero")
 
-        entries = self.list_rpg_maker_entries()
+        selected_types = (
+            DEFAULT_CATALOG_TRANSLATION_TYPES
+            if text_types is None
+            else frozenset(text_types)
+        )
+        if not selected_types:
+            raise ValueError("at least one text type must be selected")
+
+        entries = [
+            entry
+            for entry in self.list_rpg_maker_entries()
+            if entry.text_type in selected_types
+        ]
         if limit is not None:
             entries = entries[:limit]
 
+        started_at = self.clock()
         total = len(entries)
         translated = 0
         cache_hits = 0
         errors = 0
         processed = 0
         cancelled = False
+        translation_seconds_total = 0.0
         self.batch_error_repository.clear_last_batch_errors()
 
         for entry in entries:
+            if should_pause is not None and should_pause():
+                if on_progress is not None:
+                    on_progress(
+                        self._build_progress(
+                            total=total,
+                            processed=processed,
+                            translated=translated,
+                            cache_hits=cache_hits,
+                            errors=errors,
+                            cancelled=cancelled,
+                            paused=True,
+                            started_at=started_at,
+                            translation_seconds_total=translation_seconds_total,
+                            current_text=entry.source_text,
+                        )
+                    )
+                if wait_if_paused is not None:
+                    wait_if_paused()
+
             if should_cancel is not None and should_cancel():
                 cancelled = True
                 break
 
             try:
                 cached = self.translation_cache.get_by_text(entry.source_text)
-                if cached is not None:
+                if cached is not None and not looks_like_invalid_translation(
+                    entry.source_text,
+                    cached.translated_text,
+                ):
                     cache_hits += 1
                 else:
+                    translation_started_at = self.clock()
                     result = self.translator.translate(entry.source_text, [])
+                    translation_seconds_total += self.clock() - translation_started_at
                     self.translation_cache.save_translation(result)
                     translated += 1
             except Exception as error:
@@ -171,6 +230,12 @@ class ModeSettingsService:
                             cache_hits=cache_hits,
                             errors=errors,
                             cancelled=cancelled,
+                            paused=False,
+                            elapsed_seconds=self.clock() - started_at,
+                            average_translation_seconds=_average(
+                                translation_seconds_total,
+                                translated,
+                            ),
                             current_text=entry.source_text,
                         )
                     )
@@ -182,6 +247,8 @@ class ModeSettingsService:
             cache_hits=cache_hits,
             errors=errors,
             cancelled=cancelled,
+            elapsed_seconds=self.clock() - started_at,
+            average_translation_seconds=_average(translation_seconds_total, translated),
         )
 
     def list_rpg_maker_entries(self) -> list[RpgMakerTextEntry]:
@@ -214,6 +281,36 @@ class ModeSettingsService:
     def list_last_batch_errors(self) -> list[CatalogTranslationError]:
         return self.batch_error_repository.list_last_batch_errors()
 
+    def _build_progress(
+        self,
+        *,
+        total: int,
+        processed: int,
+        translated: int,
+        cache_hits: int,
+        errors: int,
+        cancelled: bool,
+        paused: bool,
+        started_at: float,
+        translation_seconds_total: float,
+        current_text: str,
+    ) -> CatalogTranslationProgress:
+        return CatalogTranslationProgress(
+            total=total,
+            processed=processed,
+            translated=translated,
+            cache_hits=cache_hits,
+            errors=errors,
+            cancelled=cancelled,
+            paused=paused,
+            elapsed_seconds=self.clock() - started_at,
+            average_translation_seconds=_average(
+                translation_seconds_total,
+                translated,
+            ),
+            current_text=current_text,
+        )
+
 
 def _format_entry_origin(entry: RpgMakerTextEntry) -> str:
     origin = entry.origin
@@ -225,3 +322,9 @@ def _format_entry_origin(entry: RpgMakerTextEntry) -> str:
     if origin.command_index is not None:
         parts.append(f"cmd {origin.command_index}")
     return " | ".join(parts)
+
+
+def _average(total: float, count: int) -> float:
+    if count <= 0:
+        return 0.0
+    return total / count

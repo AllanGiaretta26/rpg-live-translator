@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, Queue
-from threading import Thread
+from threading import Event, Thread
 from typing import Callable, Protocol
 
 from live_translator.application.geometry import rectangles_overlap
@@ -18,6 +18,7 @@ from live_translator.domain.models import (
     OverlayPlacement,
     RpgMakerImportResult,
     RpgMakerTextEntry,
+    RpgMakerTextType,
     TranslationResult,
     TextRegion,
 )
@@ -115,8 +116,11 @@ class ModeSettings(Protocol):
         self,
         *,
         limit: int | None = None,
+        text_types: set[RpgMakerTextType] | frozenset[RpgMakerTextType] | None = None,
         on_progress: Callable[[CatalogTranslationProgress], None] | None = None,
         should_cancel: Callable[[], bool] | None = None,
+        should_pause: Callable[[], bool] | None = None,
+        wait_if_paused: Callable[[], None] | None = None,
     ) -> CatalogTranslationResult: ...
 
     def count_cached_catalog_entries(self) -> int: ...
@@ -220,6 +224,7 @@ class SettingsWindow:
             QHBoxLayout,
             QLabel,
             QLineEdit,
+            QCheckBox,
             QComboBox,
             QPushButton,
             QProgressBar,
@@ -243,6 +248,9 @@ class SettingsWindow:
         self._bulk_progress_queue: Queue[CatalogTranslationProgress] = Queue()
         self._bulk_result_queue: Queue[CatalogTranslationResult | Exception] = Queue()
         self._bulk_cancel_requested = False
+        self._bulk_pause_requested = False
+        self._bulk_pause_event = Event()
+        self._bulk_pause_event.set()
         self._bulk_thread: Thread | None = None
         self._bulk_timer = QTimer()
         self._bulk_timer.setInterval(200)
@@ -328,7 +336,21 @@ class SettingsWindow:
         self._bulk_limit.addItem("100", 100)
         self._bulk_limit.addItem("500", 500)
         self._bulk_limit.addItem("Todos", 0)
+        self._bulk_type_checkboxes = {
+            RpgMakerTextType.MESSAGE: QCheckBox("message"),
+            RpgMakerTextType.CHOICE: QCheckBox("choice"),
+            RpgMakerTextType.SPEAKER: QCheckBox("speaker"),
+            RpgMakerTextType.SCROLLING_TEXT: QCheckBox("scrolling_text"),
+        }
+        self._bulk_type_checkboxes[RpgMakerTextType.MESSAGE].setChecked(True)
+        self._bulk_type_checkboxes[RpgMakerTextType.CHOICE].setChecked(True)
+        self._bulk_type_checkboxes[RpgMakerTextType.SPEAKER].setChecked(False)
+        self._bulk_type_checkboxes[RpgMakerTextType.SCROLLING_TEXT].setChecked(True)
         self._translate_catalog = QPushButton("Traduzir catalogo")
+        self._pause_catalog_translation = QPushButton("Pausar lote")
+        self._pause_catalog_translation.setEnabled(False)
+        self._resume_catalog_translation = QPushButton("Retomar lote")
+        self._resume_catalog_translation.setEnabled(False)
         self._cancel_catalog_translation = QPushButton("Cancelar")
         self._cancel_catalog_translation.setEnabled(False)
         self._bulk_progress = QProgressBar()
@@ -373,6 +395,12 @@ class SettingsWindow:
         )
         self._show_batch_errors.clicked.connect(self._show_last_batch_errors)
         self._translate_catalog.clicked.connect(self._start_bulk_catalog_translation)
+        self._pause_catalog_translation.clicked.connect(
+            self._pause_bulk_catalog_translation
+        )
+        self._resume_catalog_translation.clicked.connect(
+            self._resume_bulk_catalog_translation
+        )
         self._cancel_catalog_translation.clicked.connect(
             self._cancel_bulk_catalog_translation
         )
@@ -487,13 +515,19 @@ class SettingsWindow:
         buttons.addWidget(self._translate_catalog_entry)
         buttons.addWidget(self._clear_contaminated_cache)
         buttons.addWidget(self._show_batch_errors)
+        type_filters = hbox_cls()
+        for checkbox in self._bulk_type_checkboxes.values():
+            type_filters.addWidget(checkbox)
         bulk_buttons = hbox_cls()
         bulk_buttons.addWidget(self._bulk_limit)
         bulk_buttons.addWidget(self._translate_catalog)
+        bulk_buttons.addWidget(self._pause_catalog_translation)
+        bulk_buttons.addWidget(self._resume_catalog_translation)
         bulk_buttons.addWidget(self._cancel_catalog_translation)
         tab.addWidget(self._catalog_table)
         tab.addLayout(buttons)
         tab.addWidget(self._catalog_cache_status)
+        tab.addLayout(type_filters)
         tab.addWidget(self._bulk_progress)
         tab.addWidget(self._bulk_status)
         tab.addLayout(bulk_buttons)
@@ -702,33 +736,67 @@ class SettingsWindow:
             return False
 
         limit = self._selected_bulk_limit()
+        text_types = self._selected_bulk_text_types()
+        if not text_types:
+            self._status.setText("Selecione ao menos um tipo de texto para o lote.")
+            return False
+
         self._clear_bulk_queues()
         self._bulk_cancel_requested = False
+        self._bulk_pause_requested = False
+        self._bulk_pause_event.set()
         self._bulk_progress.setRange(0, 0)
         self._bulk_status.setText("Lote: iniciando...")
         self._translate_catalog.setEnabled(False)
+        self._pause_catalog_translation.setEnabled(True)
+        self._resume_catalog_translation.setEnabled(False)
         self._cancel_catalog_translation.setEnabled(True)
 
         self._bulk_thread = Thread(
             target=self._run_bulk_catalog_translation,
-            args=(limit,),
+            args=(limit, text_types),
             daemon=True,
         )
         self._bulk_thread.start()
         self._bulk_timer.start()
         return True
 
+    def _pause_bulk_catalog_translation(self) -> None:
+        self._bulk_pause_requested = True
+        self._bulk_pause_event.clear()
+        self._pause_catalog_translation.setEnabled(False)
+        self._resume_catalog_translation.setEnabled(True)
+        self._bulk_status.setText("Lote: pausando apos a entrada atual...")
+
+    def _resume_bulk_catalog_translation(self) -> None:
+        self._bulk_pause_requested = False
+        self._bulk_pause_event.set()
+        self._pause_catalog_translation.setEnabled(True)
+        self._resume_catalog_translation.setEnabled(False)
+        self._bulk_status.setText("Lote: retomando...")
+
     def _cancel_bulk_catalog_translation(self) -> None:
         self._bulk_cancel_requested = True
+        self._bulk_pause_requested = False
+        self._bulk_pause_event.set()
         self._bulk_status.setText("Lote: cancelando...")
+        self._pause_catalog_translation.setEnabled(False)
+        self._resume_catalog_translation.setEnabled(False)
         self._cancel_catalog_translation.setEnabled(False)
 
-    def _run_bulk_catalog_translation(self, limit: int | None) -> None:
+    def _run_bulk_catalog_translation(
+        self,
+        limit: int | None,
+        text_types: set[RpgMakerTextType],
+    ) -> None:
         try:
             result = self._mode_settings.translate_catalog_entries(
                 limit=limit,
+                text_types=text_types,
                 on_progress=self._bulk_progress_queue.put,
                 should_cancel=lambda: self._bulk_cancel_requested,
+                should_pause=lambda: self._bulk_pause_requested,
+                wait_if_paused=self._bulk_pause_event.wait,
             )
         except Exception as error:
             self._bulk_result_queue.put(error)
@@ -764,8 +832,17 @@ class SettingsWindow:
             f"{progress.processed}/{progress.total} processados | "
             f"{progress.translated} traduzidos | "
             f"{progress.cache_hits} cache hits | "
-            f"{progress.errors} erros"
+            f"{progress.errors} erros | "
+            f"tempo {self._format_seconds(progress.elapsed_seconds)}"
         )
+        if progress.paused:
+            self._bulk_status.setText(
+                "Lote pausado: "
+                f"{progress.processed}/{progress.total} processados | "
+                f"{progress.translated} traduzidos | "
+                f"{progress.cache_hits} cache hits | "
+                f"{progress.errors} erros"
+            )
 
     def _finish_bulk_translation(
         self,
@@ -773,8 +850,12 @@ class SettingsWindow:
     ) -> None:
         self._bulk_timer.stop()
         self._translate_catalog.setEnabled(True)
+        self._pause_catalog_translation.setEnabled(False)
+        self._resume_catalog_translation.setEnabled(False)
         self._cancel_catalog_translation.setEnabled(False)
         self._bulk_thread = None
+        self._bulk_pause_requested = False
+        self._bulk_pause_event.set()
 
         if isinstance(result, Exception):
             self._bulk_progress.setRange(0, 1)
@@ -795,7 +876,9 @@ class SettingsWindow:
             f"Lote {status}: {result.processed}/{result.total} processados | "
             f"{result.translated} traduzidos | "
             f"{result.cache_hits} cache hits | "
-            f"{result.errors} erros"
+            f"{result.errors} erros | "
+            f"tempo {self._format_seconds(result.elapsed_seconds)} | "
+            f"media traducao {self._format_seconds(result.average_translation_seconds)}"
         )
         self._bulk_status.setText(message)
         self._status.setText(message)
@@ -806,6 +889,16 @@ class SettingsWindow:
         if value == 0:
             return None
         return value
+
+    def _selected_bulk_text_types(self) -> set[RpgMakerTextType]:
+        return {
+            text_type
+            for text_type, checkbox in self._bulk_type_checkboxes.items()
+            if checkbox.isChecked()
+        }
+
+    def _format_seconds(self, seconds: float) -> str:
+        return f"{seconds:.2f}s"
 
     def _short_debug_text(self, text: str | None, limit: int = 220) -> str:
         if text is None or not text.strip():
