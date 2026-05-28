@@ -6,6 +6,7 @@ from typing import Sequence
 
 from live_translator.application.mode_settings_service import ModeSettingsService
 from live_translator.application.mode_settings_service import (
+    DEFAULT_CATALOG_TRANSLATION_TYPES,
     RPG_MAKER_PROJECT_PATH_SETTING_KEY,
 )
 from live_translator.domain.models import (
@@ -165,6 +166,38 @@ def _entries(count: int) -> list[RpgMakerTextEntry]:
     ]
 
 
+def _typed_entry(
+    entry_id: int,
+    source_text: str,
+    text_type: RpgMakerTextType,
+) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        id=entry_id,
+        source_text=source_text,
+        text_type=text_type,
+        origin=RpgMakerTextOrigin(
+            file_name="Map001.json",
+            origin_key=f"Map001.json|1|2|0|{entry_id}|0",
+            map_id=1,
+            event_id=2,
+            page_index=0,
+            command_index=entry_id,
+            parameter_index=0,
+        ),
+    )
+
+
+@dataclass
+class StepClock:
+    current: float = 0.0
+    step: float = 1.0
+
+    def __call__(self) -> float:
+        value = self.current
+        self.current += self.step
+        return value
+
+
 def _service(
     *,
     settings: FakeSettingsRepository | None = None,
@@ -172,6 +205,7 @@ def _service(
     cache: FakeTranslationCache | None = None,
     translator: FakeTranslator | None = None,
     batch_errors: FakeBatchErrorRepository | None = None,
+    clock=None,
 ) -> ModeSettingsService:
     project = RpgMakerProject(
         root_path=Path("C:/game"),
@@ -188,6 +222,7 @@ def _service(
         translation_cache=cache or FakeTranslationCache(),
         translator=translator or FakeTranslator(),
         batch_error_repository=batch_errors or FakeBatchErrorRepository(),
+        clock=clock or StepClock(step=0.0),
     )
 
 
@@ -292,6 +327,123 @@ def test_translate_catalog_entries_can_be_cancelled():
     assert result.processed == 1
     assert result.total == 3
     assert translator.calls == ["Line 1"]
+
+
+def test_translate_catalog_entries_uses_default_types_without_speaker():
+    entries = [
+        _typed_entry(1, "Dialogue", RpgMakerTextType.MESSAGE),
+        _typed_entry(2, "Hero", RpgMakerTextType.SPEAKER),
+        _typed_entry(3, "Choice", RpgMakerTextType.CHOICE),
+        _typed_entry(4, "Scroll", RpgMakerTextType.SCROLLING_TEXT),
+    ]
+    translator = FakeTranslator()
+    service = _service(catalog=FakeCatalog(entries), translator=translator)
+
+    result = service.translate_catalog_entries()
+
+    assert DEFAULT_CATALOG_TRANSLATION_TYPES == {
+        RpgMakerTextType.MESSAGE,
+        RpgMakerTextType.CHOICE,
+        RpgMakerTextType.SCROLLING_TEXT,
+    }
+    assert result.total == 3
+    assert translator.calls == ["Dialogue", "Choice", "Scroll"]
+
+
+def test_translate_catalog_entries_respects_selected_text_types():
+    entries = [
+        _typed_entry(1, "Dialogue", RpgMakerTextType.MESSAGE),
+        _typed_entry(2, "Hero", RpgMakerTextType.SPEAKER),
+        _typed_entry(3, "Choice", RpgMakerTextType.CHOICE),
+    ]
+    translator = FakeTranslator()
+    service = _service(catalog=FakeCatalog(entries), translator=translator)
+
+    result = service.translate_catalog_entries(text_types={RpgMakerTextType.SPEAKER})
+
+    assert result.total == 1
+    assert translator.calls == ["Hero"]
+
+
+def test_translate_catalog_entries_rejects_empty_text_type_filter():
+    service = _service(catalog=FakeCatalog(_entries(1)))
+
+    try:
+        service.translate_catalog_entries(text_types=set())
+    except ValueError as error:
+        assert str(error) == "at least one text type must be selected"
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_translate_catalog_entries_retranslates_contaminated_cache():
+    cache = FakeTranslationCache(
+        results={
+            "Line 1": TranslationResult(
+                source_text="Line 1",
+                translated_text=(
+                    "Linha 1\n"
+                    "Preserve nomes proprios. Nao explique.\n"
+                    "Responda apenas JSON valido."
+                ),
+            ),
+            "Line 2": TranslationResult(
+                source_text="Line 2",
+                translated_text="Linha 2",
+            ),
+        }
+    )
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(_entries(2)),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.translated == 1
+    assert result.cache_hits == 1
+    assert translator.calls == ["Line 1"]
+    assert cache.get_by_text("Line 1").translated_text == "pt:Line 1"
+
+
+def test_translate_catalog_entries_waits_while_paused():
+    translator = FakeTranslator()
+    service = _service(catalog=FakeCatalog(_entries(2)), translator=translator)
+    paused = {"value": True}
+    wait_calls = []
+    progress = []
+
+    def _should_pause() -> bool:
+        return paused["value"]
+
+    def _wait_if_paused() -> None:
+        wait_calls.append(True)
+        paused["value"] = False
+
+    result = service.translate_catalog_entries(
+        should_pause=_should_pause,
+        wait_if_paused=_wait_if_paused,
+        on_progress=progress.append,
+    )
+
+    assert result.processed == 2
+    assert wait_calls == [True]
+    assert progress[0].paused is True
+    assert translator.calls == ["Line 1", "Line 2"]
+
+
+def test_translate_catalog_entries_tracks_elapsed_and_average_translation_time():
+    service = _service(
+        catalog=FakeCatalog(_entries(2)),
+        clock=StepClock(step=1.0),
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.elapsed_seconds > 0.0
+    assert result.average_translation_seconds == 1.0
 
 
 def test_translate_catalog_entries_persists_per_entry_errors():

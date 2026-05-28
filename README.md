@@ -54,10 +54,11 @@ Abra o app e use as abas da janela de calibração:
    a pasta do jogo e clique em `Importar catalogo`.
 2. `Catalogo`: confira textos importados, use `Traduzir selecionado` para
    testar uma entrada ou `Traduzir catalogo` para preencher o cache em lote.
-   O lote permite escolher `100`, `500` ou `Todos`, mostra progresso, pula
-   textos ja cacheados e pode ser cancelado. A aba tambem mostra quantas
-   entradas ja possuem traducao cacheada, permite limpar traducoes contaminadas
-   do projeto atual e consultar os erros do ultimo lote.
+   O lote permite escolher `100`, `500` ou `Todos`, filtrar por `message`,
+   `choice`, `speaker` e `scrolling_text`, pausar, retomar e cancelar. Por
+   padrao, `speaker` fica desativado para evitar traduzir nomes proprios. A aba
+   tambem mostra quantas entradas ja possuem traducao cacheada, permite limpar
+   traducoes contaminadas do projeto atual e consultar os erros do ultimo lote.
 3. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
    caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
    preview deve mostrar somente a area enviada ao OCR.
@@ -125,7 +126,8 @@ Importacao atual:
 - extrai comandos de mensagem, escolhas e texto rolante;
 - salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
 - salva traducoes geradas no cache `translations`;
-- permite pre-cache em lote com limite, progresso, cache hits e cancelamento.
+- permite pre-cache em lote com limite, filtros por tipo, progresso, cache hits,
+  pausa, retomada e cancelamento;
 - persiste erros do ultimo lote em `rpg_maker_batch_errors`, com ID da entrada,
   origem, texto fonte e mensagem do erro.
 
@@ -176,6 +178,12 @@ Controles uteis quando aparecer uma traducao ruim:
   recente, com origem e mensagem de erro;
 - `Cache: X/Y entradas ja traduzidas`: mostra quantos textos do catalogo atual
   ja possuem traducao no cache.
+
+No lote MV/MZ, cache existente so conta como hit quando a traducao parece
+valida. Se a entrada cacheada parecer conter contexto ou instrucao de prompt, o
+lote tenta traduzir novamente e sobrescrever o cache. O status final mostra
+processados, traduzidos, cache hits, erros, tempo total e media por traducao
+real.
 
 ## Known Issues
 
