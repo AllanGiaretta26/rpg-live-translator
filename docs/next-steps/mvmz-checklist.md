@@ -2,19 +2,19 @@
 
 ## Estabilizacao do modo MV/MZ
 
-- [ ] Ocultar ou reescrever o aviso de overlay sobre area capturada quando o modo ativo for `RPG Maker MV/MZ`.
+- [x] Ocultar ou reescrever o aviso de overlay sobre area capturada quando o modo ativo for `RPG Maker MV/MZ`.
 - [x] Confirmar em teste manual que `Fonte MV/MZ` sempre corresponde ao texto visivel no jogo.
 - [x] Confirmar em teste manual que `Traducao MV/MZ` nao reaproveita cache contaminado.
-- [ ] ~~Validar falas com uma linha, multiplas linhas,~~ escolhas e texto rolante.
+- [ ] ~~Validar falas com uma linha, multiplas linhas, escolhas e~~ texto rolante.
 - [x] Testar avanco rapido de dialogos para confirmar que traducoes antigas nao sobrescrevem falas novas.
 
-## Cache e diagnostico
+## Cache e diagnosticoS
 
-- [ ] Adicionar limpeza manual de traducoes contaminadas no cache.
-- [ ] Adicionar acao para reprocessar a fala atual quando o cache for invalido.
-- [ ] Persistir erros de traducao em lote com `entry_id`, origem, texto fonte e mensagem do erro.
-- [ ] Adicionar botao ou aba para consultar os erros do ultimo lote.
-- [ ] Mostrar contagem de entradas do catalogo com traducao ja cacheada.
+- [x] Adicionar limpeza manual de traducoes contaminadas no cache.
+- [x] Adicionar acao para reprocessar a fala atual quando o cache for invalido.
+- [x] Persistir erros de traducao em lote com `entry_id`, origem, texto fonte e mensagem do erro.
+- [x] Adicionar botao ou aba para consultar os erros do ultimo lote.
+- [x] Mostrar contagem de entradas do catalogo com traducao ja cacheada.
 
 ## Traducao em lote
 

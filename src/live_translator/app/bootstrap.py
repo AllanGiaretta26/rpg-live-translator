@@ -15,6 +15,9 @@ from live_translator.domain.models import OverlayPlacement
 from live_translator.infrastructure.image.image_change_detector import ImageChangeDetector
 from live_translator.infrastructure.image.image_hasher import ImageHasher
 from live_translator.infrastructure.persistence.game_profile_repository import SQLiteGameProfileRepository
+from live_translator.infrastructure.persistence.catalog_translation_error_repository import (
+    SQLiteCatalogTranslationErrorRepository,
+)
 from live_translator.infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
 from live_translator.infrastructure.persistence.rpg_maker_catalog_repository import (
     SQLiteRpgMakerTextCatalogRepository,
@@ -96,6 +99,7 @@ class AppRuntime:
     translation_cache_repository: SQLiteTranslationCacheRepository
     image_cache_repository: SQLiteImageCacheRepository
     rpg_maker_catalog_repository: SQLiteRpgMakerTextCatalogRepository
+    catalog_translation_error_repository: SQLiteCatalogTranslationErrorRepository
     profile_settings_service: ProfileSettingsService
     capture_preview_service: CapturePreviewService
     overlay_settings_service: OverlaySettingsService
@@ -145,6 +149,7 @@ def bootstrap(
     translation_cache_repository = SQLiteTranslationCacheRepository(database)
     image_cache_repository = SQLiteImageCacheRepository(database)
     rpg_maker_catalog_repository = SQLiteRpgMakerTextCatalogRepository(database)
+    catalog_translation_error_repository = SQLiteCatalogTranslationErrorRepository(database)
 
     ollama_client = OllamaClient(
         base_url=str(resolved_settings.ollama_base_url),
@@ -189,6 +194,7 @@ def bootstrap(
         rpg_maker_catalog=rpg_maker_catalog_repository,
         translation_cache=translation_cache_repository,
         translator=translator,
+        batch_error_repository=catalog_translation_error_repository,
     )
     rpg_maker_runtime_service = RpgMakerRuntimeService(
         mode_settings=mode_settings_service,
@@ -238,6 +244,7 @@ def bootstrap(
         translation_cache_repository=translation_cache_repository,
         image_cache_repository=image_cache_repository,
         rpg_maker_catalog_repository=rpg_maker_catalog_repository,
+        catalog_translation_error_repository=catalog_translation_error_repository,
         profile_settings_service=profile_settings_service,
         capture_preview_service=capture_preview_service,
         overlay_settings_service=overlay_settings_service,

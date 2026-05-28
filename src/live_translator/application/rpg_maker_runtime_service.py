@@ -107,6 +107,17 @@ class RpgMakerRuntimeService:
             )
         return result
 
+    def reprocess_last_text(self) -> TranslationResult | None:
+        with self._lock:
+            source_text = self._last_source_text
+
+        if source_text is None or not source_text.strip():
+            self._set_diagnostic("runtime sem fala atual para reprocessar")
+            return None
+
+        self.translation_cache.delete_by_text(source_text)
+        return self.process_text(source_text)
+
     def _start_request(self, text: str) -> int:
         with self._lock:
             self._latest_request_id += 1

@@ -158,3 +158,22 @@ class RpgMakerImportResult:
     def __post_init__(self) -> None:
         if self.imported_count < 0:
             raise ValueError("imported_count must be zero or greater")
+
+
+@dataclass(frozen=True)
+class CatalogTranslationError:
+    entry_id: int | None
+    origin: str
+    source_text: str
+    error_message: str
+    created_at: str = ""
+
+    def __post_init__(self) -> None:
+        if self.entry_id is not None and self.entry_id <= 0:
+            raise ValueError("entry_id must be greater than zero")
+        if not self.origin.strip():
+            raise ValueError("origin must not be blank")
+        if not self.source_text.strip():
+            raise ValueError("source_text must not be blank")
+        if not self.error_message.strip():
+            raise ValueError("error_message must not be blank")

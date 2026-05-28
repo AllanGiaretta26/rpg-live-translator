@@ -9,6 +9,7 @@ from live_translator.application.mode_settings_service import (
     RPG_MAKER_PROJECT_PATH_SETTING_KEY,
 )
 from live_translator.domain.models import (
+    CatalogTranslationError,
     OperationMode,
     RpgMakerProject,
     RpgMakerTextEntry,
@@ -78,24 +79,53 @@ class FakeCatalog:
 class FakeTranslationCache:
     result: TranslationResult | None = None
     cached_texts: set[str] = field(default_factory=set)
+    results: dict[str, TranslationResult] = field(default_factory=dict)
     saved: list[TranslationResult] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
 
     def get_by_text(self, source_text: str) -> TranslationResult | None:
+        if source_text in self.results:
+            return self.results[source_text]
         if source_text in self.cached_texts:
             return TranslationResult(source_text=source_text, translated_text=f"cached:{source_text}")
         return self.result
 
     def save_translation(self, result: TranslationResult) -> None:
         self.saved.append(result)
+        self.results[result.source_text] = result
+
+    def delete_by_text(self, source_text: str) -> bool:
+        self.deleted.append(source_text)
+        self.cached_texts.discard(source_text)
+        return self.results.pop(source_text, None) is not None
 
 
 @dataclass
 class FakeTranslator:
     calls: list[str] = field(default_factory=list)
+    failures: set[str] = field(default_factory=set)
 
     def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
         self.calls.append(text)
+        if text in self.failures:
+            raise RuntimeError(f"failed {text}")
         return TranslationResult(source_text=text, translated_text=f"pt:{text}")
+
+
+@dataclass
+class FakeBatchErrorRepository:
+    cleared: int = 0
+    errors: list[CatalogTranslationError] = field(default_factory=list)
+
+    def clear_last_batch_errors(self) -> None:
+        self.cleared += 1
+        self.errors.clear()
+
+    def save_error(self, error: CatalogTranslationError) -> None:
+        self.errors.append(error)
+
+    def list_last_batch_errors(self) -> list[CatalogTranslationError]:
+        return self.errors
 
 
 def _entry(entry_id: int = 1) -> RpgMakerTextEntry:
@@ -141,6 +171,7 @@ def _service(
     catalog: FakeCatalog | None = None,
     cache: FakeTranslationCache | None = None,
     translator: FakeTranslator | None = None,
+    batch_errors: FakeBatchErrorRepository | None = None,
 ) -> ModeSettingsService:
     project = RpgMakerProject(
         root_path=Path("C:/game"),
@@ -156,6 +187,7 @@ def _service(
         rpg_maker_catalog=catalog or FakeCatalog(),
         translation_cache=cache or FakeTranslationCache(),
         translator=translator or FakeTranslator(),
+        batch_error_repository=batch_errors or FakeBatchErrorRepository(),
     )
 
 
@@ -260,3 +292,63 @@ def test_translate_catalog_entries_can_be_cancelled():
     assert result.processed == 1
     assert result.total == 3
     assert translator.calls == ["Line 1"]
+
+
+def test_translate_catalog_entries_persists_per_entry_errors():
+    cache = FakeTranslationCache()
+    translator = FakeTranslator(failures={"Line 2"})
+    batch_errors = FakeBatchErrorRepository()
+    service = _service(
+        catalog=FakeCatalog(_entries(2)),
+        cache=cache,
+        translator=translator,
+        batch_errors=batch_errors,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.errors == 1
+    assert batch_errors.cleared == 1
+    assert batch_errors.errors == [
+        CatalogTranslationError(
+            entry_id=2,
+            origin="Map001.json | ev 2 | pg 0 | cmd 1",
+            source_text="Line 2",
+            error_message="failed Line 2",
+        )
+    ]
+    assert service.list_last_batch_errors() == batch_errors.errors
+
+
+def test_count_cached_catalog_entries_counts_entries_with_translation_cache():
+    cache = FakeTranslationCache(cached_texts={"Line 1", "Line 3"})
+    service = _service(catalog=FakeCatalog(_entries(3)), cache=cache)
+
+    assert service.count_cached_catalog_entries() == 2
+
+
+def test_clear_contaminated_catalog_cache_only_deletes_invalid_project_entries():
+    cache = FakeTranslationCache(
+        results={
+            "Line 1": TranslationResult(
+                source_text="Line 1",
+                translated_text="Linha 1",
+            ),
+            "Line 2": TranslationResult(
+                source_text="Line 2",
+                translated_text=(
+                    "Linha 2\n"
+                    "Preserve nomes proprios. Nao explique.\n"
+                    "Responda apenas JSON valido."
+                ),
+            ),
+        }
+    )
+    service = _service(catalog=FakeCatalog(_entries(3)), cache=cache)
+
+    deleted = service.clear_contaminated_catalog_cache()
+
+    assert deleted == 1
+    assert cache.deleted == ["Line 2"]
+    assert cache.get_by_text("Line 1") is not None
+    assert cache.get_by_text("Line 2") is None

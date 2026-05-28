@@ -81,3 +81,18 @@ class SQLiteTranslationCacheRepository(TranslationCache):
                     _utc_now(),
                 ),
             )
+
+    def delete_by_text(self, source_text: str) -> bool:
+        normalized_source_text = _normalize_text(source_text)
+        if not normalized_source_text:
+            return False
+
+        with self._database.open() as connection:
+            cursor = connection.execute(
+                """
+                DELETE FROM translations
+                WHERE normalized_source_text = ?
+                """,
+                (normalized_source_text,),
+            )
+        return cursor.rowcount > 0

@@ -20,6 +20,7 @@ class FakeCache:
     result: TranslationResult | None = None
     results: dict[str, TranslationResult] = field(default_factory=dict)
     saved: list[TranslationResult] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
 
     def get_by_text(self, source_text: str) -> TranslationResult | None:
         if source_text in self.results:
@@ -28,6 +29,10 @@ class FakeCache:
 
     def save_translation(self, result: TranslationResult) -> None:
         self.saved.append(result)
+
+    def delete_by_text(self, source_text: str) -> bool:
+        self.deleted.append(source_text)
+        return self.results.pop(source_text, None) is not None
 
 
 @dataclass
@@ -191,3 +196,42 @@ def test_stale_runtime_translation_does_not_overwrite_newer_overlay():
     assert translator.calls == ["Old"]
     assert overlay.shown == ["pt:New"]
     assert service.last_source_text == "New"
+
+
+def test_reprocess_last_text_deletes_cache_and_translates_again():
+    cache = FakeCache(
+        results={
+            "Hello": TranslationResult(source_text="Hello", translated_text="Ola"),
+        }
+    )
+    translator = FakeTranslator()
+    overlay = FakeOverlay()
+    service = RpgMakerRuntimeService(
+        mode_settings=FakeModeSettings(),
+        translation_cache=cache,
+        translator=translator,
+        overlay=overlay,
+    )
+    service.process_text("Hello")
+
+    result = service.reprocess_last_text()
+
+    assert result is not None
+    assert result.translated_text == "pt:Hello"
+    assert cache.deleted == ["Hello"]
+    assert translator.calls == ["Hello"]
+    assert overlay.shown == ["Ola", "pt:Hello"]
+
+
+def test_reprocess_last_text_without_source_updates_diagnostic():
+    service = RpgMakerRuntimeService(
+        mode_settings=FakeModeSettings(),
+        translation_cache=FakeCache(),
+        translator=FakeTranslator(),
+        overlay=FakeOverlay(),
+    )
+
+    result = service.reprocess_last_text()
+
+    assert result is None
+    assert service.last_diagnostic == "runtime sem fala atual para reprocessar"

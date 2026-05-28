@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Protocol, Sequence
 
 from .models import (
+    CatalogTranslationError,
     ExtractedText,
     GameProfile,
     RpgMakerProject,
@@ -34,6 +35,9 @@ class TranslationCache(Protocol):
 
     def save_translation(self, result: TranslationResult) -> None:
         """Store a translation result in cache."""
+
+    def delete_by_text(self, source_text: str) -> bool:
+        """Remove a cached translation by normalized source text."""
 
 
 class ImageCache(Protocol):
@@ -112,3 +116,14 @@ class RpgMakerTextCatalog(Protocol):
 
     def get_entry(self, entry_id: int) -> RpgMakerTextEntry | None:
         """Return one catalog entry by identifier."""
+
+
+class CatalogTranslationErrorRepository(Protocol):
+    def clear_last_batch_errors(self) -> None:
+        """Remove stored errors from the previous catalog batch."""
+
+    def save_error(self, error: CatalogTranslationError) -> None:
+        """Store one catalog batch translation error."""
+
+    def list_last_batch_errors(self) -> list[CatalogTranslationError]:
+        """Return stored errors from the most recent catalog batch."""
