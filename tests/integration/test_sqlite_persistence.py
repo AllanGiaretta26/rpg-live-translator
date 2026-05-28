@@ -5,6 +5,7 @@ import sqlite3
 import pytest
 
 from live_translator.domain.models import (
+    CatalogTranslationError,
     GameProfile,
     RpgMakerProject,
     RpgMakerTextEntry,
@@ -13,6 +14,9 @@ from live_translator.domain.models import (
     RpgMakerVersion,
     TextRegion,
     TranslationResult,
+)
+from live_translator.infrastructure.persistence.catalog_translation_error_repository import (
+    SQLiteCatalogTranslationErrorRepository,
 )
 from live_translator.infrastructure.persistence.game_profile_repository import (
     ACTIVE_PROFILE_SETTING_KEY,
@@ -98,6 +102,17 @@ def test_translation_cache_enforces_unique_normalized_text(
             )
     finally:
         raw_connection.close()
+
+
+def test_translation_cache_deletes_by_normalized_text(connection_manager):
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+    repository.save_translation(
+        TranslationResult(source_text="  Hello   world  ", translated_text="Olá mundo")
+    )
+
+    assert repository.delete_by_text("hello world") is True
+    assert repository.get_by_text("Hello world") is None
+    assert repository.delete_by_text("Hello world") is False
 
 
 def test_image_cache_saves_and_loads_by_hash(connection_manager):
@@ -260,3 +275,30 @@ def test_rpg_maker_catalog_replaces_project_entries(connection_manager, tmp_path
     ]
     assert repository.count_project_entries(project) == 1
     assert repository.get_entry(entries[0].id) == entries[0]
+
+
+def test_catalog_translation_error_repository_replaces_last_batch_errors(
+    connection_manager,
+):
+    repository = SQLiteCatalogTranslationErrorRepository(connection_manager)
+    repository.save_error(
+        CatalogTranslationError(
+            entry_id=10,
+            origin="Map001.json | ev 1",
+            source_text="Hello",
+            error_message="failed",
+        )
+    )
+
+    errors = repository.list_last_batch_errors()
+
+    assert len(errors) == 1
+    assert errors[0].entry_id == 10
+    assert errors[0].origin == "Map001.json | ev 1"
+    assert errors[0].source_text == "Hello"
+    assert errors[0].error_message == "failed"
+    assert errors[0].created_at
+
+    repository.clear_last_batch_errors()
+
+    assert repository.list_last_batch_errors() == []

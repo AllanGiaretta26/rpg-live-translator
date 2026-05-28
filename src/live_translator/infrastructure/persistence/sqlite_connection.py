@@ -67,6 +67,15 @@ CREATE TABLE IF NOT EXISTS rpg_maker_text_catalog (
     created_at TEXT NOT NULL,
     UNIQUE(project_root, origin_key, normalized_source_text)
 );
+
+CREATE TABLE IF NOT EXISTS rpg_maker_batch_errors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER,
+    origin TEXT NOT NULL,
+    source_text TEXT NOT NULL,
+    error_message TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable
 
 from live_translator.domain.interfaces import (
+    CatalogTranslationErrorRepository,
     RpgMakerProjectDetector,
     RpgMakerTextCatalog,
     RpgMakerTextParser,
@@ -13,11 +14,14 @@ from live_translator.domain.interfaces import (
     Translator,
 )
 from live_translator.domain.models import (
+    CatalogTranslationError,
     OperationMode,
     RpgMakerImportResult,
     RpgMakerTextEntry,
     TranslationResult,
 )
+
+from .translation_quality import looks_like_invalid_translation
 
 
 ACTIVE_MODE_SETTING_KEY = "operation.active_mode"
@@ -57,6 +61,7 @@ class ModeSettingsService:
     rpg_maker_catalog: RpgMakerTextCatalog
     translation_cache: TranslationCache
     translator: Translator
+    batch_error_repository: CatalogTranslationErrorRepository
 
     def get_active_mode(self) -> OperationMode:
         raw_value = self.settings_repository.get(ACTIVE_MODE_SETTING_KEY)
@@ -130,6 +135,7 @@ class ModeSettingsService:
         errors = 0
         processed = 0
         cancelled = False
+        self.batch_error_repository.clear_last_batch_errors()
 
         for entry in entries:
             if should_cancel is not None and should_cancel():
@@ -144,8 +150,16 @@ class ModeSettingsService:
                     result = self.translator.translate(entry.source_text, [])
                     self.translation_cache.save_translation(result)
                     translated += 1
-            except Exception:
+            except Exception as error:
                 errors += 1
+                self.batch_error_repository.save_error(
+                    CatalogTranslationError(
+                        entry_id=entry.id,
+                        origin=_format_entry_origin(entry),
+                        source_text=entry.source_text,
+                        error_message=str(error),
+                    )
+                )
             finally:
                 processed += 1
                 if on_progress is not None:
@@ -177,3 +191,37 @@ class ModeSettingsService:
 
         project = self.rpg_maker_detector.detect(project_path)
         return self.rpg_maker_catalog.list_project_entries(project)
+
+    def count_cached_catalog_entries(self) -> int:
+        count = 0
+        for entry in self.list_rpg_maker_entries():
+            if self.translation_cache.get_by_text(entry.source_text) is not None:
+                count += 1
+        return count
+
+    def clear_contaminated_catalog_cache(self) -> int:
+        deleted = 0
+        for entry in self.list_rpg_maker_entries():
+            cached = self.translation_cache.get_by_text(entry.source_text)
+            if cached is None:
+                continue
+            if not looks_like_invalid_translation(entry.source_text, cached.translated_text):
+                continue
+            if self.translation_cache.delete_by_text(entry.source_text):
+                deleted += 1
+        return deleted
+
+    def list_last_batch_errors(self) -> list[CatalogTranslationError]:
+        return self.batch_error_repository.list_last_batch_errors()
+
+
+def _format_entry_origin(entry: RpgMakerTextEntry) -> str:
+    origin = entry.origin
+    parts = [origin.file_name]
+    if origin.event_id is not None:
+        parts.append(f"ev {origin.event_id}")
+    if origin.page_index is not None:
+        parts.append(f"pg {origin.page_index}")
+    if origin.command_index is not None:
+        parts.append(f"cmd {origin.command_index}")
+    return " | ".join(parts)

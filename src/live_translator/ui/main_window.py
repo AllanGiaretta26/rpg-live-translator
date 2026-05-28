@@ -12,6 +12,7 @@ from live_translator.application.mode_settings_service import (
     CatalogTranslationResult,
 )
 from live_translator.domain.models import (
+    CatalogTranslationError,
     GameProfile,
     OperationMode,
     OverlayPlacement,
@@ -86,6 +87,8 @@ class RuntimeDiagnostics(Protocol):
     @property
     def last_translated_text(self) -> str | None: ...
 
+    def reprocess_last_text(self) -> TranslationResult | None: ...
+
 
 class OverlaySettings(Protocol):
     def get_placement(self) -> OverlayPlacement: ...
@@ -115,6 +118,12 @@ class ModeSettings(Protocol):
         on_progress: Callable[[CatalogTranslationProgress], None] | None = None,
         should_cancel: Callable[[], bool] | None = None,
     ) -> CatalogTranslationResult: ...
+
+    def count_cached_catalog_entries(self) -> int: ...
+
+    def clear_contaminated_catalog_cache(self) -> int: ...
+
+    def list_last_batch_errors(self) -> list[CatalogTranslationError]: ...
 
 
 class EditableOverlay(Protocol):
@@ -311,6 +320,10 @@ class SettingsWindow:
         self._catalog_table.setMinimumHeight(220)
         self._refresh_catalog = QPushButton("Atualizar catalogo")
         self._translate_catalog_entry = QPushButton("Traduzir selecionado")
+        self._clear_contaminated_cache = QPushButton("Limpar cache contaminado")
+        self._show_batch_errors = QPushButton("Ver erros do ultimo lote")
+        self._catalog_cache_status = QLabel("Cache: aguardando")
+        self._catalog_cache_status.setWordWrap(True)
         self._bulk_limit = QComboBox()
         self._bulk_limit.addItem("100", 100)
         self._bulk_limit.addItem("500", 500)
@@ -329,6 +342,7 @@ class SettingsWindow:
         self._save = QPushButton("Salvar area")
         self._show_overlay = QPushButton("Ajustar overlay")
         self._save_overlay = QPushButton("Salvar overlay")
+        self._reprocess_runtime_text = QPushButton("Reprocessar fala atual")
         self._pause = QPushButton("Pausar")
         self._resume = QPushButton("Retomar")
         self._quit = QPushButton("Fechar")
@@ -354,6 +368,10 @@ class SettingsWindow:
         self._translate_catalog_entry.clicked.connect(
             self._translate_selected_catalog_entry
         )
+        self._clear_contaminated_cache.clicked.connect(
+            self._clear_contaminated_catalog_cache
+        )
+        self._show_batch_errors.clicked.connect(self._show_last_batch_errors)
         self._translate_catalog.clicked.connect(self._start_bulk_catalog_translation)
         self._cancel_catalog_translation.clicked.connect(
             self._cancel_bulk_catalog_translation
@@ -362,6 +380,7 @@ class SettingsWindow:
         self._save.clicked.connect(self._save_profile)
         self._show_overlay.clicked.connect(self._start_overlay_adjustment)
         self._save_overlay.clicked.connect(self._save_overlay_placement)
+        self._reprocess_runtime_text.clicked.connect(self._reprocess_current_runtime_text)
         self._pause.clicked.connect(self._pause_loop)
         self._resume.clicked.connect(self._resume_loop)
         self._quit.clicked.connect(self._widget.close)
@@ -466,12 +485,15 @@ class SettingsWindow:
         buttons = hbox_cls()
         buttons.addWidget(self._refresh_catalog)
         buttons.addWidget(self._translate_catalog_entry)
+        buttons.addWidget(self._clear_contaminated_cache)
+        buttons.addWidget(self._show_batch_errors)
         bulk_buttons = hbox_cls()
         bulk_buttons.addWidget(self._bulk_limit)
         bulk_buttons.addWidget(self._translate_catalog)
         bulk_buttons.addWidget(self._cancel_catalog_translation)
         tab.addWidget(self._catalog_table)
         tab.addLayout(buttons)
+        tab.addWidget(self._catalog_cache_status)
         tab.addWidget(self._bulk_progress)
         tab.addWidget(self._bulk_status)
         tab.addLayout(bulk_buttons)
@@ -523,6 +545,7 @@ class SettingsWindow:
         buttons = hbox_cls()
         buttons.addWidget(self._pause)
         buttons.addWidget(self._resume)
+        buttons.addWidget(self._reprocess_runtime_text)
         buttons.addWidget(self._quit)
         tab.addWidget(status_group)
         tab.addLayout(buttons)
@@ -581,6 +604,7 @@ class SettingsWindow:
             self._status.setText("Modo Universal salvo.")
         self._refresh_mode_status()
         self.refresh_capture_status()
+        self._refresh_overlap_warning()
 
     def _import_rpg_maker_catalog(self) -> bool:
         try:
@@ -604,6 +628,7 @@ class SettingsWindow:
         self._refresh_mode_status(result)
         self._load_catalog_entries()
         self.refresh_capture_status()
+        self._refresh_overlap_warning()
         return True
 
     def _load_catalog_entries(self) -> None:
@@ -629,6 +654,7 @@ class SettingsWindow:
         self._catalog_table.resizeColumnsToContents()
         suffix = "" if len(entries) <= 500 else f" Mostrando 500 de {len(entries)}."
         self._status.setText(f"Catalogo carregado: {len(entries)} textos.{suffix}")
+        self._refresh_catalog_cache_status(len(entries))
 
     def _translate_selected_catalog_entry(self) -> bool:
         selected_rows = self._catalog_table.selectionModel().selectedRows()
@@ -654,6 +680,20 @@ class SettingsWindow:
 
         self._overlay.show_text(result.translated_text)
         self._status.setText(f"Traduzido: {result.translated_text}")
+        self._refresh_catalog_cache_status()
+        return True
+
+    def _clear_contaminated_catalog_cache(self) -> bool:
+        try:
+            deleted = self._mode_settings.clear_contaminated_catalog_cache()
+        except Exception as error:
+            self._status.setText(f"Limpeza de cache falhou: {error}")
+            return False
+
+        self._refresh_catalog_cache_status()
+        self._status.setText(
+            f"Cache contaminado limpo: {deleted} traducoes removidas."
+        )
         return True
 
     def _start_bulk_catalog_translation(self) -> bool:
@@ -759,6 +799,7 @@ class SettingsWindow:
         )
         self._bulk_status.setText(message)
         self._status.setText(message)
+        self._refresh_catalog_cache_status()
 
     def _selected_bulk_limit(self) -> int | None:
         value = int(self._bulk_limit.currentData())
@@ -785,6 +826,52 @@ class SettingsWindow:
                 self._bulk_result_queue.get_nowait()
             except Empty:
                 break
+
+    def _refresh_catalog_cache_status(self, total: int | None = None) -> None:
+        try:
+            entries = self._mode_settings.list_rpg_maker_entries()
+            resolved_total = len(entries) if total is None else total
+            cached = self._mode_settings.count_cached_catalog_entries()
+        except Exception as error:
+            self._catalog_cache_status.setText(f"Cache: indisponivel - {error}")
+            return
+
+        self._catalog_cache_status.setText(
+            f"Cache: {cached}/{resolved_total} entradas ja traduzidas"
+        )
+
+    def _show_last_batch_errors(self) -> None:
+        from PySide6.QtWidgets import QDialog, QPushButton, QTableWidget, QVBoxLayout
+
+        try:
+            errors = self._mode_settings.list_last_batch_errors()
+        except Exception as error:
+            self._status.setText(f"Consulta de erros falhou: {error}")
+            return
+
+        dialog = QDialog(self._widget)
+        dialog.setWindowTitle("Erros do ultimo lote")
+        dialog.resize(900, 420)
+
+        table = QTableWidget(len(errors), 4)
+        table.setHorizontalHeaderLabels(("ID", "Origem", "Texto fonte", "Erro"))
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.verticalHeader().hide()
+        for row, error in enumerate(errors):
+            table.setItem(row, 0, self._table_item(str(error.entry_id or "")))
+            table.setItem(row, 1, self._table_item(error.origin))
+            table.setItem(row, 2, self._table_item(error.source_text))
+            table.setItem(row, 3, self._table_item(error.error_message))
+        table.resizeColumnsToContents()
+
+        close_button = QPushButton("Fechar")
+        close_button.clicked.connect(dialog.accept)
+        layout = QVBoxLayout()
+        layout.addWidget(table)
+        layout.addWidget(close_button)
+        dialog.setLayout(layout)
+        self._status.setText(f"Erros do ultimo lote: {len(errors)}.")
+        dialog.exec()
 
     def _table_item(self, text: str):
         from PySide6.QtWidgets import QTableWidgetItem
@@ -878,6 +965,10 @@ class SettingsWindow:
         )
 
     def _refresh_overlap_warning(self, *_unused: object) -> None:
+        if self._mode_settings.get_active_mode() == OperationMode.RPG_MAKER_MV_MZ:
+            self._overlap_warning.hide()
+            return
+
         try:
             region = self._text_region_from_fields()
             placement = self._placement_from_fields()
@@ -1014,6 +1105,27 @@ class SettingsWindow:
     def _resume_loop(self) -> None:
         self._capture_loop.resume()
         self.refresh_capture_status()
+
+    def _reprocess_current_runtime_text(self) -> bool:
+        if self._runtime_diagnostics is None:
+            self._status.setText("Runtime MV/MZ indisponivel.")
+            return False
+
+        try:
+            result = self._runtime_diagnostics.reprocess_last_text()
+        except Exception as error:
+            self._status.setText(f"Reprocessamento falhou: {error}")
+            self.refresh_pipeline_status()
+            return False
+
+        self.refresh_pipeline_status()
+        if result is None:
+            self._status.setText("Nenhuma fala MV/MZ atual para reprocessar.")
+            return False
+
+        self._status.setText("Fala MV/MZ reprocessada.")
+        self._refresh_catalog_cache_status()
+        return True
 
     def _close_event(self, event) -> None:
         from PySide6.QtWidgets import QApplication
