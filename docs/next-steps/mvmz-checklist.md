@@ -40,10 +40,10 @@
 
 - [ ] Separar melhor na UI o modo Universal do modo MV/MZ.
 - [ ] Desativar controles de captura quando o modo MV/MZ estiver ativo.
+- [ ] Deixar a interface mais elegante e intuitiva.
 - [ ] Destacar endpoint da bridge e estado do servidor local.
 - [ ] Adicionar botao para copiar o endpoint da bridge.
 - [ ] Adicionar status de plugin conectado/ultima requisicao recebida.
-- [ ] Deixar a interface mais elegante e intuitiva.
 
 ## Futuro sem overlay
 
