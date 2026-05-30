@@ -5,8 +5,12 @@ from threading import Lock
 from time import monotonic
 from typing import Callable
 
-from live_translator.application.translation_pipeline_service import DefaultTextNormalizer
-from live_translator.application.translation_quality import looks_like_invalid_translation
+from live_translator.application.translation_pipeline_service import (
+    DefaultTextNormalizer,
+)
+from live_translator.application.translation_quality import (
+    looks_like_invalid_translation,
+)
 from live_translator.domain.interfaces import (
     OverlayRenderer,
     TextNormalizer,
@@ -56,7 +60,12 @@ class RpgMakerRuntimeService:
         with self._lock:
             return self._last_translated_text
 
-    def process_text(self, text: str) -> TranslationResult | None:
+    def process_text(
+        self,
+        text: str,
+        *,
+        force_retranslate: bool = False,
+    ) -> TranslationResult | None:
         started_at = self.clock()
         translation_seconds: float | None = None
         if self.mode_settings.get_active_mode() != OperationMode.RPG_MAKER_MV_MZ:
@@ -69,18 +78,25 @@ class RpgMakerRuntimeService:
             return None
 
         request_id = self._start_request(normalized_text)
-        cached = self.translation_cache.get_by_text(normalized_text)
-        if cached is not None:
-            if looks_like_invalid_translation(normalized_text, cached.translated_text):
-                self._set_diagnostic("runtime cache invalido")
-            else:
-                if self._is_latest_request(request_id):
-                    self.overlay.show_text(cached.translated_text)
-                    self._set_last_translated_text(cached.translated_text)
-                    self._set_diagnostics("runtime cache texto", started_at)
-                return cached
+        if force_retranslate:
+            self.translation_cache.delete_by_text(normalized_text)
+        else:
+            cached = self.translation_cache.get_by_text(normalized_text)
+            if cached is not None:
+                if looks_like_invalid_translation(
+                    normalized_text, cached.translated_text
+                ):
+                    self._set_diagnostic("runtime cache invalido")
+                else:
+                    if self._is_latest_request(request_id):
+                        self.overlay.show_text(cached.translated_text)
+                        self._set_last_translated_text(cached.translated_text)
+                        self._set_diagnostics("runtime cache texto", started_at)
+                    return cached
 
-        self._set_diagnostic("runtime traduzindo")
+        self._set_diagnostic(
+            "runtime retraduzindo" if force_retranslate else "runtime traduzindo"
+        )
         translation_started_at = self.clock()
         try:
             result = self.translator.translate(normalized_text, [])
@@ -100,10 +116,10 @@ class RpgMakerRuntimeService:
             self.overlay.show_text(result.translated_text)
             self._set_last_translated_text(result.translated_text)
             self._set_diagnostics(
-                "runtime traduzido",
+                "runtime retraduzido" if force_retranslate else "runtime traduzido",
                 started_at,
                 translation_seconds=translation_seconds,
-                stage="cache miss",
+                stage="reprocess" if force_retranslate else "cache miss",
             )
         return result
 
@@ -115,8 +131,7 @@ class RpgMakerRuntimeService:
             self._set_diagnostic("runtime sem fala atual para reprocessar")
             return None
 
-        self.translation_cache.delete_by_text(source_text)
-        return self.process_text(source_text)
+        return self.process_text(source_text, force_retranslate=True)
 
     def _start_request(self, text: str) -> int:
         with self._lock:

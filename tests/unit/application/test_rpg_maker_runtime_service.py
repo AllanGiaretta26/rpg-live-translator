@@ -124,9 +124,7 @@ def test_runtime_text_ignores_contaminated_cache_and_retranslates():
     cached = TranslationResult(
         source_text="Hello",
         translated_text=(
-            "Ola\n"
-            "Preserve nomes proprios. Nao explique.\n"
-            "Responda apenas JSON valido."
+            "Ola\nPreserve nomes proprios. Nao explique.\nResponda apenas JSON valido."
         ),
     )
     cache = FakeCache(result=cached)
@@ -221,6 +219,29 @@ def test_reprocess_last_text_deletes_cache_and_translates_again():
     assert cache.deleted == ["Hello"]
     assert translator.calls == ["Hello"]
     assert overlay.shown == ["Ola", "pt:Hello"]
+    assert service.last_diagnostic == "runtime retraduzido"
+
+
+def test_reprocess_last_text_ignores_cache_even_when_delete_does_not_remove_result():
+    cached = TranslationResult(source_text="Hello", translated_text="Ola antiga")
+    cache = FakeCache(result=cached)
+    translator = FakeTranslator()
+    overlay = FakeOverlay()
+    service = RpgMakerRuntimeService(
+        mode_settings=FakeModeSettings(),
+        translation_cache=cache,
+        translator=translator,
+        overlay=overlay,
+    )
+    service.process_text("Hello")
+
+    result = service.reprocess_last_text()
+
+    assert result is not None
+    assert result.translated_text == "pt:Hello"
+    assert cache.deleted == ["Hello"]
+    assert translator.calls == ["Hello"]
+    assert overlay.shown == ["Ola antiga", "pt:Hello"]
 
 
 def test_reprocess_last_text_without_source_updates_diagnostic():

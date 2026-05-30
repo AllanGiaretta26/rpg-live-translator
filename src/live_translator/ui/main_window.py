@@ -108,9 +108,20 @@ class ModeSettings(Protocol):
 
     def import_rpg_maker_project(self, path: str | Path) -> RpgMakerImportResult: ...
 
-    def list_rpg_maker_entries(self) -> list[RpgMakerTextEntry]: ...
+    def list_rpg_maker_entries(
+        self,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[RpgMakerTextEntry]: ...
+
+    def count_rpg_maker_entries(self) -> int: ...
+
+    def get_rpg_maker_entry(self, entry_id: int) -> RpgMakerTextEntry | None: ...
 
     def translate_catalog_entry(self, entry_id: int) -> TranslationResult | None: ...
+
+    def retranslate_catalog_entry(self, entry_id: int) -> TranslationResult | None: ...
 
     def translate_catalog_entries(
         self,
@@ -314,10 +325,11 @@ class SettingsWindow:
         self._choose_rpg_maker_path = QPushButton("Selecionar pasta")
         self._save_mode = QPushButton("Salvar modo")
         self._import_rpg_maker = QPushButton("Importar catalogo")
+        self._catalog_page_size = 500
+        self._catalog_offset = 0
+        self._catalog_total = 0
         self._catalog_table = QTableWidget(0, 4)
-        self._catalog_table.setHorizontalHeaderLabels(
-            ("Origem", "Tipo", "Texto", "ID")
-        )
+        self._catalog_table.setHorizontalHeaderLabels(("Origem", "Tipo", "Texto", "ID"))
         self._catalog_table.setColumnHidden(3, True)
         self._catalog_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -327,7 +339,13 @@ class SettingsWindow:
         self._catalog_table.horizontalHeader().setStretchLastSection(False)
         self._catalog_table.setMinimumHeight(220)
         self._refresh_catalog = QPushButton("Atualizar catalogo")
+        self._previous_catalog_page = QPushButton("Anterior 500")
+        self._next_catalog_page = QPushButton("Proximos 500")
         self._translate_catalog_entry = QPushButton("Traduzir selecionado")
+        self._catalog_id = QLineEdit()
+        self._catalog_id.setPlaceholderText("ID")
+        self._search_catalog_id = QPushButton("Buscar ID")
+        self._retranslate_catalog_id = QPushButton("Retraduzir ID")
         self._clear_contaminated_cache = QPushButton("Limpar cache contaminado")
         self._show_batch_errors = QPushButton("Ver erros do ultimo lote")
         self._catalog_cache_status = QLabel("Cache: aguardando")
@@ -370,11 +388,20 @@ class SettingsWindow:
         self._quit = QPushButton("Fechar")
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_mode_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "0. Modo")
+        tabs.addTab(
+            self._build_mode_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "0. Modo"
+        )
         tabs.addTab(self._build_catalog_tab(QHBoxLayout, QVBoxLayout), "1. Catalogo")
-        tabs.addTab(self._build_capture_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "2. Area do texto")
-        tabs.addTab(self._build_overlay_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "3. Overlay")
-        tabs.addTab(self._build_run_tab(QGroupBox, QHBoxLayout, QVBoxLayout), "4. Executar")
+        tabs.addTab(
+            self._build_capture_tab(QFormLayout, QHBoxLayout, QVBoxLayout),
+            "2. Area do texto",
+        )
+        tabs.addTab(
+            self._build_overlay_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "3. Overlay"
+        )
+        tabs.addTab(
+            self._build_run_tab(QGroupBox, QHBoxLayout, QVBoxLayout), "4. Executar"
+        )
 
         layout = QVBoxLayout()
         layout.addWidget(tabs)
@@ -386,9 +413,15 @@ class SettingsWindow:
         self._choose_rpg_maker_path.clicked.connect(self._choose_rpg_maker_folder)
         self._save_mode.clicked.connect(self._save_mode_settings)
         self._import_rpg_maker.clicked.connect(self._import_rpg_maker_catalog)
-        self._refresh_catalog.clicked.connect(self._load_catalog_entries)
+        self._refresh_catalog.clicked.connect(self._refresh_catalog_page)
+        self._previous_catalog_page.clicked.connect(self._show_previous_catalog_page)
+        self._next_catalog_page.clicked.connect(self._show_next_catalog_page)
         self._translate_catalog_entry.clicked.connect(
             self._translate_selected_catalog_entry
+        )
+        self._search_catalog_id.clicked.connect(self._search_catalog_entry_by_id)
+        self._retranslate_catalog_id.clicked.connect(
+            self._retranslate_catalog_entry_by_id
         )
         self._clear_contaminated_cache.clicked.connect(
             self._clear_contaminated_catalog_cache
@@ -408,7 +441,9 @@ class SettingsWindow:
         self._save.clicked.connect(self._save_profile)
         self._show_overlay.clicked.connect(self._start_overlay_adjustment)
         self._save_overlay.clicked.connect(self._save_overlay_placement)
-        self._reprocess_runtime_text.clicked.connect(self._reprocess_current_runtime_text)
+        self._reprocess_runtime_text.clicked.connect(
+            self._reprocess_current_runtime_text
+        )
         self._pause.clicked.connect(self._pause_loop)
         self._resume.clicked.connect(self._resume_loop)
         self._quit.clicked.connect(self._widget.close)
@@ -428,7 +463,7 @@ class SettingsWindow:
         self._load_active_profile()
         self._load_overlay_placement()
         self._load_mode_settings()
-        self._load_catalog_entries()
+        self._refresh_catalog_page()
 
     def show(self) -> None:
         self._widget.show()
@@ -512,9 +547,15 @@ class SettingsWindow:
         tab = vbox_cls()
         buttons = hbox_cls()
         buttons.addWidget(self._refresh_catalog)
+        buttons.addWidget(self._previous_catalog_page)
+        buttons.addWidget(self._next_catalog_page)
         buttons.addWidget(self._translate_catalog_entry)
         buttons.addWidget(self._clear_contaminated_cache)
         buttons.addWidget(self._show_batch_errors)
+        id_lookup = hbox_cls()
+        id_lookup.addWidget(self._catalog_id)
+        id_lookup.addWidget(self._search_catalog_id)
+        id_lookup.addWidget(self._retranslate_catalog_id)
         type_filters = hbox_cls()
         for checkbox in self._bulk_type_checkboxes.values():
             type_filters.addWidget(checkbox)
@@ -526,6 +567,7 @@ class SettingsWindow:
         bulk_buttons.addWidget(self._cancel_catalog_translation)
         tab.addWidget(self._catalog_table)
         tab.addLayout(buttons)
+        tab.addLayout(id_lookup)
         tab.addWidget(self._catalog_cache_status)
         tab.addLayout(type_filters)
         tab.addWidget(self._bulk_progress)
@@ -660,22 +702,59 @@ class SettingsWindow:
             f"{result.imported_count} textos de {result.project.data_path}"
         )
         self._refresh_mode_status(result)
-        self._load_catalog_entries()
+        self._refresh_catalog_page()
         self.refresh_capture_status()
         self._refresh_overlap_warning()
         return True
 
+    def _refresh_catalog_page(self) -> None:
+        self._catalog_offset = 0
+        self._load_catalog_entries()
+
+    def _show_previous_catalog_page(self) -> None:
+        self._catalog_offset = max(0, self._catalog_offset - self._catalog_page_size)
+        self._load_catalog_entries()
+
+    def _show_next_catalog_page(self) -> None:
+        next_offset = self._catalog_offset + self._catalog_page_size
+        if next_offset >= self._catalog_total:
+            return
+        self._catalog_offset = next_offset
+        self._load_catalog_entries()
+
     def _load_catalog_entries(self) -> None:
         try:
-            entries = self._mode_settings.list_rpg_maker_entries()
+            total = self._mode_settings.count_rpg_maker_entries()
+            if total and self._catalog_offset >= total:
+                self._catalog_offset = max(
+                    0,
+                    ((total - 1) // self._catalog_page_size) * self._catalog_page_size,
+                )
+            entries = self._mode_settings.list_rpg_maker_entries(
+                limit=self._catalog_page_size,
+                offset=self._catalog_offset,
+            )
         except Exception as error:
             self._status.setText(f"Catalogo MV/MZ indisponivel: {error}")
             self._catalog_table.setRowCount(0)
+            self._catalog_total = 0
+            self._update_catalog_page_buttons()
             return
 
-        visible_entries = entries[:500]
-        self._catalog_table.setRowCount(len(visible_entries))
-        for row, entry in enumerate(visible_entries):
+        self._catalog_total = total
+        self._populate_catalog_table(entries)
+        if total == 0:
+            self._status.setText("Catalogo carregado: 0 textos.")
+        else:
+            start = self._catalog_offset + 1
+            end = self._catalog_offset + len(entries)
+            self._status.setText(f"Catalogo: {start}-{end} de {total} textos.")
+        self._refresh_catalog_cache_status(total)
+        self._update_catalog_page_buttons()
+
+    def _populate_catalog_table(self, entries: list[RpgMakerTextEntry]) -> None:
+        self._catalog_table.setRowCount(len(entries))
+        for row, entry in enumerate(entries):
             origin_item = self._table_item(self._format_origin(entry))
             type_item = self._table_item(entry.text_type.value)
             text_item = self._table_item(entry.source_text)
@@ -686,9 +765,12 @@ class SettingsWindow:
             self._catalog_table.setItem(row, 3, id_item)
 
         self._catalog_table.resizeColumnsToContents()
-        suffix = "" if len(entries) <= 500 else f" Mostrando 500 de {len(entries)}."
-        self._status.setText(f"Catalogo carregado: {len(entries)} textos.{suffix}")
-        self._refresh_catalog_cache_status(len(entries))
+
+    def _update_catalog_page_buttons(self) -> None:
+        self._previous_catalog_page.setEnabled(self._catalog_offset > 0)
+        self._next_catalog_page.setEnabled(
+            self._catalog_offset + self._catalog_page_size < self._catalog_total
+        )
 
     def _translate_selected_catalog_entry(self) -> bool:
         selected_rows = self._catalog_table.selectionModel().selectedRows()
@@ -717,6 +799,66 @@ class SettingsWindow:
         self._refresh_catalog_cache_status()
         return True
 
+    def _search_catalog_entry_by_id(self) -> bool:
+        entry_id = self._catalog_entry_id_from_field()
+        if entry_id is None:
+            return False
+
+        try:
+            entry = self._mode_settings.get_rpg_maker_entry(entry_id)
+        except Exception as error:
+            self._status.setText(f"Busca no catalogo falhou: {error}")
+            return False
+
+        if entry is None:
+            self._populate_catalog_table([])
+            self._status.setText("Entrada do catalogo nao encontrada.")
+            return False
+
+        self._populate_catalog_table([entry])
+        self._previous_catalog_page.setEnabled(False)
+        self._next_catalog_page.setEnabled(False)
+        self._status.setText(f"Entrada do catalogo encontrada: ID {entry_id}.")
+        return True
+
+    def _retranslate_catalog_entry_by_id(self) -> bool:
+        entry_id = self._catalog_entry_id_from_field()
+        if entry_id is None:
+            return False
+
+        try:
+            result = self._mode_settings.retranslate_catalog_entry(entry_id)
+        except Exception as error:
+            self._status.setText(f"Retraducao do catalogo falhou: {error}")
+            return False
+
+        if result is None:
+            self._status.setText("Entrada do catalogo nao encontrada.")
+            return False
+
+        self._overlay.show_text(result.translated_text)
+        self._status.setText(f"Retraduzido ID {entry_id}: {result.translated_text}")
+        self._refresh_catalog_cache_status(self._catalog_total or None)
+        return True
+
+    def _catalog_entry_id_from_field(self) -> int | None:
+        raw_value = self._catalog_id.text().strip()
+        if not raw_value:
+            self._status.setText("Informe um ID do catalogo.")
+            return None
+
+        try:
+            entry_id = int(raw_value)
+        except ValueError:
+            self._status.setText("ID do catalogo deve ser um numero.")
+            return None
+
+        if entry_id <= 0:
+            self._status.setText("ID do catalogo deve ser maior que zero.")
+            return None
+
+        return entry_id
+
     def _clear_contaminated_catalog_cache(self) -> bool:
         try:
             deleted = self._mode_settings.clear_contaminated_catalog_cache()
@@ -725,9 +867,7 @@ class SettingsWindow:
             return False
 
         self._refresh_catalog_cache_status()
-        self._status.setText(
-            f"Cache contaminado limpo: {deleted} traducoes removidas."
-        )
+        self._status.setText(f"Cache contaminado limpo: {deleted} traducoes removidas.")
         return True
 
     def _start_bulk_catalog_translation(self) -> bool:
@@ -922,8 +1062,11 @@ class SettingsWindow:
 
     def _refresh_catalog_cache_status(self, total: int | None = None) -> None:
         try:
-            entries = self._mode_settings.list_rpg_maker_entries()
-            resolved_total = len(entries) if total is None else total
+            resolved_total = (
+                self._mode_settings.count_rpg_maker_entries()
+                if total is None
+                else total
+            )
             cached = self._mode_settings.count_cached_catalog_entries()
         except Exception as error:
             self._catalog_cache_status.setText(f"Cache: indisponivel - {error}")
@@ -1216,7 +1359,7 @@ class SettingsWindow:
             self._status.setText("Nenhuma fala MV/MZ atual para reprocessar.")
             return False
 
-        self._status.setText("Fala MV/MZ reprocessada.")
+        self._status.setText("Fala MV/MZ retraduzida e cache atualizado.")
         self._refresh_catalog_cache_status()
         return True
 
