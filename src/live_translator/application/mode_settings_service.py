@@ -133,6 +133,16 @@ class ModeSettingsService:
         self.translation_cache.save_translation(result)
         return result
 
+    def retranslate_catalog_entry(self, entry_id: int) -> TranslationResult | None:
+        entry = self.rpg_maker_catalog.get_entry(entry_id)
+        if entry is None:
+            return None
+
+        self.translation_cache.delete_by_text(entry.source_text)
+        result = self.translator.translate(entry.source_text, [])
+        self.translation_cache.save_translation(result)
+        return result
+
     def translate_catalog_entries(
         self,
         *,
@@ -251,13 +261,38 @@ class ModeSettingsService:
             average_translation_seconds=_average(translation_seconds_total, translated),
         )
 
-    def list_rpg_maker_entries(self) -> list[RpgMakerTextEntry]:
+    def list_rpg_maker_entries(
+        self,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[RpgMakerTextEntry]:
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be greater than zero")
+        if offset < 0:
+            raise ValueError("offset must be zero or greater")
+
         project_path = self.get_rpg_maker_project_path()
         if project_path is None:
             return []
 
         project = self.rpg_maker_detector.detect(project_path)
-        return self.rpg_maker_catalog.list_project_entries(project)
+        return self.rpg_maker_catalog.list_project_entries(
+            project,
+            limit=limit,
+            offset=offset,
+        )
+
+    def count_rpg_maker_entries(self) -> int:
+        project_path = self.get_rpg_maker_project_path()
+        if project_path is None:
+            return 0
+
+        project = self.rpg_maker_detector.detect(project_path)
+        return self.rpg_maker_catalog.count_project_entries(project)
+
+    def get_rpg_maker_entry(self, entry_id: int) -> RpgMakerTextEntry | None:
+        return self.rpg_maker_catalog.get_entry(entry_id)
 
     def count_cached_catalog_entries(self) -> int:
         count = 0
@@ -272,7 +307,9 @@ class ModeSettingsService:
             cached = self.translation_cache.get_by_text(entry.source_text)
             if cached is None:
                 continue
-            if not looks_like_invalid_translation(entry.source_text, cached.translated_text):
+            if not looks_like_invalid_translation(
+                entry.source_text, cached.translated_text
+            ):
                 continue
             if self.translation_cache.delete_by_text(entry.source_text):
                 deleted += 1

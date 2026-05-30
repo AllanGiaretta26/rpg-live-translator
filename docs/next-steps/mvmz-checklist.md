@@ -15,6 +15,9 @@
 - [x] Persistir erros de traducao em lote com `entry_id`, origem, texto fonte e mensagem do erro.
 - [x] Adicionar botao ou aba para consultar os erros do ultimo lote.
 - [x] Mostrar contagem de entradas do catalogo com traducao ja cacheada.
+- [x] Adicionar busca de entrada do catalogo por ID.
+- [x] Adicionar retraducao forcada por ID do catalogo.
+- [x] Garantir que `Reprocessar fala atual` substitui cache antigo com nova traducao.
 
 ## Traducao em lote
 
@@ -23,6 +26,7 @@
 - [x] Adicionar pausa/resumo do lote sem perder progresso.
 - [x] Evitar retraduzir entradas cujo cache foi validado como bom.
 - [x] Melhorar status final do lote com tempo total e media por traducao.
+- [x] Paginar visualizacao do catalogo em blocos de 500 entradas.
 
 ## Plugin MV/MZ
 

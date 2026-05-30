@@ -22,12 +22,18 @@ from live_translator.infrastructure.persistence.game_profile_repository import (
     ACTIVE_PROFILE_SETTING_KEY,
     SQLiteGameProfileRepository,
 )
-from live_translator.infrastructure.persistence.image_cache_repository import SQLiteImageCacheRepository
+from live_translator.infrastructure.persistence.image_cache_repository import (
+    SQLiteImageCacheRepository,
+)
 from live_translator.infrastructure.persistence.rpg_maker_catalog_repository import (
     SQLiteRpgMakerTextCatalogRepository,
 )
-from live_translator.infrastructure.persistence.settings_repository import SQLiteSettingsRepository
-from live_translator.infrastructure.persistence.sqlite_connection import SQLiteConnectionManager
+from live_translator.infrastructure.persistence.settings_repository import (
+    SQLiteSettingsRepository,
+)
+from live_translator.infrastructure.persistence.sqlite_connection import (
+    SQLiteConnectionManager,
+)
 from live_translator.infrastructure.persistence.translation_cache_repository import (
     SQLiteTranslationCacheRepository,
 )
@@ -275,6 +281,60 @@ def test_rpg_maker_catalog_replaces_project_entries(connection_manager, tmp_path
     ]
     assert repository.count_project_entries(project) == 1
     assert repository.get_entry(entries[0].id) == entries[0]
+
+
+def test_rpg_maker_catalog_lists_project_entries_with_limit_and_offset(
+    connection_manager,
+    tmp_path,
+):
+    repository = SQLiteRpgMakerTextCatalogRepository(connection_manager)
+    project = RpgMakerProject(
+        root_path=tmp_path / "Game",
+        data_path=tmp_path / "Game" / "www" / "data",
+        version=RpgMakerVersion.MZ,
+    )
+    entries = [
+        RpgMakerTextEntry(
+            source_text=f"Line {index}",
+            text_type=RpgMakerTextType.MESSAGE,
+            origin=RpgMakerTextOrigin(
+                file_name="Map001.json",
+                origin_key=f"Map001.json|1|2|0|{index}|0",
+                map_id=1,
+                event_id=2,
+                page_index=0,
+                command_index=index,
+                parameter_index=0,
+            ),
+        )
+        for index in range(1, 5)
+    ]
+
+    repository.replace_project_entries(project, entries)
+
+    page = repository.list_project_entries(project, limit=2, offset=1)
+
+    assert [entry.source_text for entry in page] == ["Line 2", "Line 3"]
+    assert repository.count_project_entries(project) == 4
+    assert repository.get_entry(page[0].id) == page[0]
+
+
+def test_rpg_maker_catalog_rejects_invalid_paging_arguments(
+    connection_manager,
+    tmp_path,
+):
+    repository = SQLiteRpgMakerTextCatalogRepository(connection_manager)
+    project = RpgMakerProject(
+        root_path=tmp_path / "Game",
+        data_path=tmp_path / "Game" / "www" / "data",
+        version=RpgMakerVersion.MZ,
+    )
+
+    with pytest.raises(ValueError, match="limit must be greater than zero"):
+        repository.list_project_entries(project, limit=0)
+
+    with pytest.raises(ValueError, match="offset must be zero or greater"):
+        repository.list_project_entries(project, offset=-1)
 
 
 def test_catalog_translation_error_repository_replaces_last_batch_errors(

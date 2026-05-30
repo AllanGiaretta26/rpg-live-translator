@@ -6,6 +6,12 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V9 com fechamento de paginacao do catalogo, busca por ID e
+  retraducao forcada.
+- Navegacao do catalogo MV/MZ em paginas de 500 entradas.
+- Busca de entrada do catalogo MV/MZ por ID persistido no banco.
+- Acao `Retraduzir ID` para apagar cache antigo, chamar Ollama novamente e
+  salvar a nova traducao.
 - Relatorio V8 com fechamento dos controles avancados de traducao em lote MV/MZ.
 - Filtro de traducao em lote MV/MZ por `message`, `choice`, `speaker` e
   `scrolling_text`.
@@ -49,6 +55,11 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Consulta do catalogo MV/MZ agora usa paginacao SQLite com `LIMIT`/`OFFSET`,
+  evitando carregar o catalogo inteiro para exibir a tabela.
+- Botao `Reprocessar fala atual` agora usa retraducao forcada explicita:
+  remove cache antigo, ignora cache existente, chama Ollama e salva a nova
+  traducao.
 - Lote MV/MZ agora deixa `speaker` desativado por padrao para evitar traduzir
   nomes proprios.
 - Lote MV/MZ agora valida cache existente antes de contar como cache hit; cache

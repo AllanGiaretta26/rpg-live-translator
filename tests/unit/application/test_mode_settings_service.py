@@ -66,8 +66,17 @@ class FakeCatalog:
     def count_project_entries(self, project: RpgMakerProject) -> int:
         return len(self.entries)
 
-    def list_project_entries(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
-        return self.entries
+    def list_project_entries(
+        self,
+        project: RpgMakerProject,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[RpgMakerTextEntry]:
+        entries = self.entries[offset:]
+        if limit is not None:
+            return entries[:limit]
+        return entries
 
     def get_entry(self, entry_id: int) -> RpgMakerTextEntry | None:
         for entry in self.entries:
@@ -88,7 +97,9 @@ class FakeTranslationCache:
         if source_text in self.results:
             return self.results[source_text]
         if source_text in self.cached_texts:
-            return TranslationResult(source_text=source_text, translated_text=f"cached:{source_text}")
+            return TranslationResult(
+                source_text=source_text, translated_text=f"cached:{source_text}"
+            )
         return self.result
 
     def save_translation(self, result: TranslationResult) -> None:
@@ -252,7 +263,9 @@ def test_translate_catalog_entry_uses_existing_cache():
     cached = TranslationResult(source_text="Hello there", translated_text="Ola")
     cache = FakeTranslationCache(result=cached)
     translator = FakeTranslator()
-    service = _service(catalog=FakeCatalog([_entry()]), cache=cache, translator=translator)
+    service = _service(
+        catalog=FakeCatalog([_entry()]), cache=cache, translator=translator
+    )
 
     result = service.translate_catalog_entry(1)
 
@@ -264,7 +277,9 @@ def test_translate_catalog_entry_uses_existing_cache():
 def test_translate_catalog_entry_translates_and_saves_cache_miss():
     cache = FakeTranslationCache()
     translator = FakeTranslator()
-    service = _service(catalog=FakeCatalog([_entry()]), cache=cache, translator=translator)
+    service = _service(
+        catalog=FakeCatalog([_entry()]), cache=cache, translator=translator
+    )
 
     result = service.translate_catalog_entry(1)
 
@@ -272,6 +287,61 @@ def test_translate_catalog_entry_translates_and_saves_cache_miss():
     assert result.translated_text == "pt:Hello there"
     assert translator.calls == ["Hello there"]
     assert cache.saved == [result]
+
+
+def test_retranslate_catalog_entry_ignores_existing_cache_and_saves_new_result():
+    cached = TranslationResult(source_text="Hello there", translated_text="Ruim")
+    cache = FakeTranslationCache(result=cached)
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog([_entry()]), cache=cache, translator=translator
+    )
+
+    result = service.retranslate_catalog_entry(1)
+
+    assert result is not None
+    assert result.translated_text == "pt:Hello there"
+    assert cache.deleted == ["Hello there"]
+    assert translator.calls == ["Hello there"]
+    assert cache.saved == [result]
+
+
+def test_retranslate_catalog_entry_returns_none_for_missing_id():
+    translator = FakeTranslator()
+    service = _service(catalog=FakeCatalog([_entry()]), translator=translator)
+
+    result = service.retranslate_catalog_entry(999)
+
+    assert result is None
+    assert translator.calls == []
+
+
+def test_list_rpg_maker_entries_supports_limit_and_offset():
+    service = _service(catalog=FakeCatalog(_entries(4)))
+
+    entries = service.list_rpg_maker_entries(limit=2, offset=1)
+
+    assert [entry.source_text for entry in entries] == ["Line 2", "Line 3"]
+    assert service.count_rpg_maker_entries() == 4
+    assert service.get_rpg_maker_entry(3).source_text == "Line 3"
+
+
+def test_list_rpg_maker_entries_rejects_invalid_paging_arguments():
+    service = _service(catalog=FakeCatalog(_entries(1)))
+
+    try:
+        service.list_rpg_maker_entries(limit=0)
+    except ValueError as error:
+        assert str(error) == "limit must be greater than zero"
+    else:
+        raise AssertionError("expected ValueError")
+
+    try:
+        service.list_rpg_maker_entries(offset=-1)
+    except ValueError as error:
+        assert str(error) == "offset must be zero or greater"
+    else:
+        raise AssertionError("expected ValueError")
 
 
 def test_translate_catalog_entries_respects_limit_and_reports_progress():
@@ -321,7 +391,9 @@ def test_translate_catalog_entries_can_be_cancelled():
         translator=translator,
     )
 
-    result = service.translate_catalog_entries(should_cancel=lambda: bool(translator.calls))
+    result = service.translate_catalog_entries(
+        should_cancel=lambda: bool(translator.calls)
+    )
 
     assert result.cancelled is True
     assert result.processed == 1

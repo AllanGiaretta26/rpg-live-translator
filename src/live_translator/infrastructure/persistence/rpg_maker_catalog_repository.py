@@ -120,16 +120,36 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
             ).fetchone()
         return int(row["count"])
 
-    def list_project_entries(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
+    def list_project_entries(
+        self,
+        project: RpgMakerProject,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[RpgMakerTextEntry]:
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be greater than zero")
+        if offset < 0:
+            raise ValueError("offset must be zero or greater")
+
+        query = """
+            SELECT *
+            FROM rpg_maker_text_catalog
+            WHERE project_root = ?
+            ORDER BY file_name, event_id, page_index, command_index, parameter_index
+            """
+        parameters: list[object] = [str(project.root_path)]
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            parameters.extend([limit, offset])
+        elif offset > 0:
+            query += " LIMIT -1 OFFSET ?"
+            parameters.append(offset)
+
         with self._database.open() as connection:
             rows = connection.execute(
-                """
-                SELECT *
-                FROM rpg_maker_text_catalog
-                WHERE project_root = ?
-                ORDER BY file_name, event_id, page_index, command_index, parameter_index
-                """,
-                (str(project.root_path),),
+                query,
+                parameters,
             ).fetchall()
 
         return [self._entry_from_row(row) for row in rows]

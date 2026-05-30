@@ -111,7 +111,13 @@ class RpgMakerTextCatalog(Protocol):
     def count_project_entries(self, project: RpgMakerProject) -> int:
         """Return the number of catalog entries stored for a project."""
 
-    def list_project_entries(self, project: RpgMakerProject) -> list[RpgMakerTextEntry]:
+    def list_project_entries(
+        self,
+        project: RpgMakerProject,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[RpgMakerTextEntry]:
         """Return catalog entries stored for a project."""
 
     def get_entry(self, entry_id: int) -> RpgMakerTextEntry | None:
