@@ -5,7 +5,7 @@
 - [x] Ocultar ou reescrever o aviso de overlay sobre area capturada quando o modo ativo for `RPG Maker MV/MZ`.
 - [x] Confirmar em teste manual que `Fonte MV/MZ` sempre corresponde ao texto visivel no jogo.
 - [x] Confirmar em teste manual que `Traducao MV/MZ` nao reaproveita cache contaminado.
-- [ ] ~~Validar falas com uma linha, multiplas linhas, escolhas e~~ texto rolante.
+- [x] ~~Validar falas com uma linha, multiplas linhas, escolhas e~~ texto rolante.
 - [x] Testar avanco rapido de dialogos para confirmar que traducoes antigas nao sobrescrevem falas novas.
 
 ## Cache e diagnosticoS
