@@ -125,18 +125,67 @@ Importacao atual:
 - persiste erros do ultimo lote em `rpg_maker_batch_errors`, com ID da entrada,
   origem, texto fonte e mensagem do erro.
 
-Bridge runtime:
+### Instalar `LiveTranslatorBridge.js`
 
-1. Copie `src/live_translator/infrastructure/rpgmaker/plugin/LiveTranslatorBridge.js`
-   para `js/plugins/` do jogo.
-2. Ative `LiveTranslatorBridge` no Plugin Manager do RPG Maker.
-3. Rode o app no modo `RPG Maker MV/MZ`.
-4. Mantenha o endpoint padrao `http://127.0.0.1:8765/rpgmaker/text`, salvo se
-   tiver alterado `LIVE_TRANSLATOR_RPG_MAKER_BRIDGE_PORT`.
+O plugin runtime e opcional, mas e o caminho recomendado no modo MV/MZ: ele
+envia a fala renderizada pelo jogo direto para o app, sem OCR. O arquivo do
+plugin fica no repositorio em:
+
+```txt
+src/live_translator/infrastructure/rpgmaker/plugin/LiveTranslatorBridge.js
+```
+
+Instalacao pelo editor RPG Maker:
+
+1. Feche o jogo antes de alterar arquivos.
+2. Copie `LiveTranslatorBridge.js` para a pasta de plugins do jogo:
+   - projetos MV/MZ normalmente usam `js/plugins/`;
+   - jogos empacotados podem usar `www/js/plugins/`.
+3. Mantenha o nome do arquivo exatamente como `LiveTranslatorBridge.js`.
+4. Abra o projeto no RPG Maker.
+5. Acesse `Tools` > `Plugin Manager`.
+6. Crie uma nova entrada, escolha `LiveTranslatorBridge` e deixe `Status` como
+   `ON`.
+7. Confira o parametro `Endpoint`. O padrao deve ser
+   `http://127.0.0.1:8765/rpgmaker/text`.
+8. Salve o projeto.
+9. Rode o app com `.venv\Scripts\pythonw.exe -m live_translator.app.main`,
+   escolha `RPG Maker MV/MZ`, importe o catalogo e inicie o jogo.
+
+Instalacao manual em jogo distribuido ou Steam sem acesso ao Plugin Manager:
+
+1. Feche o jogo e faça backup de `js/plugins.js` ou `www/js/plugins.js`.
+2. Copie `LiveTranslatorBridge.js` para `js/plugins/` ou `www/js/plugins/`,
+   conforme a estrutura do jogo.
+3. Abra `plugins.js` em um editor de texto.
+4. Dentro da lista `var $plugins = [...]`, adicione uma entrada como esta:
+
+```js
+{
+  name: "LiveTranslatorBridge",
+  status: true,
+  description: "Sends RPG Maker MV/MZ dialogue text to RPG Live Translator.",
+  parameters: {
+    Endpoint: "http://127.0.0.1:8765/rpgmaker/text"
+  }
+}
+```
+
+5. Se ja existir uma entrada antes ou depois dela, mantenha as virgulas da lista
+   validas.
+6. Salve `plugins.js`, rode o app em modo `RPG Maker MV/MZ` e abra o jogo.
+
+Se voce alterou `LIVE_TRANSLATOR_RPG_MAKER_BRIDGE_PORT`, ajuste tambem o
+parametro `Endpoint` do plugin para usar a mesma porta.
 
 Quando o jogo chama mensagens ou escolhas, o plugin envia o texto para o app. O
 app busca no cache, traduz quando necessario e atualiza o overlay sem passar por
 captura/OCR.
+
+Para validar a instalacao, abra a aba `Executar` no app. Ao avancar uma fala no
+jogo, `Fonte MV/MZ` deve mostrar o texto recebido pela bridge. Se continuar
+`aguardando`, confira se o app esta aberto em modo `RPG Maker MV/MZ`, se o
+endpoint do plugin esta correto e se o plugin esta ativo em `plugins.js`.
 
 ### Diagnostico MV/MZ
 
