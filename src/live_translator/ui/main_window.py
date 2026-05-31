@@ -22,6 +22,7 @@ from live_translator.domain.models import (
     TranslationResult,
     TextRegion,
 )
+from live_translator.ui.mode_control_state import resolve_mode_control_state
 
 
 class TickableCaptureLoop(Protocol):
@@ -269,7 +270,7 @@ class SettingsWindow:
 
         self._widget = QWidget()
         self._widget.setWindowTitle("RPG Live Translator")
-        self._widget.setMinimumWidth(520)
+        self._widget.setMinimumWidth(620)
 
         self._capture_status = QLabel("Rodando")
         self._pipeline_status = QLabel("Pipeline: aguardando")
@@ -391,10 +392,13 @@ class SettingsWindow:
         tabs.addTab(
             self._build_mode_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "0. Modo"
         )
-        tabs.addTab(self._build_catalog_tab(QHBoxLayout, QVBoxLayout), "1. Catalogo")
         tabs.addTab(
             self._build_capture_tab(QFormLayout, QHBoxLayout, QVBoxLayout),
-            "2. Area do texto",
+            "1. Universal",
+        )
+        tabs.addTab(
+            self._build_catalog_tab(QGroupBox, QHBoxLayout, QVBoxLayout),
+            "2. RPG Maker MV/MZ",
         )
         tabs.addTab(
             self._build_overlay_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "3. Overlay"
@@ -412,6 +416,7 @@ class SettingsWindow:
         self._select_region.clicked.connect(self._select_region_on_screen)
         self._choose_rpg_maker_path.clicked.connect(self._choose_rpg_maker_folder)
         self._save_mode.clicked.connect(self._save_mode_settings)
+        self._mode.currentIndexChanged.connect(self._refresh_mode_controls)
         self._import_rpg_maker.clicked.connect(self._import_rpg_maker_catalog)
         self._refresh_catalog.clicked.connect(self._refresh_catalog_page)
         self._previous_catalog_page.clicked.connect(self._show_previous_catalog_page)
@@ -464,6 +469,7 @@ class SettingsWindow:
         self._load_overlay_placement()
         self._load_mode_settings()
         self._refresh_catalog_page()
+        self._refresh_mode_controls()
 
     def show(self) -> None:
         self._widget.show()
@@ -532,30 +538,51 @@ class SettingsWindow:
     def _build_mode_tab(self, form_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
         form = form_cls()
-        form.addRow("Modo", self._mode)
-        form.addRow("Pasta MV/MZ", self._rpg_maker_path)
+        form.addRow("Fluxo ativo", self._mode)
         buttons = hbox_cls()
-        buttons.addWidget(self._choose_rpg_maker_path)
         buttons.addWidget(self._save_mode)
-        buttons.addWidget(self._import_rpg_maker)
+
+        rpg_form = form_cls()
+        rpg_form.addRow("Pasta do jogo", self._rpg_maker_path)
+        rpg_buttons = hbox_cls()
+        rpg_buttons.addWidget(self._choose_rpg_maker_path)
+        rpg_buttons.addWidget(self._import_rpg_maker)
+
         tab.addLayout(form)
         tab.addWidget(self._mode_status)
         tab.addLayout(buttons)
+        tab.addWidget(self._group("Projeto RPG Maker MV/MZ", rpg_form, rpg_buttons))
         return self._wrap(tab)
 
-    def _build_catalog_tab(self, hbox_cls, vbox_cls):
+    def _build_catalog_tab(self, group_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
-        buttons = hbox_cls()
-        buttons.addWidget(self._refresh_catalog)
-        buttons.addWidget(self._previous_catalog_page)
-        buttons.addWidget(self._next_catalog_page)
-        buttons.addWidget(self._translate_catalog_entry)
-        buttons.addWidget(self._clear_contaminated_cache)
-        buttons.addWidget(self._show_batch_errors)
+        catalog_group = group_cls("Catalogo MV/MZ")
+        catalog_layout = vbox_cls()
+        catalog_buttons = hbox_cls()
+        catalog_buttons.addWidget(self._refresh_catalog)
+        catalog_buttons.addWidget(self._previous_catalog_page)
+        catalog_buttons.addWidget(self._next_catalog_page)
+        catalog_buttons.addWidget(self._translate_catalog_entry)
+        catalog_layout.addWidget(self._catalog_table)
+        catalog_layout.addLayout(catalog_buttons)
+        catalog_group.setLayout(catalog_layout)
+
+        maintenance_group = group_cls("Busca e manutencao")
+        maintenance_layout = vbox_cls()
         id_lookup = hbox_cls()
         id_lookup.addWidget(self._catalog_id)
         id_lookup.addWidget(self._search_catalog_id)
         id_lookup.addWidget(self._retranslate_catalog_id)
+        maintenance_buttons = hbox_cls()
+        maintenance_buttons.addWidget(self._clear_contaminated_cache)
+        maintenance_buttons.addWidget(self._show_batch_errors)
+        maintenance_layout.addLayout(id_lookup)
+        maintenance_layout.addWidget(self._catalog_cache_status)
+        maintenance_layout.addLayout(maintenance_buttons)
+        maintenance_group.setLayout(maintenance_layout)
+
+        bulk_group = group_cls("Traducao em lote")
+        bulk_layout = vbox_cls()
         type_filters = hbox_cls()
         for checkbox in self._bulk_type_checkboxes.values():
             type_filters.addWidget(checkbox)
@@ -565,18 +592,20 @@ class SettingsWindow:
         bulk_buttons.addWidget(self._pause_catalog_translation)
         bulk_buttons.addWidget(self._resume_catalog_translation)
         bulk_buttons.addWidget(self._cancel_catalog_translation)
-        tab.addWidget(self._catalog_table)
-        tab.addLayout(buttons)
-        tab.addLayout(id_lookup)
-        tab.addWidget(self._catalog_cache_status)
-        tab.addLayout(type_filters)
-        tab.addWidget(self._bulk_progress)
-        tab.addWidget(self._bulk_status)
-        tab.addLayout(bulk_buttons)
+        bulk_layout.addLayout(type_filters)
+        bulk_layout.addWidget(self._bulk_progress)
+        bulk_layout.addWidget(self._bulk_status)
+        bulk_layout.addLayout(bulk_buttons)
+        bulk_group.setLayout(bulk_layout)
+
+        tab.addWidget(catalog_group)
+        tab.addWidget(maintenance_group)
+        tab.addWidget(bulk_group)
         return self._wrap(tab)
 
     def _build_capture_tab(self, form_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
+        capture_group = self._group("Captura Universal / OCR")
         form = form_cls()
         form.addRow("Perfil", self._name)
         form.addRow("X", self._x)
@@ -587,13 +616,17 @@ class SettingsWindow:
         buttons.addWidget(self._select_region)
         buttons.addWidget(self._preview_capture)
         buttons.addWidget(self._save)
-        tab.addLayout(form)
-        tab.addWidget(self._preview)
-        tab.addLayout(buttons)
+        capture_layout = vbox_cls()
+        capture_layout.addLayout(form)
+        capture_layout.addWidget(self._preview)
+        capture_layout.addLayout(buttons)
+        capture_group.setLayout(capture_layout)
+        tab.addWidget(capture_group)
         return self._wrap(tab)
 
     def _build_overlay_tab(self, form_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
+        overlay_group = self._group("Overlay compartilhado")
         form = form_cls()
         form.addRow("X", self._overlay_x)
         form.addRow("Y", self._overlay_y)
@@ -604,13 +637,16 @@ class SettingsWindow:
         buttons = hbox_cls()
         buttons.addWidget(self._show_overlay)
         buttons.addWidget(self._save_overlay)
-        tab.addLayout(form)
-        tab.addLayout(buttons)
+        overlay_layout = vbox_cls()
+        overlay_layout.addLayout(form)
+        overlay_layout.addLayout(buttons)
+        overlay_group.setLayout(overlay_layout)
+        tab.addWidget(overlay_group)
         return self._wrap(tab)
 
     def _build_run_tab(self, group_cls, hbox_cls, vbox_cls):
         tab = vbox_cls()
-        status_group = group_cls("Status")
+        status_group = group_cls("Status do fluxo ativo")
         status_layout = vbox_cls()
         status_layout.addWidget(self._capture_status)
         status_layout.addWidget(self._pipeline_status)
@@ -624,8 +660,19 @@ class SettingsWindow:
         buttons.addWidget(self._reprocess_runtime_text)
         buttons.addWidget(self._quit)
         tab.addWidget(status_group)
-        tab.addLayout(buttons)
+        tab.addWidget(self._group("Acoes", buttons))
         return self._wrap(tab)
+
+    def _group(self, title: str, *layouts):
+        from PySide6.QtWidgets import QGroupBox, QVBoxLayout
+
+        group = QGroupBox(title)
+        if layouts:
+            group_layout = QVBoxLayout()
+            for layout in layouts:
+                group_layout.addLayout(layout)
+            group.setLayout(group_layout)
+        return group
 
     def _wrap(self, layout):
         from PySide6.QtWidgets import QWidget
@@ -681,6 +728,8 @@ class SettingsWindow:
         self._refresh_mode_status()
         self.refresh_capture_status()
         self._refresh_overlap_warning()
+        self._refresh_mode_controls()
+        self._refresh_catalog_page()
 
     def _import_rpg_maker_catalog(self) -> bool:
         try:
@@ -705,9 +754,23 @@ class SettingsWindow:
         self._refresh_catalog_page()
         self.refresh_capture_status()
         self._refresh_overlap_warning()
+        self._refresh_mode_controls()
         return True
 
     def _refresh_catalog_page(self) -> None:
+        if self._mode_settings.get_active_mode() != OperationMode.RPG_MAKER_MV_MZ:
+            self._catalog_offset = 0
+            self._catalog_total = 0
+            self._catalog_table.setRowCount(0)
+            self._catalog_cache_status.setText(
+                "Cache MV/MZ: ativo apenas no modo RPG Maker MV/MZ."
+            )
+            self._bulk_status.setText(
+                "Lote MV/MZ: ativo apenas no modo RPG Maker MV/MZ."
+            )
+            self._refresh_mode_controls()
+            return
+
         self._catalog_offset = 0
         self._load_catalog_entries()
 
@@ -723,6 +786,10 @@ class SettingsWindow:
         self._load_catalog_entries()
 
     def _load_catalog_entries(self) -> None:
+        if self._mode_settings.get_active_mode() != OperationMode.RPG_MAKER_MV_MZ:
+            self._refresh_catalog_page()
+            return
+
         try:
             total = self._mode_settings.count_rpg_maker_entries()
             if total and self._catalog_offset >= total:
@@ -767,10 +834,7 @@ class SettingsWindow:
         self._catalog_table.resizeColumnsToContents()
 
     def _update_catalog_page_buttons(self) -> None:
-        self._previous_catalog_page.setEnabled(self._catalog_offset > 0)
-        self._next_catalog_page.setEnabled(
-            self._catalog_offset + self._catalog_page_size < self._catalog_total
-        )
+        self._refresh_mode_controls()
 
     def _translate_selected_catalog_entry(self) -> bool:
         selected_rows = self._catalog_table.selectionModel().selectedRows()
@@ -887,10 +951,6 @@ class SettingsWindow:
         self._bulk_pause_event.set()
         self._bulk_progress.setRange(0, 0)
         self._bulk_status.setText("Lote: iniciando...")
-        self._translate_catalog.setEnabled(False)
-        self._pause_catalog_translation.setEnabled(True)
-        self._resume_catalog_translation.setEnabled(False)
-        self._cancel_catalog_translation.setEnabled(True)
 
         self._bulk_thread = Thread(
             target=self._run_bulk_catalog_translation,
@@ -899,6 +959,7 @@ class SettingsWindow:
         )
         self._bulk_thread.start()
         self._bulk_timer.start()
+        self._refresh_mode_controls()
         return True
 
     def _pause_bulk_catalog_translation(self) -> None:
@@ -907,6 +968,7 @@ class SettingsWindow:
         self._pause_catalog_translation.setEnabled(False)
         self._resume_catalog_translation.setEnabled(True)
         self._bulk_status.setText("Lote: pausando apos a entrada atual...")
+        self._refresh_mode_controls()
 
     def _resume_bulk_catalog_translation(self) -> None:
         self._bulk_pause_requested = False
@@ -914,15 +976,14 @@ class SettingsWindow:
         self._pause_catalog_translation.setEnabled(True)
         self._resume_catalog_translation.setEnabled(False)
         self._bulk_status.setText("Lote: retomando...")
+        self._refresh_mode_controls()
 
     def _cancel_bulk_catalog_translation(self) -> None:
         self._bulk_cancel_requested = True
         self._bulk_pause_requested = False
         self._bulk_pause_event.set()
         self._bulk_status.setText("Lote: cancelando...")
-        self._pause_catalog_translation.setEnabled(False)
-        self._resume_catalog_translation.setEnabled(False)
-        self._cancel_catalog_translation.setEnabled(False)
+        self._refresh_mode_controls()
 
     def _run_bulk_catalog_translation(
         self,
@@ -989,13 +1050,10 @@ class SettingsWindow:
         result: CatalogTranslationResult | Exception,
     ) -> None:
         self._bulk_timer.stop()
-        self._translate_catalog.setEnabled(True)
-        self._pause_catalog_translation.setEnabled(False)
-        self._resume_catalog_translation.setEnabled(False)
-        self._cancel_catalog_translation.setEnabled(False)
         self._bulk_thread = None
         self._bulk_pause_requested = False
         self._bulk_pause_event.set()
+        self._refresh_mode_controls()
 
         if isinstance(result, Exception):
             self._bulk_progress.setRange(0, 1)
@@ -1280,6 +1338,67 @@ class SettingsWindow:
 
     def _selected_mode(self) -> OperationMode:
         return OperationMode(self._mode.currentData())
+
+    def _refresh_mode_controls(self, *_unused: object) -> None:
+        state = resolve_mode_control_state(
+            active_mode=self._mode_settings.get_active_mode(),
+            selected_mode=self._selected_mode(),
+            catalog_has_previous=self._catalog_offset > 0,
+            catalog_has_next=(
+                self._catalog_offset + self._catalog_page_size < self._catalog_total
+            ),
+            bulk_running=self._bulk_is_running(),
+            bulk_paused=self._bulk_pause_requested,
+            runtime_available=self._runtime_diagnostics is not None,
+        )
+
+        for widget in (
+            self._rpg_maker_path,
+            self._choose_rpg_maker_path,
+            self._import_rpg_maker,
+        ):
+            widget.setEnabled(state.rpg_maker_setup_enabled)
+
+        for widget in (
+            self._name,
+            self._x,
+            self._y,
+            self._width,
+            self._height,
+            self._select_region,
+            self._preview_capture,
+            self._save,
+        ):
+            widget.setEnabled(state.universal_capture_enabled)
+
+        for widget in (
+            self._catalog_table,
+            self._refresh_catalog,
+            self._catalog_id,
+            self._search_catalog_id,
+            self._clear_contaminated_cache,
+            self._show_batch_errors,
+            self._bulk_limit,
+        ):
+            widget.setEnabled(state.rpg_catalog_enabled)
+
+        for checkbox in self._bulk_type_checkboxes.values():
+            checkbox.setEnabled(state.rpg_catalog_enabled)
+
+        self._previous_catalog_page.setEnabled(state.catalog_previous_enabled)
+        self._next_catalog_page.setEnabled(state.catalog_next_enabled)
+        self._translate_catalog_entry.setEnabled(state.rpg_catalog_mutation_enabled)
+        self._retranslate_catalog_id.setEnabled(state.rpg_catalog_mutation_enabled)
+        self._translate_catalog.setEnabled(state.bulk_start_enabled)
+        self._pause_catalog_translation.setEnabled(state.bulk_pause_enabled)
+        self._resume_catalog_translation.setEnabled(state.bulk_resume_enabled)
+        self._cancel_catalog_translation.setEnabled(state.bulk_cancel_enabled)
+        self._pause.setEnabled(state.universal_run_enabled)
+        self._resume.setEnabled(state.universal_run_enabled)
+        self._reprocess_runtime_text.setEnabled(state.runtime_reprocess_enabled)
+
+    def _bulk_is_running(self) -> bool:
+        return self._bulk_thread is not None and self._bulk_thread.is_alive()
 
     def _refresh_mode_status(
         self,

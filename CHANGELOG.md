@@ -6,6 +6,10 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V10 com fechamento da separacao visual entre modo Universal e
+  RPG Maker MV/MZ.
+- Helper testavel para decidir quais controles da janela principal ficam ativos
+  em cada modo.
 - Relatorio V9 com fechamento de paginacao do catalogo, busca por ID e
   retraducao forcada.
 - Navegacao do catalogo MV/MZ em paginas de 500 entradas.
@@ -55,6 +59,11 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Janela principal reorganizada em fluxos mais claros: `Universal`,
+  `RPG Maker MV/MZ`, `Overlay` e `Executar`.
+- Controles de captura/OCR agora ficam desativados no modo RPG Maker MV/MZ.
+- Controles de catalogo, lote, cache e erros MV/MZ agora ficam desativados
+  enquanto o modo Universal esta ativo.
 - Consulta do catalogo MV/MZ agora usa paginacao SQLite com `LIMIT`/`OFFSET`,
   evitando carregar o catalogo inteiro para exibir a tabela.
 - Botao `Reprocessar fala atual` agora usa retraducao forcada explicita:
