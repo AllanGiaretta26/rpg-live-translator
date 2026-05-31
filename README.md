@@ -98,12 +98,6 @@ Sem terminal:
 .venv\Scripts\pythonw.exe -m live_translator.app.main
 ```
 
-Com terminal para depuração:
-
-```powershell
-.venv\Scripts\python.exe -m live_translator.app.main
-```
-
 A janela separa a area capturada do overlay de traducao. Os numeros `X`, `Y`,
 `Largura` e `Altura` sao mantidos para ajuste fino; o fluxo principal e por
 mouse.
