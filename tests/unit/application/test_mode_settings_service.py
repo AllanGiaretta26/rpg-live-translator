@@ -90,10 +90,23 @@ class FakeTranslationCache:
     result: TranslationResult | None = None
     cached_texts: set[str] = field(default_factory=set)
     results: dict[str, TranslationResult] = field(default_factory=dict)
+    scoped_results: dict[tuple[str, str], TranslationResult] = field(
+        default_factory=dict
+    )
     saved: list[TranslationResult] = field(default_factory=list)
     deleted: list[str] = field(default_factory=list)
+    saved_scopes: list[str | None] = field(default_factory=list)
+    deleted_scopes: list[str | None] = field(default_factory=list)
 
-    def get_by_text(self, source_text: str) -> TranslationResult | None:
+    def get_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> TranslationResult | None:
+        scoped = self.scoped_results.get((scope or "", source_text))
+        if scoped is not None:
+            return scoped
         if source_text in self.results:
             return self.results[source_text]
         if source_text in self.cached_texts:
@@ -102,23 +115,46 @@ class FakeTranslationCache:
             )
         return self.result
 
-    def save_translation(self, result: TranslationResult) -> None:
+    def save_translation(
+        self,
+        result: TranslationResult,
+        *,
+        scope: str | None = None,
+    ) -> None:
         self.saved.append(result)
+        self.saved_scopes.append(scope)
         self.results[result.source_text] = result
+        self.scoped_results[(scope or "", result.source_text)] = result
 
-    def delete_by_text(self, source_text: str) -> bool:
+    def delete_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> bool:
         self.deleted.append(source_text)
+        self.deleted_scopes.append(scope)
         self.cached_texts.discard(source_text)
-        return self.results.pop(source_text, None) is not None
+        deleted_scoped = self.scoped_results.pop((scope or "", source_text), None)
+        deleted_global = self.results.pop(source_text, None)
+        return deleted_scoped is not None or deleted_global is not None
 
 
 @dataclass
 class FakeTranslator:
     calls: list[str] = field(default_factory=list)
+    text_types: list[RpgMakerTextType | None] = field(default_factory=list)
     failures: set[str] = field(default_factory=set)
 
-    def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
+    def translate(
+        self,
+        text: str,
+        context: Sequence[str],
+        *,
+        text_type: RpgMakerTextType | None = None,
+    ) -> TranslationResult:
         self.calls.append(text)
+        self.text_types.append(text_type)
         if text in self.failures:
             raise RuntimeError(f"failed {text}")
         return TranslationResult(source_text=text, translated_text=f"pt:{text}")
@@ -274,6 +310,33 @@ def test_translate_catalog_entry_uses_existing_cache():
     assert cache.saved == []
 
 
+def test_translate_catalog_entry_uses_active_project_cache_scope():
+    active_scope = str(Path("C:/game"))
+    other_scope = str(Path("D:/other"))
+    cache = FakeTranslationCache(
+        scoped_results={
+            (active_scope, "Hello there"): TranslationResult(
+                source_text="Hello there",
+                translated_text="Ola do jogo A",
+            ),
+            (other_scope, "Hello there"): TranslationResult(
+                source_text="Hello there",
+                translated_text="Ola do jogo B",
+            ),
+        }
+    )
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog([_entry()]), cache=cache, translator=translator
+    )
+
+    result = service.translate_catalog_entry(1)
+
+    assert result is not None
+    assert result.translated_text == "Ola do jogo A"
+    assert translator.calls == []
+
+
 def test_translate_catalog_entry_translates_and_saves_cache_miss():
     cache = FakeTranslationCache()
     translator = FakeTranslator()
@@ -286,7 +349,9 @@ def test_translate_catalog_entry_translates_and_saves_cache_miss():
     assert result is not None
     assert result.translated_text == "pt:Hello there"
     assert translator.calls == ["Hello there"]
+    assert translator.text_types == [RpgMakerTextType.MESSAGE]
     assert cache.saved == [result]
+    assert cache.saved_scopes == [str(Path("C:/game"))]
 
 
 def test_retranslate_catalog_entry_ignores_existing_cache_and_saves_new_result():
@@ -302,8 +367,11 @@ def test_retranslate_catalog_entry_ignores_existing_cache_and_saves_new_result()
     assert result is not None
     assert result.translated_text == "pt:Hello there"
     assert cache.deleted == ["Hello there"]
+    assert cache.deleted_scopes == [str(Path("C:/game"))]
     assert translator.calls == ["Hello there"]
+    assert translator.text_types == [RpgMakerTextType.MESSAGE]
     assert cache.saved == [result]
+    assert cache.saved_scopes == [str(Path("C:/game"))]
 
 
 def test_retranslate_catalog_entry_returns_none_for_missing_id():
@@ -407,6 +475,25 @@ def test_translate_catalog_entries_uses_default_types_without_speaker():
         _typed_entry(2, "Hero", RpgMakerTextType.SPEAKER),
         _typed_entry(3, "Choice", RpgMakerTextType.CHOICE),
         _typed_entry(4, "Scroll", RpgMakerTextType.SCROLLING_TEXT),
+        _typed_entry(5, "Potion", RpgMakerTextType.ITEM_NAME),
+        _typed_entry(6, "Restores HP.", RpgMakerTextType.ITEM_DESCRIPTION),
+        _typed_entry(7, "Fire", RpgMakerTextType.SKILL_NAME),
+        _typed_entry(8, "Deals fire damage.", RpgMakerTextType.SKILL_DESCRIPTION),
+        _typed_entry(9, "%1 casts %2!", RpgMakerTextType.SKILL_MESSAGE),
+        _typed_entry(10, "Sword", RpgMakerTextType.WEAPON_NAME),
+        _typed_entry(11, "A sharp blade.", RpgMakerTextType.WEAPON_DESCRIPTION),
+        _typed_entry(12, "Shield", RpgMakerTextType.ARMOR_NAME),
+        _typed_entry(13, "Blocks hits.", RpgMakerTextType.ARMOR_DESCRIPTION),
+        _typed_entry(14, "Poison", RpgMakerTextType.STATE_NAME),
+        _typed_entry(15, "%1 is poisoned!", RpgMakerTextType.STATE_MESSAGE),
+        _typed_entry(16, "Warrior", RpgMakerTextType.CLASS_NAME),
+        _typed_entry(17, "Slime", RpgMakerTextType.ENEMY_NAME),
+        _typed_entry(18, "Hero", RpgMakerTextType.ACTOR_NAME),
+        _typed_entry(19, "Item", RpgMakerTextType.SYSTEM_TERM),
+        _typed_entry(20, "Battle line", RpgMakerTextType.TROOP_MESSAGE),
+        _typed_entry(21, "Battle choice", RpgMakerTextType.TROOP_CHOICE),
+        _typed_entry(22, "Battle scroll", RpgMakerTextType.TROOP_SCROLLING_TEXT),
+        _typed_entry(23, "General", RpgMakerTextType.TROOP_SPEAKER),
     ]
     translator = FakeTranslator()
     service = _service(catalog=FakeCatalog(entries), translator=translator)
@@ -417,9 +504,51 @@ def test_translate_catalog_entries_uses_default_types_without_speaker():
         RpgMakerTextType.MESSAGE,
         RpgMakerTextType.CHOICE,
         RpgMakerTextType.SCROLLING_TEXT,
+        RpgMakerTextType.ITEM_NAME,
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_NAME,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.SKILL_MESSAGE,
+        RpgMakerTextType.WEAPON_NAME,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_NAME,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+        RpgMakerTextType.STATE_NAME,
+        RpgMakerTextType.STATE_MESSAGE,
+        RpgMakerTextType.CLASS_NAME,
+        RpgMakerTextType.ENEMY_NAME,
+        RpgMakerTextType.ACTOR_NAME,
+        RpgMakerTextType.SYSTEM_TERM,
+        RpgMakerTextType.TROOP_MESSAGE,
+        RpgMakerTextType.TROOP_CHOICE,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_SPEAKER,
     }
-    assert result.total == 3
-    assert translator.calls == ["Dialogue", "Choice", "Scroll"]
+    assert result.total == 22
+    assert translator.calls == [
+        "Dialogue",
+        "Choice",
+        "Scroll",
+        "Potion",
+        "Restores HP.",
+        "Fire",
+        "Deals fire damage.",
+        "%1 casts %2!",
+        "Sword",
+        "A sharp blade.",
+        "Shield",
+        "Blocks hits.",
+        "Poison",
+        "%1 is poisoned!",
+        "Warrior",
+        "Slime",
+        "Hero",
+        "Item",
+        "Battle line",
+        "Battle choice",
+        "Battle scroll",
+        "General",
+    ]
 
 
 def test_translate_catalog_entries_respects_selected_text_types():
@@ -576,3 +705,26 @@ def test_clear_contaminated_catalog_cache_only_deletes_invalid_project_entries()
     assert cache.deleted == ["Line 2"]
     assert cache.get_by_text("Line 1") is not None
     assert cache.get_by_text("Line 2") is None
+
+
+def test_clear_contaminated_catalog_cache_keeps_other_project_scope():
+    active_scope = str(Path("C:/game"))
+    other_scope = str(Path("D:/other"))
+    invalid = TranslationResult(
+        source_text="Line 1",
+        translated_text="Linha 1\nResponda apenas JSON valido.",
+    )
+    cache = FakeTranslationCache(
+        scoped_results={
+            (active_scope, "Line 1"): invalid,
+            (other_scope, "Line 1"): invalid,
+        }
+    )
+    service = _service(catalog=FakeCatalog(_entries(1)), cache=cache)
+
+    deleted = service.clear_contaminated_catalog_cache()
+
+    assert deleted == 1
+    assert cache.deleted_scopes == [active_scope]
+    assert cache.get_by_text("Line 1", scope=active_scope) is None
+    assert cache.get_by_text("Line 1", scope=other_scope) is not None

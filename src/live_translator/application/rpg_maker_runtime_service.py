@@ -78,10 +78,14 @@ class RpgMakerRuntimeService:
             return None
 
         request_id = self._start_request(normalized_text)
+        cache_scope = self._cache_scope()
         if force_retranslate:
-            self.translation_cache.delete_by_text(normalized_text)
+            self.translation_cache.delete_by_text(normalized_text, scope=cache_scope)
         else:
-            cached = self.translation_cache.get_by_text(normalized_text)
+            cached = self.translation_cache.get_by_text(
+                normalized_text,
+                scope=cache_scope,
+            )
             if cached is not None:
                 if looks_like_invalid_translation(
                     normalized_text, cached.translated_text
@@ -111,7 +115,7 @@ class RpgMakerRuntimeService:
             raise
 
         translation_seconds = self.clock() - translation_started_at
-        self.translation_cache.save_translation(result)
+        self.translation_cache.save_translation(result, scope=cache_scope)
         if self._is_latest_request(request_id):
             self.overlay.show_text(result.translated_text)
             self._set_last_translated_text(result.translated_text)
@@ -122,6 +126,12 @@ class RpgMakerRuntimeService:
                 stage="reprocess" if force_retranslate else "cache miss",
             )
         return result
+
+    def _cache_scope(self) -> str | None:
+        get_scope = getattr(self.mode_settings, "get_rpg_maker_cache_scope", None)
+        if not callable(get_scope):
+            return None
+        return get_scope()
 
     def reprocess_last_text(self) -> TranslationResult | None:
         with self._lock:

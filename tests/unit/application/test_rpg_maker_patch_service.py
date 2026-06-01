@@ -16,8 +16,15 @@ from live_translator.domain.models import (
 class FakeTranslationCache:
     def __init__(self, results: dict[str, str] | None = None) -> None:
         self.results = results or {}
+        self.lookup_scopes: list[str | None] = []
 
-    def get_by_text(self, source_text: str) -> TranslationResult | None:
+    def get_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> TranslationResult | None:
+        self.lookup_scopes.append(scope)
         translated = self.results.get(source_text)
         if translated is None:
             return None
@@ -26,10 +33,20 @@ class FakeTranslationCache:
             translated_text=translated,
         )
 
-    def save_translation(self, result: TranslationResult) -> None:
+    def save_translation(
+        self,
+        result: TranslationResult,
+        *,
+        scope: str | None = None,
+    ) -> None:
         self.results[result.source_text] = result.translated_text
 
-    def delete_by_text(self, source_text: str) -> bool:
+    def delete_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> bool:
         return self.results.pop(source_text, None) is not None
 
 
@@ -156,6 +173,376 @@ def test_export_patch_respects_speaker_option(tmp_path):
     assert patched["events"][1]["pages"][0]["list"][0]["parameters"][4] == "Alicia"
 
 
+def test_export_patch_rewrites_troop_event_commands(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Troops.json",
+        [
+            None,
+            {
+                "id": 4,
+                "pages": [
+                    {
+                        "list": [
+                            {
+                                "code": 101,
+                                "indent": 0,
+                                "parameters": ["", 0, 0, 2, "Commander"],
+                            },
+                            {"code": 401, "indent": 0, "parameters": ["Attack!"]},
+                            {"code": 102, "indent": 0, "parameters": [["Fight"]]},
+                            {
+                                "code": 405,
+                                "indent": 0,
+                                "parameters": ["The ground shakes."],
+                            },
+                        ]
+                    }
+                ],
+            },
+        ],
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Commander": "Comandante",
+                "Attack!": "Ataquem!",
+                "Fight": "Lutar",
+                "The ground shakes.": "O chao treme.",
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _troop_entry("Commander", RpgMakerTextType.TROOP_SPEAKER, 0, 4),
+            _troop_entry("Attack!", RpgMakerTextType.TROOP_MESSAGE, 1, 0),
+            _troop_entry("Fight", RpgMakerTextType.TROOP_CHOICE, 2, 0),
+            _troop_entry(
+                "The ground shakes.",
+                RpgMakerTextType.TROOP_SCROLLING_TEXT,
+                3,
+                0,
+            ),
+        ],
+    )
+
+    patched = _read_json(result.data_path / "Troops.json")
+    commands = patched[1]["pages"][0]["list"]
+    assert commands[0]["parameters"][4] == "Comandante"
+    assert commands[1]["parameters"][0] == "Ataquem!"
+    assert commands[2]["parameters"][0] == ["Lutar"]
+    assert commands[3]["parameters"][0] == "O chao treme."
+    assert result.applied_entries == 4
+    assert result.files_written == 1
+
+
+def test_export_patch_rewrites_items_and_skills_database(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Items.json",
+        [
+            None,
+            {"id": 1, "name": "Potion", "description": "Restores HP."},
+        ],
+    )
+    _write_json(
+        project.data_path / "Skills.json",
+        [
+            None,
+            {"id": 1, "name": "Fire", "description": "Deals fire damage."},
+        ],
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Potion": "Pocao",
+                "Restores HP.": "Restaura HP.",
+                "Fire": "Fogo",
+                "Deals fire damage.": "Causa dano de fogo.",
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _database_entry(
+                "Potion",
+                RpgMakerTextType.ITEM_NAME,
+                "Items.json",
+                1,
+                "name",
+            ),
+            _database_entry(
+                "Restores HP.",
+                RpgMakerTextType.ITEM_DESCRIPTION,
+                "Items.json",
+                1,
+                "description",
+            ),
+            _database_entry(
+                "Fire",
+                RpgMakerTextType.SKILL_NAME,
+                "Skills.json",
+                1,
+                "name",
+            ),
+            _database_entry(
+                "Deals fire damage.",
+                RpgMakerTextType.SKILL_DESCRIPTION,
+                "Skills.json",
+                1,
+                "description",
+            ),
+        ],
+    )
+
+    patched_items = _read_json(result.data_path / "Items.json")
+    patched_skills = _read_json(result.data_path / "Skills.json")
+    assert patched_items[1]["name"] == "Pocao"
+    assert patched_items[1]["description"] == "Restaura HP."
+    assert patched_skills[1]["name"] == "Fogo"
+    assert patched_skills[1]["description"] == "Causa dano de fogo."
+    assert result.applied_entries == 4
+    assert result.files_written == 2
+
+
+def test_export_patch_rewrites_extended_database_files(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Weapons.json",
+        [None, {"id": 1, "name": "Sword", "description": "A sharp blade."}],
+    )
+    _write_json(
+        project.data_path / "Armors.json",
+        [None, {"id": 1, "name": "Shield", "description": "Blocks hits."}],
+    )
+    _write_json(
+        project.data_path / "States.json",
+        [
+            None,
+            {
+                "id": 1,
+                "name": "Poison",
+                "message1": "%1 is poisoned!",
+                "message2": "%1 is still poisoned!",
+            },
+        ],
+    )
+    _write_json(
+        project.data_path / "Classes.json", [None, {"id": 1, "name": "Warrior"}]
+    )
+    _write_json(project.data_path / "Enemies.json", [None, {"id": 1, "name": "Slime"}])
+    _write_json(
+        project.data_path / "Skills.json",
+        [
+            None,
+            {
+                "id": 1,
+                "name": "Fire",
+                "description": "Deals fire damage.",
+                "message1": "%1 casts %2!",
+                "message2": "%1 uses %2!",
+            },
+        ],
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Sword": "Espada",
+                "A sharp blade.": "Lamina afiada.",
+                "Shield": "Escudo",
+                "Blocks hits.": "Bloqueia golpes.",
+                "Poison": "Veneno",
+                "%1 is poisoned!": "%1 foi envenenado!",
+                "%1 is still poisoned!": "%1 continua envenenado!",
+                "Warrior": "Guerreiro",
+                "Slime": "Gosma",
+                "%1 casts %2!": "%1 conjura %2!",
+                "%1 uses %2!": "%1 usa %2!",
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _database_entry(
+                "Sword", RpgMakerTextType.WEAPON_NAME, "Weapons.json", 1, "name"
+            ),
+            _database_entry(
+                "A sharp blade.",
+                RpgMakerTextType.WEAPON_DESCRIPTION,
+                "Weapons.json",
+                1,
+                "description",
+            ),
+            _database_entry(
+                "Shield", RpgMakerTextType.ARMOR_NAME, "Armors.json", 1, "name"
+            ),
+            _database_entry(
+                "Blocks hits.",
+                RpgMakerTextType.ARMOR_DESCRIPTION,
+                "Armors.json",
+                1,
+                "description",
+            ),
+            _database_entry(
+                "Poison", RpgMakerTextType.STATE_NAME, "States.json", 1, "name"
+            ),
+            _database_entry(
+                "%1 is poisoned!",
+                RpgMakerTextType.STATE_MESSAGE,
+                "States.json",
+                1,
+                "message1",
+            ),
+            _database_entry(
+                "%1 is still poisoned!",
+                RpgMakerTextType.STATE_MESSAGE,
+                "States.json",
+                1,
+                "message2",
+            ),
+            _database_entry(
+                "Warrior", RpgMakerTextType.CLASS_NAME, "Classes.json", 1, "name"
+            ),
+            _database_entry(
+                "Slime", RpgMakerTextType.ENEMY_NAME, "Enemies.json", 1, "name"
+            ),
+            _database_entry(
+                "%1 casts %2!",
+                RpgMakerTextType.SKILL_MESSAGE,
+                "Skills.json",
+                1,
+                "message1",
+            ),
+            _database_entry(
+                "%1 uses %2!",
+                RpgMakerTextType.SKILL_MESSAGE,
+                "Skills.json",
+                1,
+                "message2",
+            ),
+        ],
+    )
+
+    assert _read_json(result.data_path / "Weapons.json")[1]["name"] == "Espada"
+    assert _read_json(result.data_path / "Armors.json")[1]["description"] == (
+        "Bloqueia golpes."
+    )
+    assert _read_json(result.data_path / "States.json")[1]["message1"] == (
+        "%1 foi envenenado!"
+    )
+    assert _read_json(result.data_path / "Classes.json")[1]["name"] == "Guerreiro"
+    assert _read_json(result.data_path / "Enemies.json")[1]["name"] == "Gosma"
+    assert _read_json(result.data_path / "Skills.json")[1]["message2"] == "%1 usa %2!"
+    assert result.applied_entries == 11
+    assert result.files_written == 6
+
+
+def test_export_patch_rewrites_actor_names_and_system_terms(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Actors.json",
+        [
+            None,
+            {"id": 1, "name": "Hero"},
+        ],
+    )
+    _write_json(
+        project.data_path / "System.json",
+        {"terms": {"commands": ["Fight", "Escape", "Item", "Skill"]}},
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Hero": "Heroi",
+                "Item": "Itens",
+                "Skill": "Habilidades",
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _database_entry(
+                "Hero",
+                RpgMakerTextType.ACTOR_NAME,
+                "Actors.json",
+                1,
+                "name",
+            ),
+            _system_entry("Item", "terms.commands.2"),
+            _system_entry("Skill", "terms.commands.3"),
+        ],
+    )
+
+    patched_actors = _read_json(result.data_path / "Actors.json")
+    patched_system = _read_json(result.data_path / "System.json")
+    assert patched_actors[1]["name"] == "Heroi"
+    assert patched_system["terms"]["commands"][2] == "Itens"
+    assert patched_system["terms"]["commands"][3] == "Habilidades"
+    assert result.applied_entries == 3
+    assert result.files_written == 2
+
+
+def test_export_patch_wraps_long_message_lines(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Hello": (
+                    "Esta traducao ficou longa demais para caber na caixa de texto "
+                    "do jogo sem quebra."
+                )
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [command["parameters"][0] for command in commands]
+    assert len(lines) > 1
+    assert all(len(line) <= 44 for line in lines)
+
+
 def test_export_patch_reports_missing_invalid_and_mismatched_entries(tmp_path):
     project = _project(tmp_path)
     _write_json(
@@ -263,6 +650,57 @@ def _entry(
             page_index=0,
             command_index=command_index,
             parameter_index=parameter_index,
+        ),
+    )
+
+
+def _database_entry(
+    text: str,
+    text_type: RpgMakerTextType,
+    file_name: str,
+    database_id: int,
+    field_name: str,
+) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        source_text=text,
+        text_type=text_type,
+        origin=RpgMakerTextOrigin(
+            file_name=file_name,
+            origin_key=f"{file_name}|database|{database_id}|{field_name}",
+            database_id=database_id,
+            field_name=field_name,
+        ),
+    )
+
+
+def _troop_entry(
+    text: str,
+    text_type: RpgMakerTextType,
+    command_index: int,
+    parameter_index: int,
+) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        source_text=text,
+        text_type=text_type,
+        origin=RpgMakerTextOrigin(
+            file_name="Troops.json",
+            origin_key=f"Troops.json|database|4|0|{command_index}|{parameter_index}",
+            database_id=4,
+            page_index=0,
+            command_index=command_index,
+            parameter_index=parameter_index,
+        ),
+    )
+
+
+def _system_entry(text: str, field_name: str) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        source_text=text,
+        text_type=RpgMakerTextType.SYSTEM_TERM,
+        origin=RpgMakerTextOrigin(
+            file_name="System.json",
+            origin_key=f"System.json|system|{field_name}",
+            field_name=field_name,
         ),
     )
 

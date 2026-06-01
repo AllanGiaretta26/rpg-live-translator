@@ -110,6 +110,33 @@ def test_translation_cache_enforces_unique_normalized_text(
         raw_connection.close()
 
 
+def test_translation_cache_is_scoped_by_project_root(connection_manager):
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola A"),
+        scope="C:/game-a",
+    )
+    repository.save_translation(
+        TranslationResult(source_text="  hello  ", translated_text="Ola B"),
+        scope="C:/game-b",
+    )
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola global"),
+    )
+
+    assert repository.get_by_text("HELLO", scope="C:/game-a").translated_text == "Ola A"
+    assert repository.get_by_text("hello", scope="C:/game-b").translated_text == "Ola B"
+    assert repository.get_by_text("hello").translated_text == "Ola global"
+
+    with connection_manager.open() as connection:
+        row_count = connection.execute(
+            "SELECT COUNT(*) AS count FROM translations"
+        ).fetchone()["count"]
+
+    assert row_count == 3
+
+
 def test_translation_cache_deletes_by_normalized_text(connection_manager):
     repository = SQLiteTranslationCacheRepository(connection_manager)
     repository.save_translation(
@@ -119,6 +146,76 @@ def test_translation_cache_deletes_by_normalized_text(connection_manager):
     assert repository.delete_by_text("hello world") is True
     assert repository.get_by_text("Hello world") is None
     assert repository.delete_by_text("Hello world") is False
+
+
+def test_translation_cache_deletes_only_matching_scope(connection_manager):
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola A"),
+        scope="C:/game-a",
+    )
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola B"),
+        scope="C:/game-b",
+    )
+
+    assert repository.delete_by_text("hello", scope="C:/game-a") is True
+
+    assert repository.get_by_text("hello", scope="C:/game-a") is None
+    assert repository.get_by_text("hello", scope="C:/game-b").translated_text == "Ola B"
+
+
+def test_sqlite_connection_migrates_legacy_translation_cache_scope(database_path):
+    raw_connection = sqlite3.connect(str(database_path))
+    try:
+        raw_connection.executescript(
+            """
+            CREATE TABLE translations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_text TEXT NOT NULL,
+                normalized_source_text TEXT NOT NULL UNIQUE,
+                translated_text TEXT NOT NULL,
+                source_lang TEXT NOT NULL DEFAULT 'auto',
+                target_lang TEXT NOT NULL DEFAULT 'pt-BR',
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO translations (
+                source_text,
+                normalized_source_text,
+                translated_text,
+                source_lang,
+                target_lang,
+                created_at
+            )
+            VALUES (
+                'Hello',
+                'hello',
+                'Ola legado',
+                'en',
+                'pt-BR',
+                '2026-01-01T00:00:00Z'
+            );
+            """
+        )
+        raw_connection.commit()
+    finally:
+        raw_connection.close()
+
+    connection_manager = SQLiteConnectionManager(database_path)
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+
+    assert repository.get_by_text("hello").translated_text == "Ola legado"
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola A"),
+        scope="C:/game-a",
+    )
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola B"),
+        scope="C:/game-b",
+    )
+
+    assert repository.get_by_text("hello", scope="C:/game-a").translated_text == "Ola A"
+    assert repository.get_by_text("hello", scope="C:/game-b").translated_text == "Ola B"
 
 
 def test_image_cache_saves_and_loads_by_hash(connection_manager):
@@ -283,6 +380,39 @@ def test_rpg_maker_catalog_replaces_project_entries(connection_manager, tmp_path
     assert repository.get_entry(entries[0].id) == entries[0]
 
 
+def test_rpg_maker_catalog_preserves_database_origin(connection_manager, tmp_path):
+    repository = SQLiteRpgMakerTextCatalogRepository(connection_manager)
+    project = RpgMakerProject(
+        root_path=tmp_path / "Game",
+        data_path=tmp_path / "Game" / "www" / "data",
+        version=RpgMakerVersion.MZ,
+    )
+    database_entry = RpgMakerTextEntry(
+        source_text="Potion",
+        text_type=RpgMakerTextType.ITEM_NAME,
+        origin=RpgMakerTextOrigin(
+            file_name="Items.json",
+            origin_key="Items.json|database|1|name",
+            database_id=1,
+            field_name="name",
+        ),
+    )
+
+    assert repository.replace_project_entries(project, [database_entry]) == 1
+
+    entries = repository.list_project_entries(project)
+
+    assert entries == [
+        RpgMakerTextEntry(
+            id=entries[0].id,
+            source_text="Potion",
+            text_type=RpgMakerTextType.ITEM_NAME,
+            origin=database_entry.origin,
+        )
+    ]
+    assert repository.get_entry(entries[0].id) == entries[0]
+
+
 def test_rpg_maker_catalog_lists_project_entries_with_limit_and_offset(
     connection_manager,
     tmp_path,
@@ -335,6 +465,49 @@ def test_rpg_maker_catalog_rejects_invalid_paging_arguments(
 
     with pytest.raises(ValueError, match="offset must be zero or greater"):
         repository.list_project_entries(project, offset=-1)
+
+
+def test_sqlite_connection_migrates_legacy_rpg_maker_catalog_columns(database_path):
+    raw_connection = sqlite3.connect(str(database_path))
+    try:
+        raw_connection.executescript(
+            """
+            CREATE TABLE rpg_maker_text_catalog (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_root TEXT NOT NULL,
+                data_path TEXT NOT NULL,
+                engine_version TEXT NOT NULL,
+                source_text TEXT NOT NULL,
+                normalized_source_text TEXT NOT NULL,
+                text_type TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                origin_key TEXT NOT NULL,
+                map_id INTEGER,
+                event_id INTEGER,
+                page_index INTEGER,
+                command_index INTEGER,
+                parameter_index INTEGER,
+                created_at TEXT NOT NULL,
+                UNIQUE(project_root, origin_key, normalized_source_text)
+            );
+            """
+        )
+        raw_connection.commit()
+    finally:
+        raw_connection.close()
+
+    connection_manager = SQLiteConnectionManager(database_path)
+
+    with connection_manager.open() as connection:
+        columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(rpg_maker_text_catalog)"
+            ).fetchall()
+        }
+
+    assert "database_id" in columns
+    assert "field_name" in columns
 
 
 def test_catalog_translation_error_repository_replaces_last_batch_errors(

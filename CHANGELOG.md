@@ -6,6 +6,31 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V12 com fechamento do suporte inicial a database MV/MZ no catalogo
+  e no patch.
+- Catalogacao e patch MV/MZ para `Weapons.json`, `Armors.json`, `States.json`,
+  `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
+- Catalogacao MV/MZ de `Items.json` e `Skills.json`, incluindo nomes e
+  descricoes, alem de mensagens `message1` e `message2` de skills.
+- Catalogacao MV/MZ de `Actors.json` para nomes de personagens.
+- Catalogacao de termos de `System.json`, incluindo comandos de menu como
+  `Item` e `Skill`.
+- Tipos de catalogo `item_name`, `item_description`, `skill_name` e
+  `skill_description`.
+- Tipos de catalogo `weapon_name`, `weapon_description`, `armor_name`,
+  `armor_description`, `state_name`, `state_message`, `class_name`,
+  `enemy_name`, `skill_message`, `troop_message`, `troop_choice`,
+  `troop_scrolling_text` e `troop_speaker`.
+- Tipos de catalogo `actor_name` e `system_term`.
+- Exportacao de patch para nomes e descricoes em `Items.json` e `Skills.json`.
+- Exportacao de patch para nomes e descricoes de armas e armaduras, nomes e
+  mensagens de estados, classes, inimigos, mensagens de skills e eventos de
+  batalha.
+- Exportacao de patch para nomes em `Actors.json` e termos em `System.json`.
+- Escopo de cache de traducao por projeto RPG Maker MV/MZ, mantendo cache global
+  para o modo Universal/OCR.
+- Migracao SQLite idempotente para armazenar origem de database no catalogo
+  existente e escopo na tabela `translations`.
 - Relatorio V11 com fechamento do exportador/aplicador de patch JSON MV/MZ.
 - Area `Patch de traducao` no modo RPG Maker MV/MZ para gerar patch, aplicar
   patch e restaurar o ultimo backup.
@@ -65,6 +90,19 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Lote MV/MZ agora inclui itens e skills por padrao, mantendo `speaker`
+  desativado por padrao.
+- Lote MV/MZ agora inclui database expandido, nomes de atores, termos do sistema
+  e eventos de batalha por padrao.
+- Patch MV/MZ agora valida tambem ID e campo de database antes de substituir
+  campos como `name`, `description`, `message1` e `message2`.
+- Patch MV/MZ agora quebra mensagens longas em linhas menores ao gerar
+  `Map*.json` e `CommonEvents.json`.
+- Tradutor/cache agora tratam como invalida a traducao que remove codigos RPG
+  Maker como `\N[1]`, `\V[2]`, `\C[3]`, `\I[64]` ou placeholders como `%1` e
+  `%2`.
+- Prompts de traducao agora mudam conforme tipo de texto: dialogo, nome,
+  descricao, termo de sistema ou mensagem de batalha.
 - Patch MV/MZ pula entradas sem cache, traducoes contaminadas e origens que nao
   batem mais com o JSON original, registrando tudo no relatorio do patch.
 - Janela principal reorganizada em fluxos mais claros: `Universal`,

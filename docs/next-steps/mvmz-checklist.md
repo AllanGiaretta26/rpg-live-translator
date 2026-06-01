@@ -11,6 +11,7 @@
 ## Cache e diagnosticoS
 
 - [x] Adicionar limpeza manual de traducoes contaminadas no cache.
+- [x] Isolar cache de traducao MV/MZ por caminho do projeto ativo.
 - [x] Adicionar acao para reprocessar a fala atual quando o cache for invalido.
 - [x] Persistir erros de traducao em lote com `entry_id`, origem, texto fonte e mensagem do erro.
 - [x] Adicionar botao ou aba para consultar os erros do ultimo lote.
@@ -22,6 +23,9 @@
 ## Traducao em lote
 
 - [x] Adicionar filtro de lote por tipo de texto: `message`, `choice`, `speaker`, `scrolling_text`.
+- [x] Adicionar filtros de lote para database: `item_name`, `item_description`, `skill_name`, `skill_description`.
+- [x] Adicionar filtros de lote para `actor_name` e `system_term`.
+- [x] Adicionar filtros de lote para `weapon`, `armor`, `state`, `class`, `enemy`, `skill_message` e `troop`.
 - [x] Definir se `speaker` deve entrar no lote por padrao ou ficar desativado.
 - [x] Adicionar pausa/resumo do lote sem perder progresso.
 - [x] Evitar retraduzir entradas cujo cache foi validado como bom.
@@ -52,7 +56,14 @@
 - [x] Avaliar exportacao de patch traduzido para pasta separada, sem sobrescrever o jogo original.
 - [x] Adicionar geracao de patch JSON MV/MZ para mensagens, escolhas, texto rolante e speaker opcional.
 - [x] Adicionar aplicacao de patch com backup automatico e restauracao do ultimo backup.
-- [ ] Expandir patch para database como `Skills.json` e `Items.json`.
+- [x] Expandir patch para database como `Skills.json` e `Items.json`.
+- [x] Expandir patch para `Actors.json` e termos de `System.json`.
+- [x] Preservar codigos RPG Maker como `\N[1]` durante traducao/cache/patch.
+- [x] Preservar placeholders de batalha como `%1`, `%2` e `%3`.
+- [x] Quebrar linhas longas de mensagens ao gerar patch.
+- [x] Expandir catalogo e patch para `Weapons.json`, `Armors.json` e `States.json`.
+- [x] Expandir catalogo e patch para `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
+- [x] Usar prompts por tipo de texto para nomes, descricoes, termos e mensagens de batalha.
 - [ ] Documentar riscos de patch em jogos com plugins customizados.
 
 ## Validacao antes de merge

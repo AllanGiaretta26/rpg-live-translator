@@ -3,7 +3,10 @@ import pytest
 from live_translator.infrastructure.translation.ollama_client import (
     OllamaInvalidResponseError,
 )
-from live_translator.infrastructure.translation.ollama_translator import OllamaTranslator
+from live_translator.infrastructure.translation.ollama_translator import (
+    OllamaTranslator,
+)
+from live_translator.domain.models import RpgMakerTextType
 
 
 class FakeClient:
@@ -104,3 +107,58 @@ def test_translator_rejects_prompt_leak_after_retry():
         match="translated_text appears to include prompt instructions",
     ):
         translator.translate("Once upon a time,", [])
+
+
+def test_translator_retries_when_translation_drops_rpg_maker_escape_code():
+    client = SequenceClient(
+        [
+            {"translated_text": "[1] encontrou um item."},
+            {"translated_text": r"\N[1] encontrou um item."},
+        ]
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(r"\N[1] found an item.", [])
+
+    assert result.translated_text == r"\N[1] encontrou um item."
+    assert len(client.prompts) == 2
+
+
+def test_translator_rejects_missing_rpg_maker_escape_code_after_retry():
+    translator = OllamaTranslator(
+        FakeClient({"translated_text": "[1] encontrou um item."})
+    )
+
+    with pytest.raises(
+        OllamaInvalidResponseError,
+        match="translated_text drops RPG Maker escape codes",
+    ):
+        translator.translate(r"\N[1] found an item.", [])
+
+
+def test_translator_rejects_missing_percent_placeholder_after_retry():
+    translator = OllamaTranslator(FakeClient({"translated_text": "%1 ataca!"}))
+
+    with pytest.raises(
+        OllamaInvalidResponseError,
+        match="translated_text drops RPG Maker placeholders",
+    ):
+        translator.translate(
+            "%1 attacks %2!",
+            [],
+            text_type=RpgMakerTextType.SKILL_MESSAGE,
+        )
+
+
+def test_translator_uses_text_type_profile_in_prompt():
+    client = FakeClient({"translated_text": "Espada"})
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        "Iron Sword",
+        [],
+        text_type=RpgMakerTextType.WEAPON_NAME,
+    )
+
+    assert result.translated_text == "Espada"
+    assert "Perfil do texto: nome de jogo" in client.prompt

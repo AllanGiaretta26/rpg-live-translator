@@ -375,11 +375,28 @@ class SettingsWindow:
             RpgMakerTextType.CHOICE: QCheckBox("choice"),
             RpgMakerTextType.SPEAKER: QCheckBox("speaker"),
             RpgMakerTextType.SCROLLING_TEXT: QCheckBox("scrolling_text"),
+            RpgMakerTextType.ITEM_NAME: QCheckBox("item_name"),
+            RpgMakerTextType.ITEM_DESCRIPTION: QCheckBox("item_description"),
+            RpgMakerTextType.SKILL_NAME: QCheckBox("skill_name"),
+            RpgMakerTextType.SKILL_DESCRIPTION: QCheckBox("skill_description"),
+            RpgMakerTextType.SKILL_MESSAGE: QCheckBox("skill_message"),
+            RpgMakerTextType.WEAPON_NAME: QCheckBox("weapon_name"),
+            RpgMakerTextType.WEAPON_DESCRIPTION: QCheckBox("weapon_description"),
+            RpgMakerTextType.ARMOR_NAME: QCheckBox("armor_name"),
+            RpgMakerTextType.ARMOR_DESCRIPTION: QCheckBox("armor_description"),
+            RpgMakerTextType.STATE_NAME: QCheckBox("state_name"),
+            RpgMakerTextType.STATE_MESSAGE: QCheckBox("state_message"),
+            RpgMakerTextType.CLASS_NAME: QCheckBox("class_name"),
+            RpgMakerTextType.ENEMY_NAME: QCheckBox("enemy_name"),
+            RpgMakerTextType.ACTOR_NAME: QCheckBox("actor_name"),
+            RpgMakerTextType.SYSTEM_TERM: QCheckBox("system_term"),
+            RpgMakerTextType.TROOP_MESSAGE: QCheckBox("troop_message"),
+            RpgMakerTextType.TROOP_CHOICE: QCheckBox("troop_choice"),
+            RpgMakerTextType.TROOP_SCROLLING_TEXT: QCheckBox("troop_scrolling_text"),
+            RpgMakerTextType.TROOP_SPEAKER: QCheckBox("troop_speaker"),
         }
-        self._bulk_type_checkboxes[RpgMakerTextType.MESSAGE].setChecked(True)
-        self._bulk_type_checkboxes[RpgMakerTextType.CHOICE].setChecked(True)
-        self._bulk_type_checkboxes[RpgMakerTextType.SPEAKER].setChecked(False)
-        self._bulk_type_checkboxes[RpgMakerTextType.SCROLLING_TEXT].setChecked(True)
+        for text_type, checkbox in self._bulk_type_checkboxes.items():
+            checkbox.setChecked(text_type != RpgMakerTextType.SPEAKER)
         self._translate_catalog = QPushButton("Traduzir catalogo")
         self._pause_catalog_translation = QPushButton("Pausar lote")
         self._pause_catalog_translation.setEnabled(False)
@@ -1277,6 +1294,10 @@ class SettingsWindow:
     def _format_origin(self, entry: RpgMakerTextEntry) -> str:
         origin = entry.origin
         parts = [origin.file_name]
+        if origin.database_id is not None:
+            parts.append(f"id {origin.database_id}")
+        if origin.field_name is not None:
+            parts.append(origin.field_name)
         if origin.event_id is not None:
             parts.append(f"ev {origin.event_id}")
         if origin.page_index is not None:

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import shutil
+import textwrap
 from typing import Any, Iterable
 
 from live_translator.application.translation_quality import (
@@ -63,10 +64,12 @@ class RpgMakerPatchService:
         self,
         translation_cache: TranslationCache,
         *,
+        cache_scope: str | None = None,
         export_root: Path = Path("exports") / "patches",
         backup_root: Path = Path("backups") / "patches",
     ) -> None:
         self._translation_cache = translation_cache
+        self._cache_scope = cache_scope
         self._export_root = export_root
         self._backup_root = backup_root
 
@@ -101,7 +104,10 @@ class RpgMakerPatchService:
                 skipped.append(_skipped_entry(entry, "speaker disabled"))
                 continue
 
-            cached = self._translation_cache.get_by_text(entry.source_text)
+            cached = self._translation_cache.get_by_text(
+                entry.source_text,
+                scope=self._cache_scope,
+            )
             if cached is None:
                 counts["missing_cache"] += 1
                 skipped.append(_skipped_entry(entry, "missing cache"))
@@ -109,6 +115,7 @@ class RpgMakerPatchService:
             if looks_like_invalid_translation(
                 entry.source_text,
                 cached.translated_text,
+                text_type=entry.text_type,
             ):
                 counts["invalid_translations"] += 1
                 skipped.append(_skipped_entry(entry, "invalid translation"))
@@ -281,8 +288,29 @@ _PATCHABLE_TEXT_TYPES = frozenset(
         RpgMakerTextType.CHOICE,
         RpgMakerTextType.SCROLLING_TEXT,
         RpgMakerTextType.SPEAKER,
+        RpgMakerTextType.ITEM_NAME,
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_NAME,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.SKILL_MESSAGE,
+        RpgMakerTextType.WEAPON_NAME,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_NAME,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+        RpgMakerTextType.STATE_NAME,
+        RpgMakerTextType.STATE_MESSAGE,
+        RpgMakerTextType.CLASS_NAME,
+        RpgMakerTextType.ENEMY_NAME,
+        RpgMakerTextType.ACTOR_NAME,
+        RpgMakerTextType.SYSTEM_TERM,
+        RpgMakerTextType.TROOP_MESSAGE,
+        RpgMakerTextType.TROOP_CHOICE,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_SPEAKER,
     }
 )
+
+MESSAGE_LINE_LIMIT = 44
 
 
 def _entries_by_file(
@@ -305,6 +333,11 @@ def _descending_origin_sort_key(plan_entry: _PatchPlanEntry) -> tuple[int, int, 
 
 def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
     entry = plan_entry.entry
+    if entry.text_type in _DATABASE_TEXT_TYPES:
+        return _replace_database_field(data, entry, plan_entry.translated_text)
+    if entry.text_type == RpgMakerTextType.SYSTEM_TERM:
+        return _replace_system_term(data, entry, plan_entry.translated_text)
+
     command_list = _command_list_for_entry(data, entry)
     if command_list is None or entry.origin.command_index is None:
         return None
@@ -316,7 +349,7 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
     if not isinstance(command, dict):
         return None
 
-    if entry.text_type == RpgMakerTextType.MESSAGE:
+    if entry.text_type in _MESSAGE_TEXT_TYPES:
         return _replace_grouped_commands(
             command_list,
             command_index,
@@ -324,7 +357,7 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
         )
-    if entry.text_type == RpgMakerTextType.SCROLLING_TEXT:
+    if entry.text_type in _SCROLLING_TEXT_TYPES:
         return _replace_grouped_commands(
             command_list,
             command_index,
@@ -332,10 +365,154 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
         )
-    if entry.text_type == RpgMakerTextType.CHOICE:
+    if entry.text_type in _CHOICE_TEXT_TYPES:
         return _replace_choice(command, entry, plan_entry.translated_text)
-    if entry.text_type == RpgMakerTextType.SPEAKER:
+    if entry.text_type in _SPEAKER_TEXT_TYPES:
         return _replace_parameter(command, 101, 4, entry, plan_entry.translated_text)
+    return None
+
+
+_DATABASE_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_NAME,
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_NAME,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.SKILL_MESSAGE,
+        RpgMakerTextType.WEAPON_NAME,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_NAME,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+        RpgMakerTextType.STATE_NAME,
+        RpgMakerTextType.STATE_MESSAGE,
+        RpgMakerTextType.CLASS_NAME,
+        RpgMakerTextType.ENEMY_NAME,
+        RpgMakerTextType.ACTOR_NAME,
+    }
+)
+
+_MESSAGE_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.MESSAGE,
+        RpgMakerTextType.TROOP_MESSAGE,
+    }
+)
+_CHOICE_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.CHOICE,
+        RpgMakerTextType.TROOP_CHOICE,
+    }
+)
+_SCROLLING_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+    }
+)
+_SPEAKER_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.SPEAKER,
+        RpgMakerTextType.TROOP_SPEAKER,
+    }
+)
+
+
+def _replace_database_field(
+    data: Any,
+    entry: RpgMakerTextEntry,
+    translated_text: str,
+) -> bool | None:
+    if not isinstance(data, list):
+        return None
+
+    database_id = entry.origin.database_id
+    field_name = entry.origin.field_name
+    if database_id is None or field_name is None:
+        return None
+
+    for item in data:
+        if not isinstance(item, dict) or not _database_id_matches(
+            item.get("id"),
+            database_id,
+        ):
+            continue
+        if item.get(field_name) != entry.source_text:
+            return None
+        item[field_name] = translated_text
+        return True
+    return None
+
+
+def _database_id_matches(value: Any, database_id: int) -> bool:
+    if value == database_id:
+        return True
+    if isinstance(value, str) and value.isdecimal():
+        return int(value) == database_id
+    return False
+
+
+def _database_item_by_id(data: Iterable[Any], database_id: int) -> Any | None:
+    for item in data:
+        if isinstance(item, dict) and _database_id_matches(item.get("id"), database_id):
+            return item
+    return None
+
+
+def _replace_system_term(
+    data: Any,
+    entry: RpgMakerTextEntry,
+    translated_text: str,
+) -> bool | None:
+    field_name = entry.origin.field_name
+    if not isinstance(data, dict) or field_name is None:
+        return None
+    return _replace_path_value(
+        data,
+        field_name.split("."),
+        entry.source_text,
+        translated_text,
+    )
+
+
+def _replace_path_value(
+    data: Any,
+    path_parts: list[str],
+    source_text: str,
+    translated_text: str,
+) -> bool | None:
+    if not path_parts:
+        return None
+
+    current = data
+    for path_part in path_parts[:-1]:
+        current = _path_child(current, path_part)
+        if current is None:
+            return None
+
+    final_part = path_parts[-1]
+    if isinstance(current, dict):
+        if current.get(final_part) != source_text:
+            return None
+        current[final_part] = translated_text
+        return True
+
+    if isinstance(current, list) and final_part.isdecimal():
+        index = int(final_part)
+        if index < 0 or index >= len(current) or current[index] != source_text:
+            return None
+        current[index] = translated_text
+        return True
+
+    return None
+
+
+def _path_child(value: Any, path_part: str) -> Any | None:
+    if isinstance(value, dict):
+        return value.get(path_part)
+    if isinstance(value, list) and path_part.isdecimal():
+        index = int(path_part)
+        if 0 <= index < len(value):
+            return value[index]
     return None
 
 
@@ -351,6 +528,23 @@ def _command_list_for_entry(
         if not isinstance(event, dict):
             return None
         commands = event.get("list")
+        return commands if isinstance(commands, list) else None
+
+    if origin.file_name == "Troops.json":
+        if not isinstance(data, list) or origin.database_id is None:
+            return None
+        troop = _database_item_by_id(data, origin.database_id)
+        if not isinstance(troop, dict):
+            return None
+        pages = troop.get("pages")
+        if not isinstance(pages, list) or origin.page_index is None:
+            return None
+        if origin.page_index < 0 or origin.page_index >= len(pages):
+            return None
+        page = pages[origin.page_index]
+        if not isinstance(page, dict):
+            return None
+        commands = page.get("list")
         return commands if isinstance(commands, list) else None
 
     if not isinstance(data, dict):
@@ -403,7 +597,7 @@ def _replace_grouped_commands(
     indent = template.get("indent", 0)
     replacement = [
         {"code": code, "indent": indent, "parameters": [line]}
-        for line in _translation_lines(translated_text)
+        for line in _wrapped_translation_lines(translated_text)
     ]
     commands[start_index:end_index] = replacement
     return True
@@ -455,11 +649,24 @@ def _replace_parameter(
     return True
 
 
-def _translation_lines(text: str) -> list[str]:
+def _wrapped_translation_lines(text: str) -> list[str]:
     lines = text.splitlines()
     if not lines:
         return [text]
-    return lines
+
+    wrapped_lines: list[str] = []
+    for line in lines:
+        if not line:
+            wrapped_lines.append(line)
+            continue
+        wrapped = textwrap.wrap(
+            line,
+            width=MESSAGE_LINE_LIMIT,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+        wrapped_lines.extend(wrapped or [line])
+    return wrapped_lines
 
 
 def _event_by_id(events: Iterable[Any], event_id: int | None) -> Any | None:

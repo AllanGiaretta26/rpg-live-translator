@@ -15,6 +15,12 @@ def _normalize_text(text: str) -> str:
     return normalized.casefold()
 
 
+def _normalize_scope(scope: str | None) -> str:
+    if scope is None:
+        return ""
+    return unicodedata.normalize("NFKC", scope).strip()
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -23,19 +29,28 @@ class SQLiteTranslationCacheRepository(TranslationCache):
     def __init__(self, database: SQLiteConnectionManager) -> None:
         self._database = database
 
-    def get_by_text(self, source_text: str) -> TranslationResult | None:
+    def get_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> TranslationResult | None:
         normalized_source_text = _normalize_text(source_text)
         if not normalized_source_text:
             return None
+        normalized_scope = _normalize_scope(scope)
 
         query = """
         SELECT source_text, translated_text, source_lang, target_lang
         FROM translations
-        WHERE normalized_source_text = ?
+        WHERE scope = ? AND normalized_source_text = ?
         """
 
         with self._database.open() as connection:
-            row = connection.execute(query, (normalized_source_text,)).fetchone()
+            row = connection.execute(
+                query,
+                (normalized_scope, normalized_source_text),
+            ).fetchone()
 
         if row is None:
             return None
@@ -47,13 +62,20 @@ class SQLiteTranslationCacheRepository(TranslationCache):
             target_lang=row["target_lang"],
         )
 
-    def save_translation(self, result: TranslationResult) -> None:
+    def save_translation(
+        self,
+        result: TranslationResult,
+        *,
+        scope: str | None = None,
+    ) -> None:
         normalized_source_text = _normalize_text(result.source_text)
         if not normalized_source_text:
             raise ValueError("source_text must not be blank")
+        normalized_scope = _normalize_scope(scope)
 
         statement = """
         INSERT INTO translations (
+            scope,
             source_text,
             normalized_source_text,
             translated_text,
@@ -61,8 +83,8 @@ class SQLiteTranslationCacheRepository(TranslationCache):
             target_lang,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(normalized_source_text) DO UPDATE SET
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(scope, normalized_source_text) DO UPDATE SET
             source_text = excluded.source_text,
             translated_text = excluded.translated_text,
             source_lang = excluded.source_lang,
@@ -73,6 +95,7 @@ class SQLiteTranslationCacheRepository(TranslationCache):
             connection.execute(
                 statement,
                 (
+                    normalized_scope,
                     result.source_text,
                     normalized_source_text,
                     result.translated_text,
@@ -82,17 +105,23 @@ class SQLiteTranslationCacheRepository(TranslationCache):
                 ),
             )
 
-    def delete_by_text(self, source_text: str) -> bool:
+    def delete_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> bool:
         normalized_source_text = _normalize_text(source_text)
         if not normalized_source_text:
             return False
+        normalized_scope = _normalize_scope(scope)
 
         with self._database.open() as connection:
             cursor = connection.execute(
                 """
                 DELETE FROM translations
-                WHERE normalized_source_text = ?
+                WHERE scope = ? AND normalized_source_text = ?
                 """,
-                (normalized_source_text,),
+                (normalized_scope, normalized_source_text),
             )
         return cursor.rowcount > 0
