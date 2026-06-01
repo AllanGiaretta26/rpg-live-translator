@@ -8,3 +8,5 @@ logs/
 captures/
 .env
 docs/annotation/
+backups/
+exports/
