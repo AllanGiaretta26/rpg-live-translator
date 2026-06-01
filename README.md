@@ -55,10 +55,11 @@ Abra o app e use as abas da janela de calibração:
 2. `Catalogo`: confira textos importados, use `Traduzir selecionado` para
    testar uma entrada ou `Traduzir catalogo` para preencher o cache em lote.
    O lote permite escolher `100`, `500` ou `Todos`, filtrar por `message`,
-   `choice`, `speaker` e `scrolling_text`, pausar, retomar e cancelar. Por
-   padrao, `speaker` fica desativado para evitar traduzir nomes proprios. A aba
-   tambem mostra quantas entradas ja possuem traducao cacheada, permite limpar
-   traducoes contaminadas do projeto atual e consultar os erros do ultimo lote.
+   `choice`, `speaker`, `scrolling_text`, textos de database e textos de
+   batalha, pausar, retomar e cancelar. Por padrao, `speaker` fica desativado
+   para evitar traduzir nomes proprios. A aba tambem mostra quantas entradas ja
+   possuem traducao cacheada, permite limpar traducoes contaminadas do projeto
+   atual e consultar os erros do ultimo lote.
 3. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
    caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
    preview deve mostrar somente a area enviada ao OCR.
@@ -117,9 +118,16 @@ Importacao atual:
 
 - detecta pasta MV/MZ valida;
 - le `MapXXX.json` e `CommonEvents.json`;
-- extrai comandos de mensagem, escolhas e texto rolante;
+- le `Items.json`, `Skills.json`, `Weapons.json`, `Armors.json`, `States.json`,
+  `Classes.json`, `Enemies.json`, `Actors.json`, `System.json` e `Troops.json`
+  quando existirem;
+- extrai comandos de mensagem, escolhas, texto rolante, nomes de itens,
+  descricoes de itens, nomes de skills, descricoes de skills, mensagens de
+  skills, armas, armaduras, estados, classes, inimigos, nomes de atores, termos
+  de sistema/menu e eventos de batalha;
 - salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
-- salva traducoes geradas no cache `translations`;
+- salva traducoes geradas no cache `translations`, isoladas pelo caminho do
+  projeto MV/MZ ativo;
 - permite pre-cache em lote com limite, filtros por tipo, progresso, cache hits,
   pausa, retomada e cancelamento;
 - persiste erros do ultimo lote em `rpg_maker_batch_errors`, com ID da entrada,
@@ -235,13 +243,34 @@ que o overlay nao substitui bem, como escolhas dentro da UI do jogo. O fluxo
 atual usa apenas o catalogo MV/MZ ja importado e traducoes existentes no cache;
 ele nao chama Ollama durante a geracao do patch.
 
-Primeiro escopo do patch:
+Escopo atual do patch:
 
 - `Map*.json`;
 - `CommonEvents.json`;
+- `Items.json`;
+- `Skills.json`;
+- `Weapons.json`;
+- `Armors.json`;
+- `States.json`;
+- `Classes.json`;
+- `Enemies.json`;
+- `Actors.json`;
+- `System.json`;
+- `Troops.json`;
 - mensagens;
 - escolhas;
 - texto rolante;
+- nomes e descricoes de itens;
+- nomes e descricoes de skills;
+- mensagens de skills;
+- nomes e descricoes de armas;
+- nomes e descricoes de armaduras;
+- nomes e mensagens de estados;
+- nomes de classes;
+- nomes de inimigos;
+- nomes de atores;
+- termos de sistema/menu, como comandos `Item` e `Skill`;
+- mensagens, escolhas, texto rolante e speakers de batalha;
 - `speaker`, somente se `Incluir speakers` estiver marcado.
 
 `Gerar patch` cria uma pasta separada em:
@@ -250,10 +279,17 @@ Primeiro escopo do patch:
 exports/patches/<nome-do-jogo>-ptBR-<timestamp>/data/
 ```
 
-O patcher substitui textos pela origem exata do catalogo, validando arquivo,
-evento, pagina, comando e parametro antes de alterar. Se o texto original nao
-bater mais com o JSON do jogo, a entrada e pulada. Textos sem cache ou com
-traducao contaminada tambem sao pulados e aparecem no relatorio:
+O patcher substitui textos pela origem exata do catalogo. Em eventos, ele
+valida arquivo, evento, pagina, comando e parametro antes de alterar. Em
+database, ele valida arquivo, ID do objeto e campo (`name` ou `description`).
+Em `System.json`, ele valida o caminho do termo antes de substituir. Mensagens
+longas sao quebradas em linhas menores para reduzir o risco de sair da caixa de
+texto do jogo. Codigos RPG Maker como `\N[1]`, `\V[2]`, `\C[3]` e `\I[64]`, e
+placeholders como `%1`, `%2` e `%3`, precisam ser preservados na traducao; se a
+traducao cacheada perder esses codigos, ela e tratada como invalida. Se o texto
+original nao bater mais com o JSON do jogo, a entrada e pulada.
+Textos sem cache ou com traducao contaminada tambem sao pulados e aparecem no
+relatorio:
 
 ```txt
 live-translator-patch-report.json
@@ -270,9 +306,6 @@ backups/patches/<nome-do-jogo>-<timestamp>/data/
 `Restaurar ultimo backup` restaura o backup mais recente criado pelo app para o
 projeto ativo. O app nao apaga patches nem backups automaticamente.
 
-Arquivos de database como `Skills.json` e `Items.json` ainda nao entram neste
-patch; eles exigem novos tipos de catalogo e ficam para uma expansao futura.
-
 ## Known Issues
 
 - Ainda nao existe build empacotado para Windows; o app roda pelo ambiente
@@ -281,7 +314,8 @@ patch; eles exigem novos tipos de catalogo e ficam para uma expansao futura.
   posicao, a area precisa ser recalibrada.
 - O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
   dependencia, mas textos gerados por plugins custom podem exigir fallback.
-- O patch MV/MZ inicial ainda nao cobre database como habilidades e itens.
+- Plugins customizados podem armazenar textos fora dos JSONs padrao cobertos
+  pelo catalogo e pelo patch.
 - Logs persistentes gerais do runtime ainda nao foram implementados; o
   diagnostico principal fica no painel `Status`.
 - O modo click-through do overlay ainda nao e configuravel pela UI.
