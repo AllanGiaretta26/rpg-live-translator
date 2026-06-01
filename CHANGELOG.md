@@ -6,6 +6,12 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Relatorio V11 com fechamento do exportador/aplicador de patch JSON MV/MZ.
+- Area `Patch de traducao` no modo RPG Maker MV/MZ para gerar patch, aplicar
+  patch e restaurar o ultimo backup.
+- Exportacao de patch traduzido para `Map*.json` e `CommonEvents.json`, usando
+  traducoes ja cacheadas.
+- Backup automatico dos JSON originais antes de aplicar um patch MV/MZ.
 - Relatorio V10 com fechamento da separacao visual entre modo Universal e
   RPG Maker MV/MZ.
 - Helper testavel para decidir quais controles da janela principal ficam ativos
@@ -59,6 +65,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Patch MV/MZ pula entradas sem cache, traducoes contaminadas e origens que nao
+  batem mais com o JSON original, registrando tudo no relatorio do patch.
 - Janela principal reorganizada em fluxos mais claros: `Universal`,
   `RPG Maker MV/MZ`, `Overlay` e `Executar`.
 - Controles de captura/OCR agora ficam desativados no modo RPG Maker MV/MZ.

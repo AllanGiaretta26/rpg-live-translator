@@ -49,7 +49,10 @@
 
 - [ ] Planejar substituicao runtime de texto dentro da janela do jogo usando cache.
 - [ ] Definir fallback quando a traducao ainda nao estiver pronta.
-- [ ] Avaliar exportacao de patch traduzido para pasta separada, sem sobrescrever o jogo original.
+- [x] Avaliar exportacao de patch traduzido para pasta separada, sem sobrescrever o jogo original.
+- [x] Adicionar geracao de patch JSON MV/MZ para mensagens, escolhas, texto rolante e speaker opcional.
+- [x] Adicionar aplicacao de patch com backup automatico e restauracao do ultimo backup.
+- [ ] Expandir patch para database como `Skills.json` e `Items.json`.
 - [ ] Documentar riscos de patch em jogos com plugins customizados.
 
 ## Validacao antes de merge

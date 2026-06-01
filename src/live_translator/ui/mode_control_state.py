@@ -19,6 +19,7 @@ class ModeControlState:
     bulk_resume_enabled: bool
     bulk_cancel_enabled: bool
     runtime_reprocess_enabled: bool
+    rpg_patch_enabled: bool
 
 
 def resolve_mode_control_state(
@@ -52,4 +53,5 @@ def resolve_mode_control_state(
         bulk_resume_enabled=rpg_maker_active and bulk_running and bulk_paused,
         bulk_cancel_enabled=rpg_maker_active and bulk_running,
         runtime_reprocess_enabled=rpg_maker_active and runtime_available,
+        rpg_patch_enabled=rpg_catalog_mutation_enabled,
     )

@@ -228,6 +228,51 @@ lote tenta traduzir novamente e sobrescrever o cache. O status final mostra
 processados, traduzidos, cache hits, erros, tempo total e media por traducao
 real.
 
+### Patch de traducao MV/MZ
+
+A area `Patch de traducao` gera arquivos JSON traduzidos para resolver partes
+que o overlay nao substitui bem, como escolhas dentro da UI do jogo. O fluxo
+atual usa apenas o catalogo MV/MZ ja importado e traducoes existentes no cache;
+ele nao chama Ollama durante a geracao do patch.
+
+Primeiro escopo do patch:
+
+- `Map*.json`;
+- `CommonEvents.json`;
+- mensagens;
+- escolhas;
+- texto rolante;
+- `speaker`, somente se `Incluir speakers` estiver marcado.
+
+`Gerar patch` cria uma pasta separada em:
+
+```txt
+exports/patches/<nome-do-jogo>-ptBR-<timestamp>/data/
+```
+
+O patcher substitui textos pela origem exata do catalogo, validando arquivo,
+evento, pagina, comando e parametro antes de alterar. Se o texto original nao
+bater mais com o JSON do jogo, a entrada e pulada. Textos sem cache ou com
+traducao contaminada tambem sao pulados e aparecem no relatorio:
+
+```txt
+live-translator-patch-report.json
+live-translator-patch-report.md
+```
+
+`Aplicar patch` copia os JSON gerados para `data/` ou `www/data/` do projeto
+ativo. Antes de sobrescrever, o app cria backup automatico em:
+
+```txt
+backups/patches/<nome-do-jogo>-<timestamp>/data/
+```
+
+`Restaurar ultimo backup` restaura o backup mais recente criado pelo app para o
+projeto ativo. O app nao apaga patches nem backups automaticamente.
+
+Arquivos de database como `Skills.json` e `Items.json` ainda nao entram neste
+patch; eles exigem novos tipos de catalogo e ficam para uma expansao futura.
+
 ## Known Issues
 
 - Ainda nao existe build empacotado para Windows; o app roda pelo ambiente
@@ -236,8 +281,7 @@ real.
   posicao, a area precisa ser recalibrada.
 - O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
   dependencia, mas textos gerados por plugins custom podem exigir fallback.
-- Os erros do ultimo lote MV/MZ sao persistidos, mas ainda nao existe exportacao
-  para arquivo.
+- O patch MV/MZ inicial ainda nao cobre database como habilidades e itens.
 - Logs persistentes gerais do runtime ainda nao foram implementados; o
   diagnostico principal fica no painel `Status`.
 - O modo click-through do overlay ainda nao e configuravel pela UI.
