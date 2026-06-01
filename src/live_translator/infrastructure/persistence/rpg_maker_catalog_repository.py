@@ -63,9 +63,11 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
                         page_index,
                         command_index,
                         parameter_index,
+                        database_id,
+                        field_name,
                         created_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(project_root, origin_key, normalized_source_text)
                     DO UPDATE SET
                         source_text = excluded.source_text,
@@ -77,7 +79,9 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
                         event_id = excluded.event_id,
                         page_index = excluded.page_index,
                         command_index = excluded.command_index,
-                        parameter_index = excluded.parameter_index
+                        parameter_index = excluded.parameter_index,
+                        database_id = excluded.database_id,
+                        field_name = excluded.field_name
                     """,
                     (
                         project_root,
@@ -93,6 +97,8 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
                         entry.origin.page_index,
                         entry.origin.command_index,
                         entry.origin.parameter_index,
+                        entry.origin.database_id,
+                        entry.origin.field_name,
                         now,
                     ),
                 )
@@ -136,7 +142,14 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
             SELECT *
             FROM rpg_maker_text_catalog
             WHERE project_root = ?
-            ORDER BY file_name, event_id, page_index, command_index, parameter_index
+            ORDER BY
+                file_name,
+                event_id,
+                page_index,
+                command_index,
+                parameter_index,
+                database_id,
+                field_name
             """
         parameters: list[object] = [str(project.root_path)]
         if limit is not None:
@@ -182,5 +195,7 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
                 page_index=row["page_index"],
                 command_index=row["command_index"],
                 parameter_index=row["parameter_index"],
+                database_id=row["database_id"],
+                field_name=row["field_name"],
             ),
         )

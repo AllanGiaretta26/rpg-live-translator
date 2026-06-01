@@ -4,10 +4,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from live_translator.domain.interfaces import Translator
-from live_translator.domain.models import TranslationResult
+from live_translator.domain.models import RpgMakerTextType, TranslationResult
 from live_translator.application.translation_quality import (
+    looks_like_overlong_description,
+    looks_like_overlong_name_or_term,
     looks_like_context_leak,
     looks_like_prompt_leak,
+    missing_rpg_maker_escape_codes,
+    missing_percent_placeholders,
 )
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
@@ -20,16 +24,35 @@ class OllamaTranslator(Translator):
     source_language: str = "auto"
     target_language: str = "pt-BR"
 
-    def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
+    def translate(
+        self,
+        text: str,
+        context: Sequence[str],
+        *,
+        text_type: RpgMakerTextType | None = None,
+    ) -> TranslationResult:
         prompts = (
-            build_translation_prompt(text, context, self.target_language),
-            build_translation_retry_prompt(text, self.target_language),
+            build_translation_prompt(
+                text,
+                context,
+                self.target_language,
+                text_type=text_type,
+            ),
+            build_translation_retry_prompt(
+                text,
+                self.target_language,
+                text_type=text_type,
+            ),
         )
         last_error: OllamaInvalidResponseError | None = None
         for prompt in prompts:
             payload = self.client.generate(prompt)
             try:
-                translated_text = self._validated_translated_text(text, payload)
+                translated_text = self._validated_translated_text(
+                    text,
+                    payload,
+                    text_type=text_type,
+                )
             except OllamaInvalidResponseError as error:
                 last_error = error
                 continue
@@ -49,6 +72,8 @@ class OllamaTranslator(Translator):
         self,
         source_text: str,
         payload: dict[str, object],
+        *,
+        text_type: RpgMakerTextType | None,
     ) -> str:
         translated_text = payload.get("translated_text")
         if not isinstance(translated_text, str):
@@ -64,5 +89,19 @@ class OllamaTranslator(Translator):
         if looks_like_prompt_leak(translated_text):
             raise OllamaInvalidResponseError(
                 "translated_text appears to include prompt instructions"
+            )
+        if missing_rpg_maker_escape_codes(source_text, translated_text):
+            raise OllamaInvalidResponseError(
+                "translated_text drops RPG Maker escape codes"
+            )
+        if missing_percent_placeholders(source_text, translated_text):
+            raise OllamaInvalidResponseError(
+                "translated_text drops RPG Maker placeholders"
+            )
+        if looks_like_overlong_name_or_term(translated_text, text_type):
+            raise OllamaInvalidResponseError("translated_text is too long for a name")
+        if looks_like_overlong_description(source_text, translated_text, text_type):
+            raise OllamaInvalidResponseError(
+                "translated_text is too long for a description"
             )
         return translated_text

@@ -10,9 +10,13 @@ from live_translator.domain.models import OperationMode, TranslationResult
 @dataclass
 class FakeModeSettings:
     mode: OperationMode = OperationMode.RPG_MAKER_MV_MZ
+    cache_scope: str | None = None
 
     def get_active_mode(self) -> OperationMode:
         return self.mode
+
+    def get_rpg_maker_cache_scope(self) -> str | None:
+        return self.cache_scope
 
 
 @dataclass
@@ -21,17 +25,38 @@ class FakeCache:
     results: dict[str, TranslationResult] = field(default_factory=dict)
     saved: list[TranslationResult] = field(default_factory=list)
     deleted: list[str] = field(default_factory=list)
+    lookup_scopes: list[str | None] = field(default_factory=list)
+    saved_scopes: list[str | None] = field(default_factory=list)
+    deleted_scopes: list[str | None] = field(default_factory=list)
 
-    def get_by_text(self, source_text: str) -> TranslationResult | None:
+    def get_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> TranslationResult | None:
+        self.lookup_scopes.append(scope)
         if source_text in self.results:
             return self.results[source_text]
         return self.result
 
-    def save_translation(self, result: TranslationResult) -> None:
+    def save_translation(
+        self,
+        result: TranslationResult,
+        *,
+        scope: str | None = None,
+    ) -> None:
         self.saved.append(result)
+        self.saved_scopes.append(scope)
 
-    def delete_by_text(self, source_text: str) -> bool:
+    def delete_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> bool:
         self.deleted.append(source_text)
+        self.deleted_scopes.append(scope)
         return self.results.pop(source_text, None) is not None
 
 
@@ -169,6 +194,23 @@ def test_runtime_text_translates_cache_miss_and_updates_overlay():
     assert service.last_timing_summary == (
         "runtime total 3.00s | traducao 1.00s | cache miss"
     )
+
+
+def test_runtime_text_uses_active_project_cache_scope():
+    cache = FakeCache()
+    translator = FakeTranslator()
+    overlay = FakeOverlay()
+    service = RpgMakerRuntimeService(
+        mode_settings=FakeModeSettings(cache_scope="C:/game"),
+        translation_cache=cache,
+        translator=translator,
+        overlay=overlay,
+    )
+
+    service.process_text("Hello")
+
+    assert cache.lookup_scopes == ["C:/game"]
+    assert cache.saved_scopes == ["C:/game"]
 
 
 def test_stale_runtime_translation_does_not_overwrite_newer_overlay():

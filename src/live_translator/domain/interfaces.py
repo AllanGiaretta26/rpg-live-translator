@@ -9,6 +9,7 @@ from .models import (
     GameProfile,
     RpgMakerProject,
     RpgMakerTextEntry,
+    RpgMakerTextType,
     TextRegion,
     TranslationResult,
 )
@@ -25,18 +26,39 @@ class TextExtractor(Protocol):
 
 
 class Translator(Protocol):
-    def translate(self, text: str, context: Sequence[str]) -> TranslationResult:
+    def translate(
+        self,
+        text: str,
+        context: Sequence[str],
+        *,
+        text_type: RpgMakerTextType | None = None,
+    ) -> TranslationResult:
         """Translate source text using optional short context history."""
 
 
 class TranslationCache(Protocol):
-    def get_by_text(self, source_text: str) -> TranslationResult | None:
+    def get_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> TranslationResult | None:
         """Return cached translation by normalized source text."""
 
-    def save_translation(self, result: TranslationResult) -> None:
+    def save_translation(
+        self,
+        result: TranslationResult,
+        *,
+        scope: str | None = None,
+    ) -> None:
         """Store a translation result in cache."""
 
-    def delete_by_text(self, source_text: str) -> bool:
+    def delete_by_text(
+        self,
+        source_text: str,
+        *,
+        scope: str | None = None,
+    ) -> bool:
         """Remove a cached translation by normalized source text."""
 
 

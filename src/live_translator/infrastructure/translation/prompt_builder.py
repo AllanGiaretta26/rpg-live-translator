@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from live_translator.domain.models import RpgMakerTextType
+
 
 def build_vision_translation_prompt(target_language: str = "pt-BR") -> str:
     return (
@@ -22,6 +24,8 @@ def build_translation_prompt(
     text: str,
     context: Sequence[str] = (),
     target_language: str = "pt-BR",
+    *,
+    text_type: RpgMakerTextType | None = None,
 ) -> str:
     context_text = "\n".join(item for item in context[-5:] if item.strip())
     context_section = ""
@@ -39,6 +43,11 @@ def build_translation_prompt(
         f"<text_to_translate>\n{text}\n"
         "</text_to_translate>\n"
         "Preserve nomes proprios. Nao explique.\n"
+        "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3], "
+        "\\I[64], \\G, \\\\, \\., \\|, \\!, \\>, \\< e \\^.\n"
+        "Preserve exatamente placeholders como %1, %2 e %3.\n"
+        "Nao traduza, remova ou altere barras invertidas desses codigos.\n"
+        f"{_translation_profile_instructions(text_type)}"
         "Traduza apenas o texto dentro de <text_to_translate>.\n"
         "Traduza todo o texto atual, incluindo todas as linhas e frases.\n"
         "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
@@ -50,10 +59,78 @@ def build_translation_prompt(
 def build_translation_retry_prompt(
     text: str,
     target_language: str = "pt-BR",
+    *,
+    text_type: RpgMakerTextType | None = None,
 ) -> str:
     return (
         f"Traduza para {target_language} somente o texto abaixo.\n"
         "Nao inclua instrucoes, explicacoes, chaves extras ou texto anterior.\n"
+        "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3] e \\I[64].\n"
+        "Preserve exatamente placeholders como %1, %2 e %3.\n"
+        f"{_translation_profile_instructions(text_type)}"
         'Responda apenas JSON valido: {"translated_text": "..."}\n'
         f"Texto:\n{text}"
+    )
+
+
+_NAME_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_NAME,
+        RpgMakerTextType.SKILL_NAME,
+        RpgMakerTextType.WEAPON_NAME,
+        RpgMakerTextType.ARMOR_NAME,
+        RpgMakerTextType.STATE_NAME,
+        RpgMakerTextType.CLASS_NAME,
+        RpgMakerTextType.ENEMY_NAME,
+        RpgMakerTextType.ACTOR_NAME,
+    }
+)
+_DESCRIPTION_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+    }
+)
+_BATTLE_MESSAGE_TYPES = frozenset(
+    {
+        RpgMakerTextType.SKILL_MESSAGE,
+        RpgMakerTextType.STATE_MESSAGE,
+        RpgMakerTextType.TROOP_MESSAGE,
+        RpgMakerTextType.TROOP_CHOICE,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_SPEAKER,
+    }
+)
+
+
+def _translation_profile_instructions(
+    text_type: RpgMakerTextType | None,
+) -> str:
+    if text_type is None:
+        return ""
+    if text_type in _NAME_TYPES:
+        return (
+            "Perfil do texto: nome de jogo. Use traducao curta, natural, sem frase "
+            "longa e sem ponto final.\n"
+        )
+    if text_type in _DESCRIPTION_TYPES:
+        return (
+            "Perfil do texto: descricao de item, skill ou equipamento. Use texto curto, "
+            "claro e adequado para UI de RPG.\n"
+        )
+    if text_type == RpgMakerTextType.SYSTEM_TERM:
+        return (
+            "Perfil do texto: termo de menu ou sistema. Use um termo curto de UI, nao "
+            "uma frase explicativa.\n"
+        )
+    if text_type in _BATTLE_MESSAGE_TYPES:
+        return (
+            "Perfil do texto: mensagem de batalha ou estado. Preserve %1, %2, %3 e "
+            "codigos como \\N[1], \\V[2], \\C[3] e \\I[64] exatamente.\n"
+        )
+    return (
+        "Perfil do texto: dialogo ou evento. Traduza de forma natural, completa e "
+        "adequada ao tom da cena.\n"
     )

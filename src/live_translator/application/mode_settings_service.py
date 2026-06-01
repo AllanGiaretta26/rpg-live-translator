@@ -41,6 +41,25 @@ DEFAULT_CATALOG_TRANSLATION_TYPES = frozenset(
         RpgMakerTextType.MESSAGE,
         RpgMakerTextType.CHOICE,
         RpgMakerTextType.SCROLLING_TEXT,
+        RpgMakerTextType.ITEM_NAME,
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_NAME,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.SKILL_MESSAGE,
+        RpgMakerTextType.WEAPON_NAME,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_NAME,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+        RpgMakerTextType.STATE_NAME,
+        RpgMakerTextType.STATE_MESSAGE,
+        RpgMakerTextType.CLASS_NAME,
+        RpgMakerTextType.ENEMY_NAME,
+        RpgMakerTextType.ACTOR_NAME,
+        RpgMakerTextType.SYSTEM_TERM,
+        RpgMakerTextType.TROOP_MESSAGE,
+        RpgMakerTextType.TROOP_CHOICE,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_SPEAKER,
     }
 )
 
@@ -120,6 +139,14 @@ class ModeSettingsService:
             str(Path(path)),
         )
 
+    def get_rpg_maker_cache_scope(self) -> str | None:
+        project_path = self.get_rpg_maker_project_path()
+        if project_path is None:
+            return None
+
+        project = self.rpg_maker_detector.detect(project_path)
+        return str(project.root_path)
+
     def import_rpg_maker_project(self, path: str | Path) -> RpgMakerImportResult:
         project = self.rpg_maker_detector.detect(path)
         entries = self.rpg_maker_parser.parse_project(project)
@@ -135,12 +162,17 @@ class ModeSettingsService:
         if entry is None:
             return None
 
-        cached = self.translation_cache.get_by_text(entry.source_text)
+        scope = self.get_rpg_maker_cache_scope()
+        cached = self.translation_cache.get_by_text(entry.source_text, scope=scope)
         if cached is not None:
             return cached
 
-        result = self.translator.translate(entry.source_text, [])
-        self.translation_cache.save_translation(result)
+        result = self.translator.translate(
+            entry.source_text,
+            [],
+            text_type=entry.text_type,
+        )
+        self.translation_cache.save_translation(result, scope=scope)
         return result
 
     def retranslate_catalog_entry(self, entry_id: int) -> TranslationResult | None:
@@ -148,9 +180,14 @@ class ModeSettingsService:
         if entry is None:
             return None
 
-        self.translation_cache.delete_by_text(entry.source_text)
-        result = self.translator.translate(entry.source_text, [])
-        self.translation_cache.save_translation(result)
+        scope = self.get_rpg_maker_cache_scope()
+        self.translation_cache.delete_by_text(entry.source_text, scope=scope)
+        result = self.translator.translate(
+            entry.source_text,
+            [],
+            text_type=entry.text_type,
+        )
+        self.translation_cache.save_translation(result, scope=scope)
         return result
 
     def translate_catalog_entries(
@@ -190,6 +227,7 @@ class ModeSettingsService:
         processed = 0
         cancelled = False
         translation_seconds_total = 0.0
+        scope = self.get_rpg_maker_cache_scope()
         self.batch_error_repository.clear_last_batch_errors()
 
         for entry in entries:
@@ -217,17 +255,25 @@ class ModeSettingsService:
                 break
 
             try:
-                cached = self.translation_cache.get_by_text(entry.source_text)
+                cached = self.translation_cache.get_by_text(
+                    entry.source_text,
+                    scope=scope,
+                )
                 if cached is not None and not looks_like_invalid_translation(
                     entry.source_text,
                     cached.translated_text,
+                    text_type=entry.text_type,
                 ):
                     cache_hits += 1
                 else:
                     translation_started_at = self.clock()
-                    result = self.translator.translate(entry.source_text, [])
+                    result = self.translator.translate(
+                        entry.source_text,
+                        [],
+                        text_type=entry.text_type,
+                    )
                     translation_seconds_total += self.clock() - translation_started_at
-                    self.translation_cache.save_translation(result)
+                    self.translation_cache.save_translation(result, scope=scope)
                     translated += 1
             except Exception as error:
                 errors += 1
@@ -306,22 +352,29 @@ class ModeSettingsService:
 
     def count_cached_catalog_entries(self) -> int:
         count = 0
+        scope = self.get_rpg_maker_cache_scope()
         for entry in self.list_rpg_maker_entries():
-            if self.translation_cache.get_by_text(entry.source_text) is not None:
+            if (
+                self.translation_cache.get_by_text(entry.source_text, scope=scope)
+                is not None
+            ):
                 count += 1
         return count
 
     def clear_contaminated_catalog_cache(self) -> int:
         deleted = 0
+        scope = self.get_rpg_maker_cache_scope()
         for entry in self.list_rpg_maker_entries():
-            cached = self.translation_cache.get_by_text(entry.source_text)
+            cached = self.translation_cache.get_by_text(entry.source_text, scope=scope)
             if cached is None:
                 continue
             if not looks_like_invalid_translation(
-                entry.source_text, cached.translated_text
+                entry.source_text,
+                cached.translated_text,
+                text_type=entry.text_type,
             ):
                 continue
-            if self.translation_cache.delete_by_text(entry.source_text):
+            if self.translation_cache.delete_by_text(entry.source_text, scope=scope):
                 deleted += 1
         return deleted
 
@@ -334,7 +387,7 @@ class ModeSettingsService:
         include_speakers: bool = False,
     ) -> RpgMakerPatchResult:
         project = self._active_rpg_maker_project()
-        result = self._patch_service().export_patch(
+        result = self._patch_service(cache_scope=str(project.root_path)).export_patch(
             project=project,
             entries=self.rpg_maker_catalog.list_project_entries(project),
             include_speakers=include_speakers,
@@ -368,9 +421,10 @@ class ModeSettingsService:
             raise ValueError("RPG Maker project path is not configured")
         return self.rpg_maker_detector.detect(project_path)
 
-    def _patch_service(self) -> RpgMakerPatchService:
+    def _patch_service(self, *, cache_scope: str | None = None) -> RpgMakerPatchService:
         return RpgMakerPatchService(
             self.translation_cache,
+            cache_scope=cache_scope,
             export_root=self.patch_export_root,
             backup_root=self.patch_backup_root,
         )
@@ -409,6 +463,10 @@ class ModeSettingsService:
 def _format_entry_origin(entry: RpgMakerTextEntry) -> str:
     origin = entry.origin
     parts = [origin.file_name]
+    if origin.database_id is not None:
+        parts.append(f"id {origin.database_id}")
+    if origin.field_name is not None:
+        parts.append(origin.field_name)
     if origin.event_id is not None:
         parts.append(f"ev {origin.event_id}")
     if origin.page_index is not None:

@@ -2,6 +2,7 @@ from live_translator.infrastructure.translation.prompt_builder import (
     build_translation_prompt,
     build_vision_translation_prompt,
 )
+from live_translator.domain.models import RpgMakerTextType
 
 
 def test_vision_prompt_requires_expected_json_only():
@@ -46,3 +47,37 @@ def test_translation_prompt_forbids_translating_context():
     assert "Nao traduza, copie ou inclua nenhuma linha do contexto" in prompt
     assert "Traduza apenas o texto dentro de <text_to_translate>" in prompt
     assert "Nao inclua falas anteriores" in prompt
+
+
+def test_translation_prompt_requires_preserving_rpg_maker_escape_codes():
+    prompt = build_translation_prompt(r"\N[1] found \I[64].", [], "pt-BR")
+
+    assert r"\N[1]" in prompt
+    assert r"\V[2]" in prompt
+    assert "Preserve exatamente codigos RPG Maker" in prompt
+    assert "barras invertidas" in prompt
+
+
+def test_translation_prompt_includes_name_profile_for_catalog_names():
+    prompt = build_translation_prompt(
+        "Iron Sword",
+        [],
+        "pt-BR",
+        text_type=RpgMakerTextType.WEAPON_NAME,
+    )
+
+    assert "Perfil do texto: nome de jogo" in prompt
+    assert "sem frase longa" in prompt
+
+
+def test_translation_prompt_includes_battle_placeholder_profile():
+    prompt = build_translation_prompt(
+        "%1 casts %2!",
+        [],
+        "pt-BR",
+        text_type=RpgMakerTextType.SKILL_MESSAGE,
+    )
+
+    assert "mensagem de batalha ou estado" in prompt
+    assert "%1" in prompt
+    assert "%2" in prompt

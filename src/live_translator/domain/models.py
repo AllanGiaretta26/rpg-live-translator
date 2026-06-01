@@ -21,6 +21,25 @@ class RpgMakerTextType(str, Enum):
     SPEAKER = "speaker"
     CHOICE = "choice"
     SCROLLING_TEXT = "scrolling_text"
+    ITEM_NAME = "item_name"
+    ITEM_DESCRIPTION = "item_description"
+    SKILL_NAME = "skill_name"
+    SKILL_DESCRIPTION = "skill_description"
+    SKILL_MESSAGE = "skill_message"
+    WEAPON_NAME = "weapon_name"
+    WEAPON_DESCRIPTION = "weapon_description"
+    ARMOR_NAME = "armor_name"
+    ARMOR_DESCRIPTION = "armor_description"
+    STATE_NAME = "state_name"
+    STATE_MESSAGE = "state_message"
+    CLASS_NAME = "class_name"
+    ENEMY_NAME = "enemy_name"
+    ACTOR_NAME = "actor_name"
+    SYSTEM_TERM = "system_term"
+    TROOP_MESSAGE = "troop_message"
+    TROOP_CHOICE = "troop_choice"
+    TROOP_SCROLLING_TEXT = "troop_scrolling_text"
+    TROOP_SPEAKER = "troop_speaker"
 
 
 @dataclass(frozen=True)
@@ -130,12 +149,18 @@ class RpgMakerTextOrigin:
     page_index: int | None = None
     command_index: int | None = None
     parameter_index: int | None = None
+    database_id: int | None = None
+    field_name: str | None = None
 
     def __post_init__(self) -> None:
         if not self.file_name.strip():
             raise ValueError("file_name must not be blank")
         if not self.origin_key.strip():
             raise ValueError("origin_key must not be blank")
+        if self.database_id is not None and self.database_id <= 0:
+            raise ValueError("database_id must be greater than zero")
+        if self.field_name is not None and not self.field_name.strip():
+            raise ValueError("field_name must not be blank")
 
 
 @dataclass(frozen=True)
