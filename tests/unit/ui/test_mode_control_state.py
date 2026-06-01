@@ -18,6 +18,7 @@ def test_universal_mode_enables_capture_and_disables_mvz_catalog_controls():
     assert state.catalog_next_enabled is False
     assert state.bulk_start_enabled is False
     assert state.runtime_reprocess_enabled is False
+    assert state.rpg_patch_enabled is False
 
 
 def test_rpg_maker_mode_enables_catalog_and_disables_capture_controls():
@@ -37,6 +38,7 @@ def test_rpg_maker_mode_enables_catalog_and_disables_capture_controls():
     assert state.universal_capture_enabled is False
     assert state.universal_run_enabled is False
     assert state.runtime_reprocess_enabled is True
+    assert state.rpg_patch_enabled is True
 
 
 def test_selecting_rpg_maker_while_universal_active_only_enables_project_setup():
@@ -49,6 +51,7 @@ def test_selecting_rpg_maker_while_universal_active_only_enables_project_setup()
     assert state.universal_capture_enabled is True
     assert state.rpg_catalog_enabled is False
     assert state.bulk_start_enabled is False
+    assert state.rpg_patch_enabled is False
 
 
 def test_running_batch_limits_catalog_mutations_to_pause_resume_cancel():
@@ -64,6 +67,7 @@ def test_running_batch_limits_catalog_mutations_to_pause_resume_cancel():
     assert running.bulk_pause_enabled is True
     assert running.bulk_resume_enabled is False
     assert running.bulk_cancel_enabled is True
+    assert running.rpg_patch_enabled is False
 
     paused = resolve_mode_control_state(
         active_mode=OperationMode.RPG_MAKER_MV_MZ,

@@ -11,6 +11,11 @@ from live_translator.application.mode_settings_service import (
     CatalogTranslationProgress,
     CatalogTranslationResult,
 )
+from live_translator.application.rpg_maker_patch_service import (
+    RpgMakerPatchApplyResult,
+    RpgMakerPatchRestoreResult,
+    RpgMakerPatchResult,
+)
 from live_translator.domain.models import (
     CatalogTranslationError,
     GameProfile,
@@ -140,6 +145,16 @@ class ModeSettings(Protocol):
     def clear_contaminated_catalog_cache(self) -> int: ...
 
     def list_last_batch_errors(self) -> list[CatalogTranslationError]: ...
+
+    def export_rpg_maker_patch(
+        self,
+        *,
+        include_speakers: bool = False,
+    ) -> RpgMakerPatchResult: ...
+
+    def apply_last_rpg_maker_patch(self) -> RpgMakerPatchApplyResult: ...
+
+    def restore_last_rpg_maker_patch_backup(self) -> RpgMakerPatchRestoreResult: ...
 
 
 class EditableOverlay(Protocol):
@@ -377,6 +392,13 @@ class SettingsWindow:
         self._bulk_progress.setValue(0)
         self._bulk_status = QLabel("Lote: aguardando")
         self._bulk_status.setWordWrap(True)
+        self._patch_include_speakers = QCheckBox("Incluir speakers")
+        self._patch_include_speakers.setChecked(False)
+        self._export_patch = QPushButton("Gerar patch")
+        self._apply_patch = QPushButton("Aplicar patch")
+        self._restore_patch_backup = QPushButton("Restaurar ultimo backup")
+        self._patch_status = QLabel("Patch: aguardando")
+        self._patch_status.setWordWrap(True)
 
         self._select_region = QPushButton("Selecionar area do texto")
         self._preview_capture = QPushButton("Ver preview da area")
@@ -441,6 +463,11 @@ class SettingsWindow:
         )
         self._cancel_catalog_translation.clicked.connect(
             self._cancel_bulk_catalog_translation
+        )
+        self._export_patch.clicked.connect(self._export_rpg_maker_patch)
+        self._apply_patch.clicked.connect(self._apply_last_rpg_maker_patch)
+        self._restore_patch_backup.clicked.connect(
+            self._restore_last_rpg_maker_patch_backup
         )
         self._preview_capture.clicked.connect(self._capture_preview_image)
         self._save.clicked.connect(self._save_profile)
@@ -598,9 +625,21 @@ class SettingsWindow:
         bulk_layout.addLayout(bulk_buttons)
         bulk_group.setLayout(bulk_layout)
 
+        patch_group = group_cls("Patch de traducao")
+        patch_layout = vbox_cls()
+        patch_buttons = hbox_cls()
+        patch_buttons.addWidget(self._patch_include_speakers)
+        patch_buttons.addWidget(self._export_patch)
+        patch_buttons.addWidget(self._apply_patch)
+        patch_buttons.addWidget(self._restore_patch_backup)
+        patch_layout.addWidget(self._patch_status)
+        patch_layout.addLayout(patch_buttons)
+        patch_group.setLayout(patch_layout)
+
         tab.addWidget(catalog_group)
         tab.addWidget(maintenance_group)
         tab.addWidget(bulk_group)
+        tab.addWidget(patch_group)
         return self._wrap(tab)
 
     def _build_capture_tab(self, form_cls, hbox_cls, vbox_cls):
@@ -767,6 +806,9 @@ class SettingsWindow:
             )
             self._bulk_status.setText(
                 "Lote MV/MZ: ativo apenas no modo RPG Maker MV/MZ."
+            )
+            self._patch_status.setText(
+                "Patch MV/MZ: ativo apenas no modo RPG Maker MV/MZ."
             )
             self._refresh_mode_controls()
             return
@@ -1095,6 +1137,66 @@ class SettingsWindow:
             if checkbox.isChecked()
         }
 
+    def _export_rpg_maker_patch(self) -> bool:
+        try:
+            result = self._mode_settings.export_rpg_maker_patch(
+                include_speakers=self._patch_include_speakers.isChecked()
+            )
+        except Exception as error:
+            self._patch_status.setText(f"Patch: geracao falhou - {error}")
+            self._status.setText(f"Geracao de patch falhou: {error}")
+            return False
+
+        message = self._format_patch_result(result)
+        self._patch_status.setText(message)
+        self._status.setText(message)
+        return True
+
+    def _apply_last_rpg_maker_patch(self) -> bool:
+        try:
+            result = self._mode_settings.apply_last_rpg_maker_patch()
+        except Exception as error:
+            self._patch_status.setText(f"Patch: aplicacao falhou - {error}")
+            self._status.setText(f"Aplicacao de patch falhou: {error}")
+            return False
+
+        message = (
+            "Patch aplicado: "
+            f"{result.files_applied} arquivos | "
+            f"backup em {result.backup_path}"
+        )
+        self._patch_status.setText(message)
+        self._status.setText(message)
+        return True
+
+    def _restore_last_rpg_maker_patch_backup(self) -> bool:
+        try:
+            result = self._mode_settings.restore_last_rpg_maker_patch_backup()
+        except Exception as error:
+            self._patch_status.setText(f"Patch: restauracao falhou - {error}")
+            self._status.setText(f"Restauracao de patch falhou: {error}")
+            return False
+
+        message = (
+            "Backup restaurado: "
+            f"{result.files_restored} arquivos | "
+            f"{result.backup_path}"
+        )
+        self._patch_status.setText(message)
+        self._status.setText(message)
+        return True
+
+    def _format_patch_result(self, result: RpgMakerPatchResult) -> str:
+        return (
+            "Patch gerado: "
+            f"{result.applied_entries}/{result.total_entries} aplicados | "
+            f"{result.missing_cache} sem cache | "
+            f"{result.invalid_translations} invalidos | "
+            f"{result.source_mismatches} divergentes | "
+            f"{result.files_written} arquivos | "
+            f"{result.patch_path}"
+        )
+
     def _format_seconds(self, seconds: float) -> str:
         return f"{seconds:.2f}s"
 
@@ -1393,6 +1495,10 @@ class SettingsWindow:
         self._pause_catalog_translation.setEnabled(state.bulk_pause_enabled)
         self._resume_catalog_translation.setEnabled(state.bulk_resume_enabled)
         self._cancel_catalog_translation.setEnabled(state.bulk_cancel_enabled)
+        self._export_patch.setEnabled(state.rpg_patch_enabled)
+        self._apply_patch.setEnabled(state.rpg_patch_enabled)
+        self._restore_patch_backup.setEnabled(state.rpg_patch_enabled)
+        self._patch_include_speakers.setEnabled(state.rpg_patch_enabled)
         self._pause.setEnabled(state.universal_run_enabled)
         self._resume.setEnabled(state.universal_run_enabled)
         self._reprocess_runtime_text.setEnabled(state.runtime_reprocess_enabled)

@@ -18,16 +18,24 @@ from live_translator.domain.models import (
     CatalogTranslationError,
     OperationMode,
     RpgMakerImportResult,
+    RpgMakerProject,
     RpgMakerTextEntry,
     RpgMakerTextType,
     TranslationResult,
 )
 
 from .translation_quality import looks_like_invalid_translation
+from .rpg_maker_patch_service import (
+    RpgMakerPatchApplyResult,
+    RpgMakerPatchRestoreResult,
+    RpgMakerPatchResult,
+    RpgMakerPatchService,
+)
 
 
 ACTIVE_MODE_SETTING_KEY = "operation.active_mode"
 RPG_MAKER_PROJECT_PATH_SETTING_KEY = "rpg_maker.project_path"
+RPG_MAKER_LAST_PATCH_PATH_SETTING_KEY = "rpg_maker.last_patch_path"
 DEFAULT_CATALOG_TRANSLATION_TYPES = frozenset(
     {
         RpgMakerTextType.MESSAGE,
@@ -79,6 +87,8 @@ class ModeSettingsService:
     translation_cache: TranslationCache
     translator: Translator
     batch_error_repository: CatalogTranslationErrorRepository
+    patch_export_root: Path = Path("exports") / "patches"
+    patch_backup_root: Path = Path("backups") / "patches"
     clock: Clock = monotonic
 
     def get_active_mode(self) -> OperationMode:
@@ -317,6 +327,53 @@ class ModeSettingsService:
 
     def list_last_batch_errors(self) -> list[CatalogTranslationError]:
         return self.batch_error_repository.list_last_batch_errors()
+
+    def export_rpg_maker_patch(
+        self,
+        *,
+        include_speakers: bool = False,
+    ) -> RpgMakerPatchResult:
+        project = self._active_rpg_maker_project()
+        result = self._patch_service().export_patch(
+            project=project,
+            entries=self.rpg_maker_catalog.list_project_entries(project),
+            include_speakers=include_speakers,
+        )
+        self.settings_repository.set(
+            RPG_MAKER_LAST_PATCH_PATH_SETTING_KEY,
+            str(result.patch_path),
+        )
+        return result
+
+    def apply_last_rpg_maker_patch(self) -> RpgMakerPatchApplyResult:
+        project = self._active_rpg_maker_project()
+        raw_patch_path = self.settings_repository.get(
+            RPG_MAKER_LAST_PATCH_PATH_SETTING_KEY
+        )
+        if raw_patch_path is None or not raw_patch_path.strip():
+            raise FileNotFoundError("no RPG Maker patch has been generated")
+
+        return self._patch_service().apply_patch(
+            project=project,
+            patch_path=Path(raw_patch_path),
+        )
+
+    def restore_last_rpg_maker_patch_backup(self) -> RpgMakerPatchRestoreResult:
+        project = self._active_rpg_maker_project()
+        return self._patch_service().restore_latest_backup(project=project)
+
+    def _active_rpg_maker_project(self) -> RpgMakerProject:
+        project_path = self.get_rpg_maker_project_path()
+        if project_path is None:
+            raise ValueError("RPG Maker project path is not configured")
+        return self.rpg_maker_detector.detect(project_path)
+
+    def _patch_service(self) -> RpgMakerPatchService:
+        return RpgMakerPatchService(
+            self.translation_cache,
+            export_root=self.patch_export_root,
+            backup_root=self.patch_backup_root,
+        )
 
     def _build_progress(
         self,
