@@ -80,7 +80,7 @@ def test_translation_prompt_includes_description_fit_profile():
 
     assert "descricao de item, skill ou equipamento" in prompt
     assert "janela de ajuda ou batalha" in prompt
-    assert "ate tres linhas curtas" in prompt
+    assert "ate duas linhas curtas" in prompt
     assert "Compacte como descricao de UI" in prompt
     assert "Nao resuma" not in prompt
 

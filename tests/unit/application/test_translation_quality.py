@@ -51,11 +51,10 @@ def test_overlong_description_rejects_much_longer_ui_text():
     )
 
 
-def test_overlong_description_accepts_compact_three_line_ui_text():
+def test_overlong_description_accepts_compact_two_line_ui_text():
     assert not looks_like_overlong_description(
         "Hits all enemies with a fast piercing strike.",
-        "Atinge todos os inimigos com golpe rapido, atravessa a linha inimiga "
-        "e causa dano magico alto em area por um turno.",
+        "Atinge todos os inimigos com um golpe rapido e perfurante.",
         RpgMakerTextType.SKILL_DESCRIPTION,
     )
 

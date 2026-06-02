@@ -8,7 +8,7 @@ from live_translator.domain.models import RpgMakerTextType
 
 
 RPG_MAKER_DESCRIPTION_LINE_LIMIT = 52
-RPG_MAKER_DESCRIPTION_MAX_LINES = 3
+RPG_MAKER_DESCRIPTION_MAX_LINES = 2
 
 
 def _non_empty_line_count(text: str) -> int:
