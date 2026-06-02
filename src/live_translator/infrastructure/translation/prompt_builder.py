@@ -118,7 +118,8 @@ def _translation_profile_instructions(
     if text_type in _DESCRIPTION_TYPES:
         return (
             "Perfil do texto: descricao de item, skill ou equipamento. Use texto curto, "
-            "claro e adequado para UI de RPG.\n"
+            "claro e adequado para UI de RPG. Escreva para caber em janela de ajuda "
+            "ou batalha: no maximo duas linhas curtas, sem explicacao longa.\n"
         )
     if text_type == RpgMakerTextType.SYSTEM_TERM:
         return (

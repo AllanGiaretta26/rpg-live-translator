@@ -150,6 +150,31 @@ def test_translator_rejects_missing_percent_placeholder_after_retry():
         )
 
 
+def test_translator_retries_when_description_is_too_long_for_ui():
+    client = SequenceClient(
+        [
+            {
+                "translated_text": (
+                    "Uma habilidade que atravessa todos os inimigos em um flash e "
+                    "inflige dano magico continuo por varios turnos enquanto tambem "
+                    "reduz a defesa e a resistencia elemental de cada alvo atingido."
+                )
+            },
+            {"translated_text": "Atinge todos com um golpe rapido."},
+        ]
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        "Hits all enemies with a fast piercing strike.",
+        [],
+        text_type=RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+    assert result.translated_text == "Atinge todos com um golpe rapido."
+    assert len(client.prompts) == 2
+
+
 def test_translator_uses_text_type_profile_in_prompt():
     client = FakeClient({"translated_text": "Espada"})
     translator = OllamaTranslator(client)

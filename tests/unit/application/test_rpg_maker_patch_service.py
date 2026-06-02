@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import json
 
-from live_translator.application.rpg_maker_patch_service import RpgMakerPatchService
+from live_translator.application.rpg_maker_patch_service import (
+    MESSAGE_LINE_LIMIT,
+    RpgMakerPatchService,
+)
+from live_translator.application.translation_quality import (
+    RPG_MAKER_DESCRIPTION_LINE_LIMIT,
+    RPG_MAKER_DESCRIPTION_MAX_LINES,
+)
 from live_translator.domain.models import (
     RpgMakerProject,
     RpgMakerTextEntry,
@@ -456,6 +463,116 @@ def test_export_patch_rewrites_items_and_skills_database(tmp_path):
     assert result.files_written == 2
 
 
+def test_export_patch_wraps_database_descriptions_for_help_windows(tmp_path):
+    project = _project(tmp_path)
+    cases = [
+        (
+            "Items.json",
+            RpgMakerTextType.ITEM_DESCRIPTION,
+            "Restores HP and MP to one ally over time.",
+            "Restaura HP e MP de um aliado ao longo do tempo durante a batalha.",
+        ),
+        (
+            "Skills.json",
+            RpgMakerTextType.SKILL_DESCRIPTION,
+            "Hits all enemies with a fast piercing strike.",
+            "Atinge todos os inimigos com um golpe rapido e perfurante.",
+        ),
+        (
+            "Weapons.json",
+            RpgMakerTextType.WEAPON_DESCRIPTION,
+            "A blade with a sharp reinforced edge.",
+            "Lamina reforcada com fio afiado para ataques muito precisos.",
+        ),
+        (
+            "Armors.json",
+            RpgMakerTextType.ARMOR_DESCRIPTION,
+            "Light armor that reduces incoming damage.",
+            "Armadura leve que reduz o dano recebido em combate prolongado.",
+        ),
+    ]
+    for file_name, _text_type, source_text, _translated_text in cases:
+        _write_json(
+            project.data_path / file_name,
+            [None, {"id": 1, "name": "Entry", "description": source_text}],
+        )
+
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                source_text: translated_text
+                for _, _, source_text, translated_text in cases
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _database_entry(source_text, text_type, file_name, 1, "description")
+            for file_name, text_type, source_text, _translated_text in cases
+        ],
+    )
+
+    assert result.applied_entries == 4
+    assert result.files_written == 4
+    for file_name, _text_type, _source_text, translated_text in cases:
+        patched = _read_json(result.data_path / file_name)
+        description = patched[1]["description"]
+        lines = description.splitlines()
+        assert " ".join(description.split()) == translated_text
+        assert 1 < len(lines) <= RPG_MAKER_DESCRIPTION_MAX_LINES
+        assert all(len(line) <= RPG_MAKER_DESCRIPTION_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_skips_description_that_cannot_fit_help_window(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Skills.json",
+        [
+            None,
+            {
+                "id": 1,
+                "name": "Flash",
+                "description": "Hits all enemies with a fast piercing strike.",
+            },
+        ],
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Hits all enemies with a fast piercing strike.": (
+                    "Uma habilidade que atravessa todos os inimigos em um flash e "
+                    "inflige dano magico continuo por varios turnos enquanto tambem "
+                    "reduz a defesa e a resistencia elemental de cada alvo atingido."
+                )
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _database_entry(
+                "Hits all enemies with a fast piercing strike.",
+                RpgMakerTextType.SKILL_DESCRIPTION,
+                "Skills.json",
+                1,
+                "description",
+            )
+        ],
+    )
+
+    assert result.invalid_translations == 1
+    assert result.applied_entries == 0
+    assert result.files_written == 0
+    assert not (result.data_path / "Skills.json").exists()
+
+
 def test_export_patch_rewrites_extended_database_files(tmp_path):
     project = _project(tmp_path)
     _write_json(
@@ -683,7 +800,51 @@ def test_export_patch_wraps_long_message_lines(tmp_path):
     commands = patched["events"][1]["pages"][0]["list"]
     lines = [command["parameters"][0] for command in commands]
     assert len(lines) > 1
-    assert all(len(line) <= 44 for line in lines)
+    assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_reflows_cached_message_line_breaks(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    translated = (
+        "Nos nao temos um pais mais! Nao ha para onde\n"
+        "eles irem e\n"
+        "nenhum medico para trata-los!"
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache({"Hello": translated}),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [command["parameters"][0] for command in commands]
+    assert len(lines) == 2
+    assert "eles irem e nenhum" in "\n".join(lines)
+    assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
 
 def test_export_patch_reports_missing_invalid_and_mismatched_entries(tmp_path):

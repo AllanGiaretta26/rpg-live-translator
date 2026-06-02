@@ -70,6 +70,19 @@ def test_translation_prompt_includes_name_profile_for_catalog_names():
     assert "sem frase longa" in prompt
 
 
+def test_translation_prompt_includes_description_fit_profile():
+    prompt = build_translation_prompt(
+        "Hits all enemies with a fast piercing strike.",
+        [],
+        "pt-BR",
+        text_type=RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+    assert "descricao de item, skill ou equipamento" in prompt
+    assert "janela de ajuda ou batalha" in prompt
+    assert "no maximo duas linhas curtas" in prompt
+
+
 def test_translation_prompt_includes_battle_placeholder_profile():
     prompt = build_translation_prompt(
         "%1 casts %2!",

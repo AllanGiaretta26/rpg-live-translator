@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from collections import Counter
 import re
+import textwrap
 
 from live_translator.domain.models import RpgMakerTextType
+
+
+RPG_MAKER_DESCRIPTION_LINE_LIMIT = 52
+RPG_MAKER_DESCRIPTION_MAX_LINES = 2
 
 
 def _non_empty_line_count(text: str) -> int:
@@ -130,10 +135,26 @@ def looks_like_overlong_description(
         return False
 
     source_length = len(source_text.strip())
-    translated_length = len(translated_text.strip())
+    normalized = " ".join(translated_text.split())
+    translated_length = len(normalized)
     if source_length <= 0:
         return False
-    return translated_length > max(source_length * 3, source_length + 120)
+    if translated_length > max(source_length * 2, source_length + 80):
+        return True
+
+    wrapped_lines = textwrap.wrap(
+        normalized,
+        width=RPG_MAKER_DESCRIPTION_LINE_LIMIT,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    if len(wrapped_lines) > RPG_MAKER_DESCRIPTION_MAX_LINES:
+        return True
+
+    return any(
+        len(word) > RPG_MAKER_DESCRIPTION_LINE_LIMIT
+        for word in re.findall(r"\S+", normalized, flags=re.UNICODE)
+    )
 
 
 def looks_like_invalid_translation(

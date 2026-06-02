@@ -11,6 +11,7 @@ import textwrap
 from typing import Any, Iterable
 
 from live_translator.application.translation_quality import (
+    RPG_MAKER_DESCRIPTION_LINE_LIMIT,
     looks_like_invalid_translation,
 )
 from live_translator.domain.interfaces import TranslationCache
@@ -314,7 +315,8 @@ _PATCHABLE_TEXT_TYPES = frozenset(
     }
 )
 
-MESSAGE_LINE_LIMIT = 44
+MESSAGE_LINE_LIMIT = 64
+MESSAGE_SHORT_LINE_REFLOW_LIMIT = 18
 
 
 def _entries_by_file(
@@ -360,6 +362,8 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             code=401,
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
+            line_limit=MESSAGE_LINE_LIMIT,
+            reflow_short_lines=True,
         )
     if entry.text_type in _SCROLLING_TEXT_TYPES:
         return _replace_grouped_commands(
@@ -368,6 +372,8 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             code=405,
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
+            line_limit=MESSAGE_LINE_LIMIT,
+            reflow_short_lines=False,
         )
     if entry.text_type in _CHOICE_TEXT_TYPES:
         return _replace_choice(command, entry, plan_entry.translated_text)
@@ -419,6 +425,14 @@ _SPEAKER_TEXT_TYPES = frozenset(
         RpgMakerTextType.TROOP_SPEAKER,
     }
 )
+_DESCRIPTION_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+    }
+)
 
 
 def _replace_database_field(
@@ -442,9 +456,24 @@ def _replace_database_field(
             continue
         if item.get(field_name) != entry.source_text:
             return None
-        item[field_name] = translated_text
+        item[field_name] = _database_replacement_text(entry.text_type, translated_text)
         return True
     return None
+
+
+def _database_replacement_text(
+    text_type: RpgMakerTextType,
+    translated_text: str,
+) -> str:
+    if text_type not in _DESCRIPTION_TEXT_TYPES:
+        return translated_text
+    return "\n".join(
+        _wrapped_translation_lines(
+            translated_text,
+            width=RPG_MAKER_DESCRIPTION_LINE_LIMIT,
+            normalize_lines=True,
+        )
+    )
 
 
 def _database_id_matches(value: Any, database_id: int) -> bool:
@@ -582,6 +611,8 @@ def _replace_grouped_commands(
     code: int,
     source_text: str,
     translated_text: str,
+    line_limit: int,
+    reflow_short_lines: bool,
 ) -> bool | None:
     end_index = start_index
     source_lines: list[str] = []
@@ -605,9 +636,14 @@ def _replace_grouped_commands(
     if not isinstance(template, dict):
         return None
     indent = template.get("indent", 0)
+    translated_lines = _message_translation_lines(
+        translated_text,
+        width=line_limit,
+        reflow_short_lines=reflow_short_lines,
+    )
     replacement = [
         {"code": code, "indent": indent, "parameters": [line]}
-        for line in _wrapped_translation_lines(translated_text)
+        for line in translated_lines
     ]
     commands[start_index:end_index] = replacement
     return True
@@ -698,8 +734,16 @@ def _replace_parameter(
     return True
 
 
-def _wrapped_translation_lines(text: str) -> list[str]:
-    lines = text.splitlines()
+def _wrapped_translation_lines(
+    text: str,
+    *,
+    width: int,
+    normalize_lines: bool,
+) -> list[str]:
+    if normalize_lines:
+        lines = [" ".join(text.split())]
+    else:
+        lines = text.splitlines()
     if not lines:
         return [text]
 
@@ -710,12 +754,41 @@ def _wrapped_translation_lines(text: str) -> list[str]:
             continue
         wrapped = textwrap.wrap(
             line,
-            width=MESSAGE_LINE_LIMIT,
+            width=width,
             break_long_words=False,
             break_on_hyphens=False,
         )
         wrapped_lines.extend(wrapped or [line])
     return wrapped_lines
+
+
+def _message_translation_lines(
+    text: str,
+    *,
+    width: int,
+    reflow_short_lines: bool,
+) -> list[str]:
+    if not reflow_short_lines or not _should_reflow_message_lines(text, width=width):
+        return _wrapped_translation_lines(
+            text,
+            width=width,
+            normalize_lines=False,
+        )
+    return _wrapped_translation_lines(
+        text,
+        width=width,
+        normalize_lines=True,
+    )
+
+
+def _should_reflow_message_lines(text: str, *, width: int) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 3:
+        return False
+    if not any(len(line) <= MESSAGE_SHORT_LINE_REFLOW_LIMIT for line in lines[1:-1]):
+        return False
+    collapsed = _wrapped_translation_lines(text, width=width, normalize_lines=True)
+    return len(collapsed) < len(lines)
 
 
 def _event_by_id(events: Iterable[Any], event_id: int | None) -> Any | None:

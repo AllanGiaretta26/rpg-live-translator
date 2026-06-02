@@ -49,3 +49,21 @@ def test_overlong_description_rejects_much_longer_ui_text():
         "detalhadamente como o jogador deve usar este item dentro do menu do jogo.",
         RpgMakerTextType.ITEM_DESCRIPTION,
     )
+
+
+def test_overlong_description_accepts_compact_two_line_ui_text():
+    assert not looks_like_overlong_description(
+        "Hits all enemies with a fast piercing strike.",
+        "Atinge todos os inimigos com um golpe rapido e perfurante.",
+        RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+
+def test_overlong_description_rejects_text_that_needs_extra_help_lines():
+    assert looks_like_overlong_description(
+        "Hits all enemies with a fast piercing strike.",
+        "Uma habilidade que atravessa todos os inimigos em um flash e inflige "
+        "dano magico continuo por varios turnos enquanto tambem reduz a defesa "
+        "e a resistencia elemental de cada alvo atingido.",
+        RpgMakerTextType.SKILL_DESCRIPTION,
+    )

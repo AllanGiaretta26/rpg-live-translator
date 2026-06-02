@@ -81,6 +81,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Fixed
 
+- Patch MV/MZ agora reequilibra quebras de fala vindas do cache e quebra
+  descricoes de itens, skills, armas e armaduras para caberem na janela de
+  ajuda/batalha.
 - Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
   MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de
