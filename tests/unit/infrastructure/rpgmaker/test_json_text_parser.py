@@ -95,6 +95,49 @@ def test_parser_extracts_common_event_messages(tmp_path):
     assert entries[0].origin.event_id == 3
 
 
+def test_parser_extracts_scenario_command_lists_and_tachie_speakers(tmp_path):
+    data_path = tmp_path / "Game" / "www" / "data"
+    data_path.mkdir(parents=True)
+    (data_path / "Scenario.json").write_text(
+        json.dumps(
+            {
+                "intro": [
+                    {"code": 356, "parameters": ["Tachie showName Deathpolca"]},
+                    {"code": 356, "parameters": ["Tachie showName \\N[4]"]},
+                    {"code": 356, "parameters": ["Tachie showName ???"]},
+                    {"code": 401, "parameters": ["Alright."]},
+                    {"code": 401, "parameters": ["Second line."]},
+                    {"code": 102, "parameters": [["Fight", "Wait"]]},
+                    {"code": 402, "parameters": [0, "Fight"]},
+                    {"code": 405, "parameters": ["Long ago..."]},
+                ],
+                "ignored": {"code": 401, "parameters": ["Ignored"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = RpgMakerProject(
+        root_path=tmp_path / "Game",
+        data_path=data_path,
+        version=RpgMakerVersion.MZ,
+    )
+
+    entries = RpgMakerJsonTextParser().parse_project(project)
+
+    assert [(entry.source_text, entry.text_type) for entry in entries] == [
+        ("Deathpolca", RpgMakerTextType.SPEAKER),
+        ("Alright.\nSecond line.", RpgMakerTextType.MESSAGE),
+        ("Fight", RpgMakerTextType.CHOICE),
+        ("Wait", RpgMakerTextType.CHOICE),
+        ("Fight", RpgMakerTextType.CHOICE),
+        ("Long ago...", RpgMakerTextType.SCROLLING_TEXT),
+    ]
+    assert entries[0].origin.file_name == "Scenario.json"
+    assert entries[0].origin.field_name == "intro"
+    assert entries[0].origin.origin_key == "Scenario.json|scenario|intro|0|0"
+    assert entries[1].origin.command_index == 3
+
+
 def test_parser_extracts_items_and_skills_database_text(tmp_path):
     data_path = tmp_path / "Game" / "www" / "data"
     data_path.mkdir(parents=True)

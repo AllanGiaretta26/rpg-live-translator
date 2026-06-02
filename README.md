@@ -119,12 +119,13 @@ Importacao atual:
 - detecta pasta MV/MZ valida;
 - le `MapXXX.json` e `CommonEvents.json`;
 - le `Items.json`, `Skills.json`, `Weapons.json`, `Armors.json`, `States.json`,
-  `Classes.json`, `Enemies.json`, `Actors.json`, `System.json` e `Troops.json`
-  quando existirem;
+  `Classes.json`, `Enemies.json`, `Actors.json`, `System.json`, `Troops.json`
+  e `Scenario.json` quando existirem;
 - extrai comandos de mensagem, escolhas, texto rolante, nomes de itens,
   descricoes de itens, nomes de skills, descricoes de skills, mensagens de
   skills, armas, armaduras, estados, classes, inimigos, nomes de atores, termos
-  de sistema/menu e eventos de batalha;
+  de sistema/menu, eventos de batalha e cenas custom em formato de lista de
+  comandos;
 - salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
 - salva traducoes geradas no cache `translations`, isoladas pelo caminho do
   projeto MV/MZ ativo;
@@ -257,6 +258,7 @@ Escopo atual do patch:
 - `Actors.json`;
 - `System.json`;
 - `Troops.json`;
+- `Scenario.json`;
 - mensagens;
 - escolhas;
 - texto rolante;
@@ -271,6 +273,8 @@ Escopo atual do patch:
 - nomes de atores;
 - termos de sistema/menu, como comandos `Item` e `Skill`;
 - mensagens, escolhas, texto rolante e speakers de batalha;
+- mensagens, escolhas, texto rolante e nomes `Tachie showName` em
+  `Scenario.json`;
 - `speaker`, somente se `Incluir speakers` estiver marcado.
 
 `Gerar patch` cria uma pasta separada em:
@@ -304,7 +308,9 @@ backups/patches/<nome-do-jogo>-<timestamp>/data/
 ```
 
 `Restaurar ultimo backup` restaura o backup mais recente criado pelo app para o
-projeto ativo. O app nao apaga patches nem backups automaticamente.
+projeto ativo. O app nao apaga patches nem backups automaticamente. Depois de
+atualizar o app, reimporte o catalogo antes de gerar um novo patch para incluir
+arquivos recem-suportados como `Scenario.json`.
 
 ## Known Issues
 
@@ -314,8 +320,8 @@ projeto ativo. O app nao apaga patches nem backups automaticamente.
   posicao, a area precisa ser recalibrada.
 - O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
   dependencia, mas textos gerados por plugins custom podem exigir fallback.
-- Plugins customizados podem armazenar textos fora dos JSONs padrao cobertos
-  pelo catalogo e pelo patch.
+- Plugins customizados ainda podem armazenar textos fora dos JSONs padrao e de
+  `Scenario.json`.
 - Logs persistentes gerais do runtime ainda nao foram implementados; o
   diagnostico principal fica no painel `Status`.
 - O modo click-through do overlay ainda nao e configuravel pela UI.

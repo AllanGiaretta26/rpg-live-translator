@@ -15,6 +15,7 @@ from live_translator.domain.models import (
 
 
 _MAP_FILE_PATTERN = re.compile(r"Map(\d+)\.json$")
+_TACHIE_SHOW_NAME_PATTERN = re.compile(r"^Tachie\s+showName\s+(?P<name>.+?)\s*$")
 
 
 class RpgMakerJsonParseError(ValueError):
@@ -97,11 +98,33 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         )
         entries.extend(self._parse_system_terms(project.data_path / "System.json"))
         entries.extend(self._parse_troops(project.data_path / "Troops.json"))
+        entries.extend(self._parse_scenario(project.data_path / "Scenario.json"))
 
         for path in sorted(project.data_path.glob("Map*.json")):
             if _MAP_FILE_PATTERN.match(path.name):
                 entries.extend(self._parse_map(path))
 
+        return entries
+
+    def _parse_scenario(self, path: Path) -> list[RpgMakerTextEntry]:
+        if not path.exists():
+            return []
+
+        data = self._read_json(path)
+        if not isinstance(data, dict):
+            return []
+
+        entries: list[RpgMakerTextEntry] = []
+        for scenario_key, commands in data.items():
+            if not isinstance(scenario_key, str) or not isinstance(commands, list):
+                continue
+            entries.extend(
+                self._entries_from_commands(
+                    file_name=path.name,
+                    commands=commands,
+                    field_name=scenario_key,
+                )
+            )
         return entries
 
     def _parse_database_file(
@@ -273,6 +296,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         event_id: int | None = None,
         page_index: int | None = None,
         database_id: int | None = None,
+        field_name: str | None = None,
         speaker_type: RpgMakerTextType = RpgMakerTextType.SPEAKER,
         message_type: RpgMakerTextType = RpgMakerTextType.MESSAGE,
         choice_type: RpgMakerTextType = RpgMakerTextType.CHOICE,
@@ -301,6 +325,21 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                         event_id=event_id,
                         page_index=page_index,
                         database_id=database_id,
+                        field_name=field_name,
+                        command_index=command_index,
+                    )
+                )
+            elif code == 356:
+                entries.extend(
+                    self._tachie_speaker_entry(
+                        text_type=speaker_type,
+                        file_name=file_name,
+                        parameters=parameters,
+                        map_id=map_id,
+                        event_id=event_id,
+                        page_index=page_index,
+                        database_id=database_id,
+                        field_name=field_name,
                         command_index=command_index,
                     )
                 )
@@ -314,6 +353,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                         event_id=event_id,
                         page_index=page_index,
                         database_id=database_id,
+                        field_name=field_name,
                         start_index=command_index,
                         code=401,
                     )
@@ -334,6 +374,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                         event_id=event_id,
                         page_index=page_index,
                         database_id=database_id,
+                        field_name=field_name,
                         command_index=command_index,
                     )
                 )
@@ -348,6 +389,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                         event_id=event_id,
                         page_index=page_index,
                         database_id=database_id,
+                        field_name=field_name,
                         command_index=command_index,
                     )
                 )
@@ -361,6 +403,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                         event_id=event_id,
                         page_index=page_index,
                         database_id=database_id,
+                        field_name=field_name,
                         start_index=command_index,
                         code=405,
                     )
@@ -384,6 +427,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         event_id: int | None,
         page_index: int | None,
         database_id: int | None,
+        field_name: str | None,
         start_index: int,
         code: int,
     ) -> list[RpgMakerTextEntry]:
@@ -413,6 +457,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                 event_id=event_id,
                 page_index=page_index,
                 database_id=database_id,
+                field_name=field_name,
                 command_index=start_index,
                 parameter_index=0,
             )
@@ -442,6 +487,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         event_id: int | None,
         page_index: int | None,
         database_id: int | None,
+        field_name: str | None,
         command_index: int,
     ) -> list[RpgMakerTextEntry]:
         if len(parameters) <= 4:
@@ -460,8 +506,48 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                 event_id=event_id,
                 page_index=page_index,
                 database_id=database_id,
+                field_name=field_name,
                 command_index=command_index,
                 parameter_index=4,
+            )
+        ]
+
+    def _tachie_speaker_entry(
+        self,
+        *,
+        text_type: RpgMakerTextType,
+        file_name: str,
+        parameters: list[Any],
+        map_id: int | None,
+        event_id: int | None,
+        page_index: int | None,
+        database_id: int | None,
+        field_name: str | None,
+        command_index: int,
+    ) -> list[RpgMakerTextEntry]:
+        if not parameters or not isinstance(parameters[0], str):
+            return []
+
+        match = _TACHIE_SHOW_NAME_PATTERN.match(parameters[0])
+        if match is None:
+            return []
+
+        text = match.group("name").strip()
+        if not _is_translatable_tachie_name(text):
+            return []
+
+        return [
+            self._entry(
+                text=text,
+                text_type=text_type,
+                file_name=file_name,
+                map_id=map_id,
+                event_id=event_id,
+                page_index=page_index,
+                database_id=database_id,
+                field_name=field_name,
+                command_index=command_index,
+                parameter_index=0,
             )
         ]
 
@@ -475,6 +561,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         event_id: int | None,
         page_index: int | None,
         database_id: int | None,
+        field_name: str | None,
         command_index: int,
     ) -> list[RpgMakerTextEntry]:
         if not parameters or not isinstance(parameters[0], list):
@@ -492,6 +579,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                         event_id=event_id,
                         page_index=page_index,
                         database_id=database_id,
+                        field_name=field_name,
                         command_index=command_index,
                         parameter_index=choice_index,
                     )
@@ -509,6 +597,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         event_id: int | None,
         page_index: int | None,
         database_id: int | None,
+        field_name: str | None,
         command_index: int,
     ) -> list[RpgMakerTextEntry]:
         if len(parameters) <= parameter_index:
@@ -527,6 +616,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                 event_id=event_id,
                 page_index=page_index,
                 database_id=database_id,
+                field_name=field_name,
                 command_index=command_index,
                 parameter_index=parameter_index,
             )
@@ -542,10 +632,21 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         event_id: int | None,
         page_index: int | None,
         database_id: int | None,
+        field_name: str | None = None,
         command_index: int,
         parameter_index: int,
     ) -> RpgMakerTextEntry:
-        if database_id is None:
+        if field_name is not None:
+            origin_key = "|".join(
+                (
+                    file_name,
+                    "scenario",
+                    field_name,
+                    str(command_index),
+                    str(parameter_index),
+                )
+            )
+        elif database_id is None:
             origin_key = "|".join(
                 (
                     file_name,
@@ -579,6 +680,7 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
                 command_index=command_index,
                 parameter_index=parameter_index,
                 database_id=database_id,
+                field_name=field_name,
             ),
         )
 
@@ -667,3 +769,11 @@ class RpgMakerJsonTextParser(RpgMakerTextParser):
         if isinstance(value, str) and value.isdecimal():
             return int(value)
         return None
+
+
+def _is_translatable_tachie_name(text: str) -> bool:
+    if not text.strip() or text.lstrip().startswith("\\"):
+        return False
+    if text.strip() in {"?", "??", "???", "？", "？？", "？？？"}:
+        return False
+    return any(character.isalnum() for character in text)

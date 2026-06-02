@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 import shutil
 import textwrap
 from typing import Any, Iterable
@@ -23,6 +24,9 @@ from live_translator.domain.models import (
 PATCH_REPORT_JSON = "live-translator-patch-report.json"
 PATCH_REPORT_MD = "live-translator-patch-report.md"
 BACKUP_MANIFEST = "live-translator-backup.json"
+_TACHIE_SHOW_NAME_PATTERN = re.compile(
+    r"^(?P<prefix>Tachie\s+showName\s+)(?P<name>.+?)(?P<suffix>\s*)$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,7 +372,7 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
     if entry.text_type in _CHOICE_TEXT_TYPES:
         return _replace_choice(command, entry, plan_entry.translated_text)
     if entry.text_type in _SPEAKER_TEXT_TYPES:
-        return _replace_parameter(command, 101, 4, entry, plan_entry.translated_text)
+        return _replace_speaker(command, entry, plan_entry.translated_text)
     return None
 
 
@@ -547,6 +551,12 @@ def _command_list_for_entry(
         commands = page.get("list")
         return commands if isinstance(commands, list) else None
 
+    if origin.file_name == "Scenario.json":
+        if not isinstance(data, dict) or origin.field_name is None:
+            return None
+        commands = data.get(origin.field_name)
+        return commands if isinstance(commands, list) else None
+
     if not isinstance(data, dict):
         return None
     events = data.get("events")
@@ -628,6 +638,45 @@ def _replace_choice(
     if code == 402:
         return _replace_parameter(command, 402, 1, entry, translated_text)
     return None
+
+
+def _replace_speaker(
+    command: dict[str, Any],
+    entry: RpgMakerTextEntry,
+    translated_text: str,
+) -> bool | None:
+    if command.get("code") == 101:
+        return _replace_parameter(command, 101, 4, entry, translated_text)
+    if command.get("code") == 356:
+        return _replace_tachie_show_name(command, entry, translated_text)
+    return None
+
+
+def _replace_tachie_show_name(
+    command: dict[str, Any],
+    entry: RpgMakerTextEntry,
+    translated_text: str,
+) -> bool | None:
+    parameters = command.get("parameters")
+    parameter_index = entry.origin.parameter_index
+    if (
+        not isinstance(parameters, list)
+        or parameter_index is None
+        or parameter_index < 0
+        or parameter_index >= len(parameters)
+        or not isinstance(parameters[parameter_index], str)
+    ):
+        return None
+
+    raw_command = parameters[parameter_index]
+    match = _TACHIE_SHOW_NAME_PATTERN.match(raw_command)
+    if match is None or match.group("name").strip() != entry.source_text:
+        return None
+
+    parameters[parameter_index] = (
+        f"{match.group('prefix')}{translated_text}{match.group('suffix')}"
+    )
+    return True
 
 
 def _replace_parameter(

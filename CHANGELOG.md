@@ -13,6 +13,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   e no patch.
 - Catalogacao e patch MV/MZ para `Weapons.json`, `Armors.json`, `States.json`,
   `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
+- Catalogacao e patch MV/MZ para cenas custom em `Scenario.json`, incluindo
+  mensagens, escolhas, texto rolante e nomes `Tachie showName`.
 - Catalogacao MV/MZ de `Items.json` e `Skills.json`, incluindo nomes e
   descricoes, alem de mensagens `message1` e `message2` de skills.
 - Catalogacao MV/MZ de `Actors.json` para nomes de personagens.

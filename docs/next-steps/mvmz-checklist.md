@@ -63,6 +63,7 @@
 - [x] Quebrar linhas longas de mensagens ao gerar patch.
 - [x] Expandir catalogo e patch para `Weapons.json`, `Armors.json` e `States.json`.
 - [x] Expandir catalogo e patch para `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
+- [x] Expandir catalogo e patch para cenas custom em `Scenario.json`.
 - [x] Usar prompts por tipo de texto para nomes, descricoes, termos e mensagens de batalha.
 - [ ] Documentar riscos de patch em jogos com plugins customizados.
 

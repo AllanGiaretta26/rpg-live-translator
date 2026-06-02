@@ -4,9 +4,9 @@
 
 This checkpoint completes the expanded RPG Maker MV/MZ database, battle-event
 patch and project-scoped cache work. The catalog now imports standard database
-files, system terms and troop events; batch translation can cache them by
-default, and patch export can write translated database JSON alongside event
-JSON files.
+files, system terms, troop events and `Scenario.json` command-list scenes;
+batch translation can cache them by default, and patch export can write
+translated database JSON alongside event JSON files.
 
 ## Completed
 
@@ -19,7 +19,7 @@ JSON files.
 - Added catalog types for `actor_name` and `system_term`.
 - Added parser support for `Items.json`, `Skills.json`, `Weapons.json`,
   `Armors.json`, `States.json`, `Classes.json`, `Enemies.json`, `Actors.json`,
-  `System.json` and `Troops.json`.
+  `System.json`, `Troops.json` and `Scenario.json`.
 - Added database origin metadata with SQLite migration for existing catalogs.
 - Added project-scoped translation cache for RPG Maker MV/MZ while keeping the
   global cache for Universal/OCR mode.
@@ -28,6 +28,8 @@ JSON files.
 - Added patch replacement for database `name`, `description` and nested system
   term fields.
 - Added patch replacement for battle event commands in `Troops.json`.
+- Added patch replacement for custom scenario command lists in `Scenario.json`,
+  including `Tachie showName` speaker commands.
 - Added translation validation for RPG Maker escape codes such as `\N[1]` and
   battle placeholders such as `%1`.
 - Added type-aware translation prompts for dialogue, names, descriptions,
@@ -43,6 +45,8 @@ JSON files.
 - System term replacement validates the nested term path before writing.
 - Troop event replacement uses the same command replacement flow as map events,
   scoped to the troop ID and page.
+- Scenario replacement uses the same command replacement flow as map events,
+  scoped to the scenario key.
 - If a cached translation drops an RPG Maker escape code, it is treated as
   invalid and skipped/retranslated depending on the flow.
 - If a cached translation drops `%1`, `%2` or `%3`, it is treated as invalid.
@@ -90,7 +94,7 @@ Result:
 
 ## Remaining Risks
 
-- Custom RPG Maker plugins may store menu or database text outside standard
-  database and `System.json` fields.
+- Custom RPG Maker plugins may store text outside standard database files and
+  `Scenario.json` command lists.
 - Manual testing across multiple MV and MZ games is still needed before treating
   the patcher as broadly safe.

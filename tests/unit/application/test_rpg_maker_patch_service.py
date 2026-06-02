@@ -173,6 +173,149 @@ def test_export_patch_respects_speaker_option(tmp_path):
     assert patched["events"][1]["pages"][0]["list"][0]["parameters"][4] == "Alicia"
 
 
+def test_export_patch_rewrites_scenario_command_lists(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Scenario.json",
+        {
+            "intro": [
+                {
+                    "code": 356,
+                    "indent": 0,
+                    "parameters": ["Tachie showName Deathpolca"],
+                },
+                {"code": 401, "indent": 0, "parameters": ["Alright."]},
+                {"code": 401, "indent": 0, "parameters": ["Second line."]},
+                {"code": 102, "indent": 0, "parameters": [["Fight", "Wait"]]},
+                {"code": 402, "indent": 0, "parameters": [0, "Fight"]},
+                {"code": 405, "indent": 0, "parameters": ["Long ago..."]},
+            ],
+            "other": [
+                {"code": 401, "indent": 0, "parameters": ["Do not touch."]},
+            ],
+        },
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                "Deathpolca": "Deathpolca PT",
+                "Alright.\nSecond line.": "Tudo certo.\nSegunda linha.",
+                "Fight": "Lutar",
+                "Wait": "Esperar",
+                "Long ago...": "Ha muito...",
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _scenario_entry("Deathpolca", RpgMakerTextType.SPEAKER, "intro", 0, 0),
+            _scenario_entry(
+                "Alright.\nSecond line.",
+                RpgMakerTextType.MESSAGE,
+                "intro",
+                1,
+                0,
+            ),
+            _scenario_entry("Fight", RpgMakerTextType.CHOICE, "intro", 3, 0),
+            _scenario_entry("Wait", RpgMakerTextType.CHOICE, "intro", 3, 1),
+            _scenario_entry("Fight", RpgMakerTextType.CHOICE, "intro", 4, 1),
+            _scenario_entry(
+                "Long ago...",
+                RpgMakerTextType.SCROLLING_TEXT,
+                "intro",
+                5,
+                0,
+            ),
+        ],
+        include_speakers=True,
+    )
+
+    patched = _read_json(result.data_path / "Scenario.json")
+    intro = patched["intro"]
+    assert intro[0]["parameters"][0] == "Tachie showName Deathpolca PT"
+    assert intro[1]["parameters"][0] == "Tudo certo."
+    assert intro[2]["parameters"][0] == "Segunda linha."
+    assert intro[3]["parameters"][0] == ["Lutar", "Esperar"]
+    assert intro[4]["parameters"][1] == "Lutar"
+    assert intro[5]["parameters"][0] == "Ha muito..."
+    assert patched["other"][0]["parameters"][0] == "Do not touch."
+    assert result.applied_entries == 6
+    assert result.files_written == 1
+
+
+def test_export_patch_respects_scenario_tachie_speaker_option(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Scenario.json",
+        {
+            "intro": [
+                {
+                    "code": 356,
+                    "indent": 0,
+                    "parameters": ["Tachie showName Deathpolca"],
+                },
+            ],
+        },
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache({"Deathpolca": "Deathpolca PT"}),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    skipped = service.export_patch(
+        project=project,
+        entries=[
+            _scenario_entry("Deathpolca", RpgMakerTextType.SPEAKER, "intro", 0, 0)
+        ],
+        include_speakers=False,
+    )
+    included = service.export_patch(
+        project=project,
+        entries=[
+            _scenario_entry("Deathpolca", RpgMakerTextType.SPEAKER, "intro", 0, 0)
+        ],
+        include_speakers=True,
+    )
+
+    patched = _read_json(included.data_path / "Scenario.json")
+    assert skipped.skipped_speakers == 1
+    assert skipped.files_written == 0
+    assert patched["intro"][0]["parameters"][0] == "Tachie showName Deathpolca PT"
+
+
+def test_export_patch_reports_missing_scenario_cache(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Scenario.json",
+        {
+            "intro": [
+                {"code": 401, "indent": 0, "parameters": ["Uncached."]},
+            ],
+        },
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_scenario_entry("Uncached.", RpgMakerTextType.MESSAGE, "intro", 0, 0)],
+    )
+
+    report = _read_json(result.report_path)
+    assert result.missing_cache == 1
+    assert result.files_written == 0
+    assert report["skipped"][0]["file_name"] == "Scenario.json"
+    assert report["skipped"][0]["origin_key"] == "Scenario.json|scenario|intro|0|0"
+
+
 def test_export_patch_rewrites_troop_event_commands(tmp_path):
     project = _project(tmp_path)
     _write_json(
@@ -687,6 +830,29 @@ def _troop_entry(
             origin_key=f"Troops.json|database|4|0|{command_index}|{parameter_index}",
             database_id=4,
             page_index=0,
+            command_index=command_index,
+            parameter_index=parameter_index,
+        ),
+    )
+
+
+def _scenario_entry(
+    text: str,
+    text_type: RpgMakerTextType,
+    scenario_key: str,
+    command_index: int,
+    parameter_index: int,
+) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        source_text=text,
+        text_type=text_type,
+        origin=RpgMakerTextOrigin(
+            file_name="Scenario.json",
+            origin_key=(
+                f"Scenario.json|scenario|{scenario_key}|"
+                f"{command_index}|{parameter_index}"
+            ),
+            field_name=scenario_key,
             command_index=command_index,
             parameter_index=parameter_index,
         ),
