@@ -6,6 +6,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
+- Tema visual escuro coeso na janela principal, com grupos em cartoes
+  arredondados, campos e tabela destacados e botoes de acao principal em
+  destaque (`Salvar`, `Importar`, `Traduzir`, `Gerar patch`).
 - Relatorio V12 com fechamento do suporte inicial a database MV/MZ no catalogo
   e no patch.
 - Catalogacao e patch MV/MZ para `Weapons.json`, `Armors.json`, `States.json`,
@@ -90,6 +93,12 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Changed
 
+- Janela principal reformulada visualmente: campos com largura natural alinhados
+  a esquerda, conteudo fixado ao topo e preview/tabela ocupando o espaco livre,
+  eliminando os campos esticados e os grandes vazios verticais.
+- Filtros de tipo do lote MV/MZ agora ficam agrupados por categoria (mensagens e
+  eventos, database e batalha) em grade, sem cortar os nomes, e a aba
+  `RPG Maker MV/MZ` passou a usar area rolavel.
 - Lote MV/MZ agora inclui itens e skills por padrao, mantendo `speaker`
   desativado por padrao.
 - Lote MV/MZ agora inclui database expandido, nomes de atores, termos do sistema

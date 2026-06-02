@@ -285,7 +285,6 @@ class SettingsWindow:
 
         self._widget = QWidget()
         self._widget.setWindowTitle("RPG Live Translator")
-        self._widget.setMinimumWidth(620)
 
         self._capture_status = QLabel("Rodando")
         self._pipeline_status = QLabel("Pipeline: aguardando")
@@ -332,12 +331,16 @@ class SettingsWindow:
         self._overlay_opacity.setRange(0.1, 1.0)
         self._overlay_opacity.setSingleStep(0.05)
         self._overlay_opacity.setDecimals(2)
+        self._overlay_opacity.setMinimumWidth(120)
+        self._overlay_opacity.setMaximumWidth(160)
+        self._name.setMinimumWidth(320)
 
         self._mode = QComboBox()
         self._mode.addItem("Universal", OperationMode.UNIVERSAL.value)
         self._mode.addItem("RPG Maker MV/MZ", OperationMode.RPG_MAKER_MV_MZ.value)
         self._rpg_maker_path = QLineEdit()
         self._rpg_maker_path.setPlaceholderText("Pasta do jogo RPG Maker MV/MZ")
+        self._rpg_maker_path.setMinimumWidth(320)
         self._choose_rpg_maker_path = QPushButton("Selecionar pasta")
         self._save_mode = QPushButton("Salvar modo")
         self._import_rpg_maker = QPushButton("Importar catalogo")
@@ -427,6 +430,16 @@ class SettingsWindow:
         self._resume = QPushButton("Retomar")
         self._quit = QPushButton("Fechar")
 
+        for primary in (
+            self._save_mode,
+            self._import_rpg_maker,
+            self._save,
+            self._translate_catalog,
+            self._export_patch,
+            self._save_overlay,
+        ):
+            self._accent(primary)
+
         tabs = QTabWidget()
         tabs.addTab(
             self._build_mode_tab(QFormLayout, QHBoxLayout, QVBoxLayout), "0. Modo"
@@ -447,10 +460,15 @@ class SettingsWindow:
         )
 
         layout = QVBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
         layout.addWidget(tabs)
         layout.addWidget(self._overlap_warning)
         layout.addWidget(self._status)
         self._widget.setLayout(layout)
+        self._widget.setStyleSheet(self._theme_qss())
+        self._widget.setMinimumWidth(720)
+        self._widget.resize(820, 640)
 
         self._select_region.clicked.connect(self._select_region_on_screen)
         self._choose_rpg_maker_path.clicked.connect(self._choose_rpg_maker_folder)
@@ -580,46 +598,74 @@ class SettingsWindow:
         )
 
     def _build_mode_tab(self, form_cls, hbox_cls, vbox_cls):
-        tab = vbox_cls()
-        form = form_cls()
-        form.addRow("Fluxo ativo", self._mode)
-        buttons = hbox_cls()
-        buttons.addWidget(self._save_mode)
+        tab = self._tab_layout(vbox_cls)
+        self._mode.setMinimumWidth(260)
 
-        rpg_form = form_cls()
+        mode_group = self._titled_group("Modo de operacao")
+        mode_layout = vbox_cls()
+        mode_layout.setContentsMargins(12, 12, 12, 12)
+        mode_layout.setSpacing(10)
+        form = self._form()
+        form.addRow("Fluxo ativo", self._mode)
+        mode_layout.addLayout(self._form_row(form))
+        mode_layout.addWidget(self._mode_status)
+        save_row = hbox_cls()
+        save_row.addStretch(1)
+        save_row.addWidget(self._save_mode)
+        mode_layout.addLayout(save_row)
+        mode_group.setLayout(mode_layout)
+
+        rpg_group = self._titled_group("Projeto RPG Maker MV/MZ")
+        rpg_layout = vbox_cls()
+        rpg_layout.setContentsMargins(12, 12, 12, 12)
+        rpg_layout.setSpacing(10)
+        rpg_form = self._form()
         rpg_form.addRow("Pasta do jogo", self._rpg_maker_path)
+        rpg_layout.addLayout(self._form_row(rpg_form))
         rpg_buttons = hbox_cls()
         rpg_buttons.addWidget(self._choose_rpg_maker_path)
         rpg_buttons.addWidget(self._import_rpg_maker)
+        rpg_buttons.addStretch(1)
+        rpg_layout.addLayout(rpg_buttons)
+        rpg_group.setLayout(rpg_layout)
 
-        tab.addLayout(form)
-        tab.addWidget(self._mode_status)
-        tab.addLayout(buttons)
-        tab.addWidget(self._group("Projeto RPG Maker MV/MZ", rpg_form, rpg_buttons))
+        tab.addWidget(mode_group)
+        tab.addWidget(rpg_group)
+        tab.addStretch(1)
         return self._wrap(tab)
 
     def _build_catalog_tab(self, group_cls, hbox_cls, vbox_cls):
-        tab = vbox_cls()
+        from PySide6.QtWidgets import QScrollArea, QSizePolicy
+
+        tab = self._tab_layout(vbox_cls)
         catalog_group = group_cls("Catalogo MV/MZ")
         catalog_layout = vbox_cls()
+        catalog_layout.setContentsMargins(12, 12, 12, 12)
+        catalog_layout.setSpacing(10)
         catalog_buttons = hbox_cls()
         catalog_buttons.addWidget(self._refresh_catalog)
         catalog_buttons.addWidget(self._previous_catalog_page)
         catalog_buttons.addWidget(self._next_catalog_page)
         catalog_buttons.addWidget(self._translate_catalog_entry)
-        catalog_layout.addWidget(self._catalog_table)
+        self._catalog_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        catalog_layout.addWidget(self._catalog_table, 1)
         catalog_layout.addLayout(catalog_buttons)
         catalog_group.setLayout(catalog_layout)
 
         maintenance_group = group_cls("Busca e manutencao")
         maintenance_layout = vbox_cls()
+        maintenance_layout.setContentsMargins(12, 12, 12, 12)
+        maintenance_layout.setSpacing(10)
         id_lookup = hbox_cls()
-        id_lookup.addWidget(self._catalog_id)
+        id_lookup.addWidget(self._catalog_id, 1)
         id_lookup.addWidget(self._search_catalog_id)
         id_lookup.addWidget(self._retranslate_catalog_id)
         maintenance_buttons = hbox_cls()
         maintenance_buttons.addWidget(self._clear_contaminated_cache)
         maintenance_buttons.addWidget(self._show_batch_errors)
+        maintenance_buttons.addStretch(1)
         maintenance_layout.addLayout(id_lookup)
         maintenance_layout.addWidget(self._catalog_cache_status)
         maintenance_layout.addLayout(maintenance_buttons)
@@ -627,16 +673,17 @@ class SettingsWindow:
 
         bulk_group = group_cls("Traducao em lote")
         bulk_layout = vbox_cls()
-        type_filters = hbox_cls()
-        for checkbox in self._bulk_type_checkboxes.values():
-            type_filters.addWidget(checkbox)
+        bulk_layout.setContentsMargins(12, 12, 12, 12)
+        bulk_layout.setSpacing(10)
+        for title, text_types in self._bulk_type_categories():
+            bulk_layout.addWidget(self._build_type_filter_group(title, text_types))
         bulk_buttons = hbox_cls()
         bulk_buttons.addWidget(self._bulk_limit)
         bulk_buttons.addWidget(self._translate_catalog)
         bulk_buttons.addWidget(self._pause_catalog_translation)
         bulk_buttons.addWidget(self._resume_catalog_translation)
         bulk_buttons.addWidget(self._cancel_catalog_translation)
-        bulk_layout.addLayout(type_filters)
+        bulk_buttons.addStretch(1)
         bulk_layout.addWidget(self._bulk_progress)
         bulk_layout.addWidget(self._bulk_status)
         bulk_layout.addLayout(bulk_buttons)
@@ -644,25 +691,94 @@ class SettingsWindow:
 
         patch_group = group_cls("Patch de traducao")
         patch_layout = vbox_cls()
+        patch_layout.setContentsMargins(12, 12, 12, 12)
+        patch_layout.setSpacing(10)
         patch_buttons = hbox_cls()
         patch_buttons.addWidget(self._patch_include_speakers)
         patch_buttons.addWidget(self._export_patch)
         patch_buttons.addWidget(self._apply_patch)
         patch_buttons.addWidget(self._restore_patch_backup)
+        patch_buttons.addStretch(1)
         patch_layout.addWidget(self._patch_status)
         patch_layout.addLayout(patch_buttons)
         patch_group.setLayout(patch_layout)
 
-        tab.addWidget(catalog_group)
+        tab.addWidget(catalog_group, 1)
         tab.addWidget(maintenance_group)
         tab.addWidget(bulk_group)
         tab.addWidget(patch_group)
-        return self._wrap(tab)
+
+        content = self._wrap(tab)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(content)
+        return scroll
+
+    def _bulk_type_categories(self):
+        return (
+            (
+                "Mensagens e eventos",
+                (
+                    RpgMakerTextType.MESSAGE,
+                    RpgMakerTextType.SPEAKER,
+                    RpgMakerTextType.CHOICE,
+                    RpgMakerTextType.SCROLLING_TEXT,
+                ),
+            ),
+            (
+                "Database",
+                (
+                    RpgMakerTextType.ITEM_NAME,
+                    RpgMakerTextType.ITEM_DESCRIPTION,
+                    RpgMakerTextType.SKILL_NAME,
+                    RpgMakerTextType.SKILL_DESCRIPTION,
+                    RpgMakerTextType.SKILL_MESSAGE,
+                    RpgMakerTextType.WEAPON_NAME,
+                    RpgMakerTextType.WEAPON_DESCRIPTION,
+                    RpgMakerTextType.ARMOR_NAME,
+                    RpgMakerTextType.ARMOR_DESCRIPTION,
+                    RpgMakerTextType.STATE_NAME,
+                    RpgMakerTextType.STATE_MESSAGE,
+                    RpgMakerTextType.CLASS_NAME,
+                    RpgMakerTextType.ENEMY_NAME,
+                    RpgMakerTextType.ACTOR_NAME,
+                    RpgMakerTextType.SYSTEM_TERM,
+                ),
+            ),
+            (
+                "Batalha",
+                (
+                    RpgMakerTextType.TROOP_MESSAGE,
+                    RpgMakerTextType.TROOP_CHOICE,
+                    RpgMakerTextType.TROOP_SCROLLING_TEXT,
+                    RpgMakerTextType.TROOP_SPEAKER,
+                ),
+            ),
+        )
+
+    def _build_type_filter_group(self, title, text_types, columns: int = 4):
+        from PySide6.QtWidgets import QGridLayout, QGroupBox
+
+        group = QGroupBox(title)
+        grid = QGridLayout()
+        grid.setContentsMargins(12, 12, 12, 12)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(6)
+        for index, text_type in enumerate(text_types):
+            checkbox = self._bulk_type_checkboxes[text_type]
+            grid.addWidget(checkbox, index // columns, index % columns)
+        for column in range(columns):
+            grid.setColumnStretch(column, 1)
+        group.setLayout(grid)
+        return group
 
     def _build_capture_tab(self, form_cls, hbox_cls, vbox_cls):
-        tab = vbox_cls()
-        capture_group = self._group("Captura Universal / OCR")
-        form = form_cls()
+        from PySide6.QtWidgets import QSizePolicy
+
+        tab = self._tab_layout(vbox_cls)
+        capture_group = self._titled_group("Captura Universal / OCR")
+        form = self._form()
         form.addRow("Perfil", self._name)
         form.addRow("X", self._x)
         form.addRow("Y", self._y)
@@ -672,18 +788,23 @@ class SettingsWindow:
         buttons.addWidget(self._select_region)
         buttons.addWidget(self._preview_capture)
         buttons.addWidget(self._save)
+        self._preview.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         capture_layout = vbox_cls()
-        capture_layout.addLayout(form)
-        capture_layout.addWidget(self._preview)
+        capture_layout.setContentsMargins(12, 12, 12, 12)
+        capture_layout.setSpacing(12)
+        capture_layout.addLayout(self._form_row(form))
+        capture_layout.addWidget(self._preview, 1)
         capture_layout.addLayout(buttons)
         capture_group.setLayout(capture_layout)
-        tab.addWidget(capture_group)
+        tab.addWidget(capture_group, 1)
         return self._wrap(tab)
 
     def _build_overlay_tab(self, form_cls, hbox_cls, vbox_cls):
-        tab = vbox_cls()
-        overlay_group = self._group("Overlay compartilhado")
-        form = form_cls()
+        tab = self._tab_layout(vbox_cls)
+        overlay_group = self._titled_group("Overlay compartilhado")
+        form = self._form()
         form.addRow("X", self._overlay_x)
         form.addRow("Y", self._overlay_y)
         form.addRow("Largura", self._overlay_width)
@@ -693,30 +814,42 @@ class SettingsWindow:
         buttons = hbox_cls()
         buttons.addWidget(self._show_overlay)
         buttons.addWidget(self._save_overlay)
+        buttons.addStretch(1)
         overlay_layout = vbox_cls()
-        overlay_layout.addLayout(form)
+        overlay_layout.setContentsMargins(12, 12, 12, 12)
+        overlay_layout.setSpacing(12)
+        overlay_layout.addLayout(self._form_row(form))
         overlay_layout.addLayout(buttons)
         overlay_group.setLayout(overlay_layout)
         tab.addWidget(overlay_group)
+        tab.addStretch(1)
         return self._wrap(tab)
 
     def _build_run_tab(self, group_cls, hbox_cls, vbox_cls):
-        tab = vbox_cls()
+        tab = self._tab_layout(vbox_cls)
         status_group = group_cls("Status do fluxo ativo")
         status_layout = vbox_cls()
+        status_layout.setContentsMargins(12, 12, 12, 12)
+        status_layout.setSpacing(8)
         status_layout.addWidget(self._capture_status)
         status_layout.addWidget(self._pipeline_status)
         status_layout.addWidget(self._pipeline_timing)
         status_layout.addWidget(self._runtime_source)
         status_layout.addWidget(self._runtime_translation)
         status_group.setLayout(status_layout)
+
+        actions_group = group_cls("Acoes")
         buttons = hbox_cls()
+        buttons.setContentsMargins(12, 12, 12, 12)
         buttons.addWidget(self._pause)
         buttons.addWidget(self._resume)
         buttons.addWidget(self._reprocess_runtime_text)
         buttons.addWidget(self._quit)
+        actions_group.setLayout(buttons)
+
         tab.addWidget(status_group)
-        tab.addWidget(self._group("Acoes", buttons))
+        tab.addWidget(actions_group)
+        tab.addStretch(1)
         return self._wrap(tab)
 
     def _group(self, title: str, *layouts):
@@ -737,12 +870,166 @@ class SettingsWindow:
         widget.setLayout(layout)
         return widget
 
+    def _tab_layout(self, vbox_cls):
+        tab = vbox_cls()
+        tab.setContentsMargins(16, 16, 16, 16)
+        tab.setSpacing(12)
+        return tab
+
+    def _titled_group(self, title: str):
+        from PySide6.QtWidgets import QGroupBox
+
+        return QGroupBox(title)
+
+    def _theme_qss(self) -> str:
+        return """
+        QWidget {
+            background-color: #1e1f22;
+            color: #e3e5e8;
+            font-size: 13px;
+        }
+        QLabel { background: transparent; }
+        QGroupBox {
+            background-color: #232428;
+            border: 1px solid #3f4248;
+            border-radius: 8px;
+            margin-top: 14px;
+            padding: 8px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 12px;
+            padding: 0 6px;
+            color: #b5bac1;
+        }
+        QTabWidget::pane {
+            border: 1px solid #3f4248;
+            border-radius: 8px;
+            top: -1px;
+        }
+        QTabBar::tab {
+            background: #232428;
+            color: #b5bac1;
+            padding: 8px 16px;
+            border: 1px solid #3f4248;
+            border-bottom: none;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            margin-right: 2px;
+        }
+        QTabBar::tab:selected { background: #313338; color: #ffffff; }
+        QTabBar::tab:hover { color: #ffffff; }
+        QPushButton {
+            background-color: #313338;
+            color: #e3e5e8;
+            border: 1px solid #3f4248;
+            border-radius: 6px;
+            padding: 7px 14px;
+        }
+        QPushButton:hover { background-color: #3a3c42; border-color: #4f5258; }
+        QPushButton:pressed { background-color: #2a2c30; }
+        QPushButton:disabled {
+            color: #6c6f76;
+            background-color: #292a2e;
+            border-color: #333539;
+        }
+        QPushButton[accent="true"] {
+            background-color: #4f7cff;
+            color: #ffffff;
+            border: 1px solid #4f7cff;
+            font-weight: 600;
+        }
+        QPushButton[accent="true"]:hover {
+            background-color: #6189ff;
+            border-color: #6189ff;
+        }
+        QPushButton[accent="true"]:pressed {
+            background-color: #3f63cc;
+            border-color: #3f63cc;
+        }
+        QPushButton[accent="true"]:disabled {
+            background-color: #33384a;
+            color: #8a8f99;
+            border-color: #33384a;
+        }
+        QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+            background-color: #1b1c1f;
+            border: 1px solid #3f4248;
+            border-radius: 6px;
+            padding: 5px 8px;
+            selection-background-color: #4f7cff;
+        }
+        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border-color: #4f7cff;
+        }
+        QComboBox::drop-down { border: none; width: 20px; }
+        QComboBox QAbstractItemView {
+            background-color: #232428;
+            border: 1px solid #3f4248;
+            selection-background-color: #4f7cff;
+        }
+        QTableWidget {
+            background-color: #1b1c1f;
+            border: 1px solid #3f4248;
+            border-radius: 6px;
+            gridline-color: #303236;
+        }
+        QHeaderView::section {
+            background-color: #2b2d31;
+            color: #b5bac1;
+            padding: 6px;
+            border: none;
+            border-right: 1px solid #303236;
+            border-bottom: 1px solid #303236;
+        }
+        QTableWidget::item:selected { background-color: #3a4a7a; color: #ffffff; }
+        QProgressBar {
+            border: 1px solid #3f4248;
+            border-radius: 6px;
+            background-color: #1b1c1f;
+            text-align: center;
+            color: #e3e5e8;
+        }
+        QProgressBar::chunk { background-color: #4f7cff; border-radius: 5px; }
+        QCheckBox { spacing: 6px; padding: 2px; }
+        QScrollArea { border: none; background: transparent; }
+        """
+
     def _spinbox(self, minimum: int, maximum: int):
         from PySide6.QtWidgets import QSpinBox
 
         spinbox = QSpinBox()
         spinbox.setRange(minimum, maximum)
+        spinbox.setMinimumWidth(120)
+        spinbox.setMaximumWidth(160)
         return spinbox
+
+    def _accent(self, button):
+        """Mark a button as a primary action for the QSS accent style."""
+        button.setProperty("accent", True)
+        return button
+
+    def _form(self):
+        """Create a QFormLayout that hugs its natural width instead of stretching."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QFormLayout
+
+        form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(8)
+        return form
+
+    def _form_row(self, form):
+        """Wrap a form in an HBox so it stays left-aligned at its natural size."""
+        from PySide6.QtWidgets import QHBoxLayout
+
+        row = QHBoxLayout()
+        row.addLayout(form)
+        row.addStretch(1)
+        return row
 
     def _capture_preview_image(self) -> bool:
         try:

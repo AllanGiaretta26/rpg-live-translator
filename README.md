@@ -54,9 +54,9 @@ Abra o app e use as abas da janela de calibração:
    a pasta do jogo e clique em `Importar catalogo`.
 2. `Catalogo`: confira textos importados, use `Traduzir selecionado` para
    testar uma entrada ou `Traduzir catalogo` para preencher o cache em lote.
-   O lote permite escolher `100`, `500` ou `Todos`, filtrar por `message`,
-   `choice`, `speaker`, `scrolling_text`, textos de database e textos de
-   batalha, pausar, retomar e cancelar. Por padrao, `speaker` fica desativado
+   O lote permite escolher `100`, `500` ou `Todos` e filtrar por tipo, com os
+   tipos agrupados em categorias (mensagens e eventos, database e batalha) para
+   facilitar a selecao, alem de pausar, retomar e cancelar. Por padrao, `speaker` fica desativado
    para evitar traduzir nomes proprios. A aba tambem mostra quantas entradas ja
    possuem traducao cacheada, permite limpar traducoes contaminadas do projeto
    atual e consultar os erros do ultimo lote.
