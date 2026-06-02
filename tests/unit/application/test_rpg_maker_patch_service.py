@@ -843,7 +843,53 @@ def test_export_patch_reflows_cached_message_line_breaks(tmp_path):
     commands = patched["events"][1]["pages"][0]["list"]
     lines = [command["parameters"][0] for command in commands]
     assert len(lines) == 2
-    assert "eles irem e nenhum" in "\n".join(lines)
+    assert "eles irem e" not in lines
+    assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_breaks_message_before_rpg_maker_forced_wrap(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    translated = (
+        "Antes de invadirmos Bohelos, enviamos alguns embaixadores para o Imperio. "
+        "Um foi decapitado na hora, enquanto o outro foi devolvido"
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache({"Hello": translated}),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [command["parameters"][0] for command in commands]
+    assert lines == [
+        "Antes de invadirmos Bohelos, enviamos alguns embaixadores",
+        "para o Imperio. Um foi decapitado na hora, enquanto o",
+        "outro foi devolvido",
+    ]
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
 
