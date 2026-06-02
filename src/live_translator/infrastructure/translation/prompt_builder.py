@@ -48,10 +48,7 @@ def build_translation_prompt(
         "Preserve exatamente placeholders como %1, %2 e %3.\n"
         "Nao traduza, remova ou altere barras invertidas desses codigos.\n"
         f"{_translation_profile_instructions(text_type)}"
-        "Traduza apenas o texto dentro de <text_to_translate>.\n"
-        "Traduza todo o texto atual, incluindo todas as linhas e frases.\n"
-        "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
-        "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
+        f"{_translation_completion_instructions(text_type)}"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
     )
 
@@ -119,7 +116,7 @@ def _translation_profile_instructions(
         return (
             "Perfil do texto: descricao de item, skill ou equipamento. Use texto curto, "
             "claro e adequado para UI de RPG. Escreva para caber em janela de ajuda "
-            "ou batalha: no maximo duas linhas curtas, sem explicacao longa.\n"
+            "ou batalha: ate tres linhas curtas, sem explicacao longa.\n"
         )
     if text_type == RpgMakerTextType.SYSTEM_TERM:
         return (
@@ -134,4 +131,22 @@ def _translation_profile_instructions(
     return (
         "Perfil do texto: dialogo ou evento. Traduza de forma natural, completa e "
         "adequada ao tom da cena.\n"
+    )
+
+
+def _translation_completion_instructions(
+    text_type: RpgMakerTextType | None,
+) -> str:
+    if text_type in _DESCRIPTION_TYPES:
+        return (
+            "Traduza apenas o texto dentro de <text_to_translate>.\n"
+            "Compacte como descricao de UI: preserve efeito, alvo, numeros e "
+            "placeholders, mas corte floreios e explicacoes.\n"
+            "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
+        )
+    return (
+        "Traduza apenas o texto dentro de <text_to_translate>.\n"
+        "Traduza todo o texto atual, incluindo todas as linhas e frases.\n"
+        "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
+        "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
     )
