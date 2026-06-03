@@ -93,6 +93,8 @@ def test_compact_description_prompt_preserves_ui_tokens():
     )
 
     assert "ate duas linhas curtas" in prompt
+    assert "95 caracteres" in prompt
+    assert "Dano sombrio em todos" in prompt
     assert "HP" in prompt
     assert "TP" in prompt
     assert "%1" in prompt

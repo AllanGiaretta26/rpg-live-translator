@@ -114,19 +114,44 @@ def restore_missing_leading_rpg_maker_escape_codes(
     source_text: str,
     translated_text: str,
 ) -> str:
-    source_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(source_text)
+    source_lines = source_text.splitlines()
+    translated_lines = translated_text.splitlines()
+    if source_lines and len(source_lines) == len(translated_lines):
+        return "\n".join(
+            _restore_missing_leading_rpg_maker_escape_codes_for_line(
+                source_line,
+                translated_line,
+            )
+            for source_line, translated_line in zip(
+                source_lines,
+                translated_lines,
+                strict=True,
+            )
+        )
+
+    return _restore_missing_leading_rpg_maker_escape_codes_for_line(
+        source_text,
+        translated_text,
+    )
+
+
+def _restore_missing_leading_rpg_maker_escape_codes_for_line(
+    source_line: str,
+    translated_line: str,
+) -> str:
+    source_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(source_line)
     if source_match is None:
-        return translated_text
+        return translated_line
 
     source_prefix = source_match.group("prefix")
-    translated_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(translated_text)
+    translated_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(translated_line)
     translated_rest = (
         translated_match.group("rest")
         if translated_match is not None
-        else translated_text
+        else translated_line
     )
-    if translated_text.startswith(source_prefix):
-        return translated_text
+    if translated_line.startswith(source_prefix):
+        return translated_line
     return f"{source_prefix}{translated_rest.lstrip()}"
 
 

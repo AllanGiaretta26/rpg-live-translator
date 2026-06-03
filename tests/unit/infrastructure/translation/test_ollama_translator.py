@@ -132,6 +132,27 @@ def test_translator_restores_missing_leading_rpg_maker_escape_code():
     assert result.translated_text == r"\{Era uma vez,"
 
 
+def test_translator_restores_missing_leading_rpg_maker_escape_code_per_line():
+    translator = OllamaTranslator(
+        FakeClient(
+            {
+                "translated_text": (
+                    "Menu desbloqueado\nA tela de menu agora esta acessivel."
+                )
+            }
+        )
+    )
+
+    result = translator.translate(
+        r"\#Menu Unlocked" "\n" r"\#The Menu screen is now accessible.",
+        [],
+    )
+
+    assert result.translated_text == (
+        r"\#Menu desbloqueado" "\n" r"\#A tela de menu agora esta acessivel."
+    )
+
+
 def test_translator_rejects_missing_rpg_maker_escape_code_after_retry():
     translator = OllamaTranslator(
         FakeClient({"translated_text": "[1] encontrou um item."})

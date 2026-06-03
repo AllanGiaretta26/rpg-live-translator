@@ -30,6 +30,18 @@ def test_restore_missing_leading_rpg_maker_escape_codes_reapplies_text_prefix():
     )
 
 
+def test_restore_missing_leading_rpg_maker_escape_codes_reapplies_each_line_prefix():
+    assert (
+        restore_missing_leading_rpg_maker_escape_codes(
+            r"\#Menu Unlocked" "\n" r"\#The Menu screen is now accessible.",
+            "Menu desbloqueado\nA tela de menu agora esta acessivel.",
+        )
+        == r"\#Menu desbloqueado"
+        "\n"
+        r"\#A tela de menu agora esta acessivel."
+    )
+
+
 def test_invalid_translation_includes_missing_rpg_maker_escape_codes():
     assert looks_like_invalid_translation(r"\N[1] found an item.", "[1] achou item.")
 

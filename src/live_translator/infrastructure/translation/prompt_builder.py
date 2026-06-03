@@ -77,10 +77,13 @@ def build_compact_description_prompt(
     return (
         f"Traduza para {target_language} como descricao curta de UI de RPG.\n"
         "Obrigatorio caber em ate duas linhas curtas de janela de ajuda.\n"
+        "Use no maximo 95 caracteres no total.\n"
         "Preserve numeros, porcentagens, HP, MP, TP, nomes proprios, placeholders "
         "como %1, %2, %3 e codigos RPG Maker como \\N[1], \\V[2], \\C[3], \\I[64].\n"
         "Corte floreios e explicacoes; mantenha apenas efeito, alvo, duracao e "
         "restricoes importantes.\n"
+        "Exemplo de estilo: 'Dano sombrio em todos. Chance media de Slip.'\n"
+        "Nao escreva frase explicativa longa.\n"
         'Responda apenas JSON valido: {"translated_text": "..."}\n'
         f"Texto:\n{text}"
     )
