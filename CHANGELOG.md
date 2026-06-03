@@ -4,6 +4,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+## [0.3.0] - 2026-06-03
+
 ### Added
 
 - Tema visual escuro coeso na janela principal, com grupos em cartoes
@@ -11,6 +13,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   destaque (`Salvar`, `Importar`, `Traduzir`, `Gerar patch`).
 - Relatorio V12 com fechamento do suporte inicial a database MV/MZ no catalogo
   e no patch.
+- Relatorio V13 com fechamento das correcoes de qualidade para lote/cache e
+  quebra visual do patch MV/MZ.
 - Catalogacao e patch MV/MZ para `Weapons.json`, `Armors.json`, `States.json`,
   `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
 - Catalogacao e patch MV/MZ para cenas custom em `Scenario.json`, incluindo
@@ -81,6 +85,26 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Fixed
 
+- Patch MV/MZ agora reequilibra quebras de fala vindas do cache e quebra
+  descricoes de itens, skills, armas e armaduras para caberem na janela de
+  ajuda/batalha.
+- Traducoes em lote de descricoes MV/MZ agora aceitam ate duas linhas curtas e
+  usam prompt compacto de UI, evitando conflito com instrucao de nao resumir.
+- Patch MV/MZ agora evita deixar inicio de frase ou conectivo curto pendurado no
+  fim de linhas de dialogo.
+- Lote MV/MZ agora repara prefixos visuais simples como `\{` quando o modelo
+  traduz a fala mas perde o codigo, e usa tentativa compacta extra para
+  descricoes longas.
+- Reparo de prefixos visuais do lote MV/MZ agora funciona por linha e o prompt
+  compacto de descricoes passou a limitar tamanho total.
+- Lote MV/MZ agora mascara codigos RPG Maker e placeholders antes de chamar o
+  modelo, restaurando os valores originais depois da traducao.
+- Lote MV/MZ agora trata textos so de pontuacao/controle, como `...`, como
+  passthrough e rejeita caches que expandem esse texto para falas inventadas.
+- Patch MV/MZ agora preserva prefixos visuais simples como `\#` em cada linha
+  criada pela quebra automatica.
+- Validacao MV/MZ agora rejeita traducoes que adicionam marcadores visuais
+  inesperados como `€`, `¥` ou `￥` no inicio da fala.
 - Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
   MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de

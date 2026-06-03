@@ -47,11 +47,11 @@ def build_translation_prompt(
         "\\I[64], \\G, \\\\, \\., \\|, \\!, \\>, \\< e \\^.\n"
         "Preserve exatamente placeholders como %1, %2 e %3.\n"
         "Nao traduza, remova ou altere barras invertidas desses codigos.\n"
+        "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+        "nao existirem no texto original.\n"
         f"{_translation_profile_instructions(text_type)}"
-        "Traduza apenas o texto dentro de <text_to_translate>.\n"
-        "Traduza todo o texto atual, incluindo todas as linhas e frases.\n"
-        "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
-        "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
+        f"{_translation_completion_instructions(text_type)}"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
     )
 
@@ -67,7 +67,32 @@ def build_translation_retry_prompt(
         "Nao inclua instrucoes, explicacoes, chaves extras ou texto anterior.\n"
         "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3] e \\I[64].\n"
         "Preserve exatamente placeholders como %1, %2 e %3.\n"
+        "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+        "nao existirem no texto original.\n"
         f"{_translation_profile_instructions(text_type)}"
+        'Responda apenas JSON valido: {"translated_text": "..."}\n'
+        f"Texto:\n{text}"
+    )
+
+
+def build_compact_description_prompt(
+    text: str,
+    target_language: str = "pt-BR",
+) -> str:
+    return (
+        f"Traduza para {target_language} como descricao curta de UI de RPG.\n"
+        "Obrigatorio caber em ate duas linhas curtas de janela de ajuda.\n"
+        "Use no maximo 95 caracteres no total.\n"
+        "Preserve numeros, porcentagens, HP, MP, TP, nomes proprios, placeholders "
+        "como %1, %2, %3 e codigos RPG Maker como \\N[1], \\V[2], \\C[3], \\I[64].\n"
+        "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+        "nao existirem no texto original.\n"
+        "Corte floreios e explicacoes; mantenha apenas efeito, alvo, duracao e "
+        "restricoes importantes.\n"
+        "Exemplo de estilo: 'Dano sombrio em todos. Chance media de Slip.'\n"
+        "Nao escreva frase explicativa longa.\n"
         'Responda apenas JSON valido: {"translated_text": "..."}\n'
         f"Texto:\n{text}"
     )
@@ -118,7 +143,8 @@ def _translation_profile_instructions(
     if text_type in _DESCRIPTION_TYPES:
         return (
             "Perfil do texto: descricao de item, skill ou equipamento. Use texto curto, "
-            "claro e adequado para UI de RPG.\n"
+            "claro e adequado para UI de RPG. Escreva para caber em janela de ajuda "
+            "ou batalha: ate duas linhas curtas, sem explicacao longa.\n"
         )
     if text_type == RpgMakerTextType.SYSTEM_TERM:
         return (
@@ -133,4 +159,22 @@ def _translation_profile_instructions(
     return (
         "Perfil do texto: dialogo ou evento. Traduza de forma natural, completa e "
         "adequada ao tom da cena.\n"
+    )
+
+
+def _translation_completion_instructions(
+    text_type: RpgMakerTextType | None,
+) -> str:
+    if text_type in _DESCRIPTION_TYPES:
+        return (
+            "Traduza apenas o texto dentro de <text_to_translate>.\n"
+            "Compacte como descricao de UI: preserve efeito, alvo, numeros e "
+            "placeholders, mas corte floreios e explicacoes.\n"
+            "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
+        )
+    return (
+        "Traduza apenas o texto dentro de <text_to_translate>.\n"
+        "Traduza todo o texto atual, incluindo todas as linhas e frases.\n"
+        "Nao resuma. Nao omita frases. Nao traduza apenas o trecho mais recente.\n"
+        "Nao inclua falas anteriores. Nao inclua o contexto recente.\n"
     )

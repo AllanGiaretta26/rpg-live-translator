@@ -1,4 +1,5 @@
 from live_translator.infrastructure.translation.prompt_builder import (
+    build_compact_description_prompt,
     build_translation_prompt,
     build_vision_translation_prompt,
 )
@@ -56,6 +57,7 @@ def test_translation_prompt_requires_preserving_rpg_maker_escape_codes():
     assert r"\V[2]" in prompt
     assert "Preserve exatamente codigos RPG Maker" in prompt
     assert "barras invertidas" in prompt
+    assert "__LT_RPG_TOKEN_0__" in prompt
 
 
 def test_translation_prompt_includes_name_profile_for_catalog_names():
@@ -68,6 +70,37 @@ def test_translation_prompt_includes_name_profile_for_catalog_names():
 
     assert "Perfil do texto: nome de jogo" in prompt
     assert "sem frase longa" in prompt
+
+
+def test_translation_prompt_includes_description_fit_profile():
+    prompt = build_translation_prompt(
+        "Hits all enemies with a fast piercing strike.",
+        [],
+        "pt-BR",
+        text_type=RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+    assert "descricao de item, skill ou equipamento" in prompt
+    assert "janela de ajuda ou batalha" in prompt
+    assert "ate duas linhas curtas" in prompt
+    assert "Compacte como descricao de UI" in prompt
+    assert "Nao resuma" not in prompt
+
+
+def test_compact_description_prompt_preserves_ui_tokens():
+    prompt = build_compact_description_prompt(
+        "Restores 20% HP and TP.",
+        "pt-BR",
+    )
+
+    assert "ate duas linhas curtas" in prompt
+    assert "95 caracteres" in prompt
+    assert "Dano sombrio em todos" in prompt
+    assert "__LT_RPG_TOKEN_0__" in prompt
+    assert "HP" in prompt
+    assert "TP" in prompt
+    assert "%1" in prompt
+    assert r"\N[1]" in prompt
 
 
 def test_translation_prompt_includes_battle_placeholder_profile():

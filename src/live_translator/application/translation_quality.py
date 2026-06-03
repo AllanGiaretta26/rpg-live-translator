@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from collections import Counter
 import re
+import textwrap
 
 from live_translator.domain.models import RpgMakerTextType
+
+
+RPG_MAKER_DESCRIPTION_LINE_LIMIT = 52
+RPG_MAKER_DESCRIPTION_MAX_LINES = 2
 
 
 def _non_empty_line_count(text: str) -> int:
@@ -46,8 +51,14 @@ def looks_like_prompt_leak(translated_text: str) -> bool:
     return any(marker in normalized for marker in _PROMPT_LEAK_MARKERS)
 
 
-_RPG_MAKER_ESCAPE_PATTERN = re.compile(r"\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>\\]")
+_RPG_MAKER_ESCAPE_PATTERN = re.compile(r"\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]")
 _RPG_MAKER_PERCENT_PLACEHOLDER_PATTERN = re.compile(r"%\d+")
+_RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN = re.compile(
+    r"^(?P<prefix>(?:\\[{}$!.|^<>#\\])+)(?P<rest>.*)$",
+    flags=re.DOTALL,
+)
+_RPG_MAKER_TOKEN_PATTERN = re.compile(r"%\d+|\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]")
+_UNEXPECTED_LEADING_VISUAL_MARKERS = ("€", "¥", "￥")
 
 _NAME_OR_TERM_TYPES = frozenset(
     {
@@ -59,7 +70,6 @@ _NAME_OR_TERM_TYPES = frozenset(
         RpgMakerTextType.CLASS_NAME,
         RpgMakerTextType.ENEMY_NAME,
         RpgMakerTextType.ACTOR_NAME,
-        RpgMakerTextType.SYSTEM_TERM,
     }
 )
 _DESCRIPTION_TYPES = frozenset(
@@ -102,6 +112,97 @@ def missing_percent_placeholders(source_text: str, translated_text: str) -> bool
     return any(translated_codes[code] < count for code, count in source_codes.items())
 
 
+def restore_missing_leading_rpg_maker_escape_codes(
+    source_text: str,
+    translated_text: str,
+) -> str:
+    source_lines = source_text.splitlines()
+    translated_lines = translated_text.splitlines()
+    if source_lines and len(source_lines) == len(translated_lines):
+        return "\n".join(
+            _restore_missing_leading_rpg_maker_escape_codes_for_line(
+                source_line,
+                translated_line,
+            )
+            for source_line, translated_line in zip(
+                source_lines,
+                translated_lines,
+                strict=True,
+            )
+        )
+
+    return _restore_missing_leading_rpg_maker_escape_codes_for_line(
+        source_text,
+        translated_text,
+    )
+
+
+def _restore_missing_leading_rpg_maker_escape_codes_for_line(
+    source_line: str,
+    translated_line: str,
+) -> str:
+    source_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(source_line)
+    if source_match is None:
+        return translated_line
+
+    source_prefix = source_match.group("prefix")
+    translated_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(translated_line)
+    translated_rest = (
+        translated_match.group("rest")
+        if translated_match is not None
+        else translated_line
+    )
+    if translated_line.startswith(source_prefix):
+        return translated_line
+    return f"{source_prefix}{translated_rest.lstrip()}"
+
+
+def should_bypass_rpg_maker_translation(source_text: str) -> bool:
+    visible_text = _RPG_MAKER_TOKEN_PATTERN.sub("", source_text).strip()
+    if not visible_text:
+        return True
+    return not any(character.isalnum() for character in visible_text)
+
+
+def looks_like_non_translatable_expansion(
+    source_text: str,
+    translated_text: str,
+) -> bool:
+    if not should_bypass_rpg_maker_translation(source_text):
+        return False
+    return translated_text.strip() != source_text.strip()
+
+
+def adds_unexpected_leading_visual_marker(
+    source_text: str,
+    translated_text: str,
+) -> bool:
+    source_lines = source_text.splitlines()
+    translated_lines = translated_text.splitlines()
+    if not source_lines:
+        source_lines = [source_text]
+    if not translated_lines:
+        translated_lines = [translated_text]
+
+    for index, translated_line in enumerate(translated_lines):
+        source_line = source_lines[index] if index < len(source_lines) else ""
+        source_rest = _line_without_leading_rpg_maker_escape_codes(source_line)
+        translated_rest = _line_without_leading_rpg_maker_escape_codes(translated_line)
+        for marker in _UNEXPECTED_LEADING_VISUAL_MARKERS:
+            if translated_rest.startswith(marker) and not source_rest.startswith(
+                marker
+            ):
+                return True
+    return False
+
+
+def _line_without_leading_rpg_maker_escape_codes(line: str) -> str:
+    match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(line)
+    if match is None:
+        return line.lstrip()
+    return match.group("rest").lstrip()
+
+
 def looks_like_overlong_name_or_term(
     translated_text: str,
     text_type: RpgMakerTextType | None,
@@ -130,10 +231,26 @@ def looks_like_overlong_description(
         return False
 
     source_length = len(source_text.strip())
-    translated_length = len(translated_text.strip())
+    normalized = " ".join(translated_text.split())
+    translated_length = len(normalized)
     if source_length <= 0:
         return False
-    return translated_length > max(source_length * 3, source_length + 120)
+    if translated_length > max(source_length * 2, source_length + 80):
+        return True
+
+    wrapped_lines = textwrap.wrap(
+        normalized,
+        width=RPG_MAKER_DESCRIPTION_LINE_LIMIT,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    if len(wrapped_lines) > RPG_MAKER_DESCRIPTION_MAX_LINES:
+        return True
+
+    return any(
+        len(word) > RPG_MAKER_DESCRIPTION_LINE_LIMIT
+        for word in re.findall(r"\S+", normalized, flags=re.UNICODE)
+    )
 
 
 def looks_like_invalid_translation(
@@ -147,7 +264,9 @@ def looks_like_invalid_translation(
             source_text,
             translated_text,
         )
+        or looks_like_non_translatable_expansion(source_text, translated_text)
         or looks_like_prompt_leak(translated_text)
+        or adds_unexpected_leading_visual_marker(source_text, translated_text)
         or missing_rpg_maker_escape_codes(source_text, translated_text)
         or missing_percent_placeholders(source_text, translated_text)
         or looks_like_overlong_name_or_term(translated_text, text_type)

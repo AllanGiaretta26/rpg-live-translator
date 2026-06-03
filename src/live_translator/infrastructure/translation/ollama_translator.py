@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import re
 
 from live_translator.domain.interfaces import Translator
 from live_translator.domain.models import RpgMakerTextType, TranslationResult
@@ -12,10 +13,40 @@ from live_translator.application.translation_quality import (
     looks_like_prompt_leak,
     missing_rpg_maker_escape_codes,
     missing_percent_placeholders,
+    restore_missing_leading_rpg_maker_escape_codes,
 )
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
-from .prompt_builder import build_translation_prompt, build_translation_retry_prompt
+from .prompt_builder import (
+    build_compact_description_prompt,
+    build_translation_prompt,
+    build_translation_retry_prompt,
+)
+
+
+_DESCRIPTION_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+    }
+)
+_MASKABLE_RPG_MAKER_TOKEN_PATTERN = re.compile(
+    r"%\d+|\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _MaskedRpgMakerText:
+    text: str
+    replacements: tuple[tuple[str, str], ...]
+
+    def restore(self, text: str) -> str:
+        restored = text
+        for marker, original in self.replacements:
+            restored = restored.replace(marker, original)
+        return restored
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,19 +62,28 @@ class OllamaTranslator(Translator):
         *,
         text_type: RpgMakerTextType | None = None,
     ) -> TranslationResult:
-        prompts = (
+        masked_text = _mask_rpg_maker_tokens(text)
+        prompts = [
             build_translation_prompt(
-                text,
+                masked_text.text,
                 context,
                 self.target_language,
                 text_type=text_type,
             ),
             build_translation_retry_prompt(
-                text,
+                masked_text.text,
                 self.target_language,
                 text_type=text_type,
             ),
-        )
+        ]
+        if text_type in _DESCRIPTION_TYPES:
+            prompts.append(
+                build_compact_description_prompt(
+                    masked_text.text,
+                    self.target_language,
+                )
+            )
+
         last_error: OllamaInvalidResponseError | None = None
         for prompt in prompts:
             payload = self.client.generate(prompt)
@@ -52,6 +92,7 @@ class OllamaTranslator(Translator):
                     text,
                     payload,
                     text_type=text_type,
+                    masked_text=masked_text,
                 )
             except OllamaInvalidResponseError as error:
                 last_error = error
@@ -74,6 +115,7 @@ class OllamaTranslator(Translator):
         payload: dict[str, object],
         *,
         text_type: RpgMakerTextType | None,
+        masked_text: _MaskedRpgMakerText,
     ) -> str:
         translated_text = payload.get("translated_text")
         if not isinstance(translated_text, str):
@@ -82,6 +124,11 @@ class OllamaTranslator(Translator):
         translated_text = translated_text.strip()
         if not translated_text:
             raise OllamaInvalidResponseError("translated_text is empty")
+        translated_text = masked_text.restore(translated_text)
+        translated_text = restore_missing_leading_rpg_maker_escape_codes(
+            source_text,
+            translated_text,
+        )
         if looks_like_context_leak(source_text, translated_text):
             raise OllamaInvalidResponseError(
                 "translated_text appears to include context"
@@ -105,3 +152,15 @@ class OllamaTranslator(Translator):
                 "translated_text is too long for a description"
             )
         return translated_text
+
+
+def _mask_rpg_maker_tokens(text: str) -> _MaskedRpgMakerText:
+    replacements: list[tuple[str, str]] = []
+
+    def _replace(match: re.Match[str]) -> str:
+        marker = f"__LT_RPG_TOKEN_{len(replacements)}__"
+        replacements.append((marker, match.group(0)))
+        return marker
+
+    masked_text = _MASKABLE_RPG_MAKER_TOKEN_PATTERN.sub(_replace, text)
+    return _MaskedRpgMakerText(masked_text, tuple(replacements))

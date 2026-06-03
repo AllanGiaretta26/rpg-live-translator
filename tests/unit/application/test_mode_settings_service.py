@@ -450,6 +450,29 @@ def test_translate_catalog_entries_skips_cache_hits():
     assert translator.calls == ["Line 2"]
 
 
+def test_translate_catalog_entries_saves_punctuation_without_translator():
+    cache = FakeTranslationCache()
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(
+            [
+                _typed_entry(1, "...", RpgMakerTextType.MESSAGE),
+            ]
+        ),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.processed == 1
+    assert result.translated == 1
+    assert result.errors == 0
+    assert translator.calls == []
+    assert cache.saved == [TranslationResult(source_text="...", translated_text="...")]
+    assert cache.saved_scopes == [str(Path("C:/game"))]
+
+
 def test_translate_catalog_entries_can_be_cancelled():
     cache = FakeTranslationCache()
     translator = FakeTranslator()
@@ -609,6 +632,40 @@ def test_translate_catalog_entries_retranslates_contaminated_cache():
     assert cache.get_by_text("Line 1").translated_text == "pt:Line 1"
 
 
+def test_translate_catalog_entries_retranslates_overlong_skill_description_cache():
+    source_text = (
+        "A skill that tears through all enemies in a flash. Deals dark damage "
+        "to all enemies. Medium chance of inflicting Slip."
+    )
+    cache = FakeTranslationCache(
+        results={
+            source_text: TranslationResult(
+                source_text=source_text,
+                translated_text=(
+                    "Uma habilidade que atravessa todos os inimigos em um flash e "
+                    "causa dano sombrio a todos os inimigos, com chance media de "
+                    "infligir Slip e mais detalhes explicativos que nao cabem na UI."
+                ),
+            ),
+        }
+    )
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(
+            [_typed_entry(1, source_text, RpgMakerTextType.SKILL_DESCRIPTION)]
+        ),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.translated == 1
+    assert result.cache_hits == 0
+    assert translator.calls == [source_text]
+    assert cache.get_by_text(source_text).translated_text == f"pt:{source_text}"
+
+
 def test_translate_catalog_entries_waits_while_paused():
     translator = FakeTranslator()
     service = _service(catalog=FakeCatalog(_entries(2)), translator=translator)
@@ -728,3 +785,23 @@ def test_clear_contaminated_catalog_cache_keeps_other_project_scope():
     assert cache.deleted_scopes == [active_scope]
     assert cache.get_by_text("Line 1", scope=active_scope) is None
     assert cache.get_by_text("Line 1", scope=other_scope) is not None
+
+
+def test_clear_contaminated_catalog_cache_deletes_expanded_punctuation_text():
+    cache = FakeTranslationCache(
+        results={
+            "...": TranslationResult(
+                source_text="...",
+                translated_text="Eu nao sei quem voce e, mas me pediram para falar.",
+            ),
+        }
+    )
+    service = _service(
+        catalog=FakeCatalog([_typed_entry(1, "...", RpgMakerTextType.MESSAGE)]),
+        cache=cache,
+    )
+
+    deleted = service.clear_contaminated_catalog_cache()
+
+    assert deleted == 1
+    assert cache.deleted == ["..."]

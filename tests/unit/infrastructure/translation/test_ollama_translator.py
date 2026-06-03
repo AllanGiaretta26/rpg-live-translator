@@ -124,6 +124,75 @@ def test_translator_retries_when_translation_drops_rpg_maker_escape_code():
     assert len(client.prompts) == 2
 
 
+def test_translator_restores_missing_leading_rpg_maker_escape_code():
+    translator = OllamaTranslator(FakeClient({"translated_text": "Era uma vez,"}))
+
+    result = translator.translate(r"\{Once upon a time,", [])
+
+    assert result.translated_text == r"\{Era uma vez,"
+
+
+def test_translator_restores_missing_leading_rpg_maker_escape_code_per_line():
+    translator = OllamaTranslator(
+        FakeClient(
+            {
+                "translated_text": (
+                    "Menu desbloqueado\nA tela de menu agora esta acessivel."
+                )
+            }
+        )
+    )
+
+    result = translator.translate(
+        r"\#Menu Unlocked" "\n" r"\#The Menu screen is now accessible.",
+        [],
+    )
+
+    assert result.translated_text == (
+        r"\#Menu desbloqueado" "\n" r"\#A tela de menu agora esta acessivel."
+    )
+
+
+def test_translator_masks_midline_rpg_maker_escape_codes_in_prompt():
+    client = FakeClient(
+        {"translated_text": ("Tratar com plantas? __LT_RPG_TOKEN_0__ restantes.")}
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        r"Treat them with plants? \INUM[9] remaining.",
+        [],
+    )
+
+    assert result.translated_text == r"Tratar com plantas? \INUM[9] restantes."
+    assert r"\INUM[9]" not in client.prompt
+    assert "__LT_RPG_TOKEN_0__" in client.prompt
+
+
+def test_translator_restores_masked_escape_codes_and_percent_placeholders():
+    client = FakeClient(
+        {"translated_text": ("__LT_RPG_TOKEN_0__ sofreu __LT_RPG_TOKEN_1__ de dano!")}
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(r"\V[35] took %1 damage!", [])
+
+    assert result.translated_text == r"\V[35] sofreu %1 de dano!"
+    assert r"\V[35]" not in client.prompt
+    assert "took %1 damage" not in client.prompt
+
+
+def test_translator_masks_inline_wait_and_end_escape_codes():
+    client = FakeClient(
+        {"translated_text": "...__LT_RPG_TOKEN_0__Desculpe.__LT_RPG_TOKEN_1__"}
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(r"...\|I'm sorry.\^", [])
+
+    assert result.translated_text == r"...\|Desculpe.\^"
+
+
 def test_translator_rejects_missing_rpg_maker_escape_code_after_retry():
     translator = OllamaTranslator(
         FakeClient({"translated_text": "[1] encontrou um item."})
@@ -148,6 +217,60 @@ def test_translator_rejects_missing_percent_placeholder_after_retry():
             [],
             text_type=RpgMakerTextType.SKILL_MESSAGE,
         )
+
+
+def test_translator_retries_when_description_is_too_long_for_ui():
+    client = SequenceClient(
+        [
+            {
+                "translated_text": (
+                    "Uma habilidade que atravessa todos os inimigos em um flash e "
+                    "inflige dano magico continuo por varios turnos enquanto tambem "
+                    "reduz a defesa e a resistencia elemental de cada alvo atingido."
+                )
+            },
+            {"translated_text": "Atinge todos com um golpe rapido."},
+        ]
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        "Hits all enemies with a fast piercing strike.",
+        [],
+        text_type=RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+    assert result.translated_text == "Atinge todos com um golpe rapido."
+    assert len(client.prompts) == 2
+
+
+def test_translator_uses_compact_description_prompt_after_two_long_attempts():
+    long_translation = (
+        "Uma habilidade que atravessa todos os inimigos em um flash e "
+        "causa dano sombrio a todos os inimigos, com chance media de "
+        "infligir Slip e mais detalhes explicativos que nao cabem na UI."
+    )
+    client = SequenceClient(
+        [
+            {"translated_text": long_translation},
+            {"translated_text": long_translation},
+            {"translated_text": "Dano sombrio em todos. Chance media de Slip."},
+        ]
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        (
+            "A skill that tears through all enemies in a flash. Deals dark damage "
+            "to all enemies. Medium chance of inflicting Slip."
+        ),
+        [],
+        text_type=RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+    assert result.translated_text == "Dano sombrio em todos. Chance media de Slip."
+    assert len(client.prompts) == 3
+    assert "descricao curta de UI" in client.prompts[2]
 
 
 def test_translator_uses_text_type_profile_in_prompt():

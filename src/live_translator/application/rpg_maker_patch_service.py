@@ -11,6 +11,7 @@ import textwrap
 from typing import Any, Iterable
 
 from live_translator.application.translation_quality import (
+    RPG_MAKER_DESCRIPTION_LINE_LIMIT,
     looks_like_invalid_translation,
 )
 from live_translator.domain.interfaces import TranslationCache
@@ -314,7 +315,40 @@ _PATCHABLE_TEXT_TYPES = frozenset(
     }
 )
 
-MESSAGE_LINE_LIMIT = 44
+MESSAGE_LINE_LIMIT = 58
+MESSAGE_SHORT_LINE_REFLOW_LIMIT = 18
+MESSAGE_SENTENCE_TAIL_WORD_LIMIT = 5
+_DANGLING_LINE_END_WORDS = frozenset(
+    {
+        "a",
+        "as",
+        "com",
+        "da",
+        "das",
+        "de",
+        "do",
+        "dos",
+        "e",
+        "em",
+        "na",
+        "nas",
+        "no",
+        "nos",
+        "o",
+        "os",
+        "ou",
+        "para",
+        "por",
+        "se",
+        "sem",
+    }
+)
+_SENTENCE_TAIL_PATTERN = re.compile(r"^(?P<prefix>.*[.!?])\s+(?P<tail>\S.*)$")
+_LINE_END_WORD_PATTERN = re.compile(r"^(?P<prefix>.+)\s+(?P<word>\S+)$")
+_RPG_MAKER_LEADING_VISUAL_PREFIX_PATTERN = re.compile(
+    r"^(?P<prefix>(?:\\[{}$!.|^<>#\\])+)(?P<rest>.*)$",
+    flags=re.DOTALL,
+)
 
 
 def _entries_by_file(
@@ -360,6 +394,8 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             code=401,
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
+            line_limit=MESSAGE_LINE_LIMIT,
+            reflow_short_lines=True,
         )
     if entry.text_type in _SCROLLING_TEXT_TYPES:
         return _replace_grouped_commands(
@@ -368,6 +404,8 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             code=405,
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
+            line_limit=MESSAGE_LINE_LIMIT,
+            reflow_short_lines=False,
         )
     if entry.text_type in _CHOICE_TEXT_TYPES:
         return _replace_choice(command, entry, plan_entry.translated_text)
@@ -419,6 +457,14 @@ _SPEAKER_TEXT_TYPES = frozenset(
         RpgMakerTextType.TROOP_SPEAKER,
     }
 )
+_DESCRIPTION_TEXT_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+    }
+)
 
 
 def _replace_database_field(
@@ -442,9 +488,24 @@ def _replace_database_field(
             continue
         if item.get(field_name) != entry.source_text:
             return None
-        item[field_name] = translated_text
+        item[field_name] = _database_replacement_text(entry.text_type, translated_text)
         return True
     return None
+
+
+def _database_replacement_text(
+    text_type: RpgMakerTextType,
+    translated_text: str,
+) -> str:
+    if text_type not in _DESCRIPTION_TEXT_TYPES:
+        return translated_text
+    return "\n".join(
+        _wrapped_translation_lines(
+            translated_text,
+            width=RPG_MAKER_DESCRIPTION_LINE_LIMIT,
+            normalize_lines=True,
+        )
+    )
 
 
 def _database_id_matches(value: Any, database_id: int) -> bool:
@@ -582,6 +643,8 @@ def _replace_grouped_commands(
     code: int,
     source_text: str,
     translated_text: str,
+    line_limit: int,
+    reflow_short_lines: bool,
 ) -> bool | None:
     end_index = start_index
     source_lines: list[str] = []
@@ -605,9 +668,14 @@ def _replace_grouped_commands(
     if not isinstance(template, dict):
         return None
     indent = template.get("indent", 0)
+    translated_lines = _message_translation_lines(
+        translated_text,
+        width=line_limit,
+        reflow_short_lines=reflow_short_lines,
+    )
     replacement = [
         {"code": code, "indent": indent, "parameters": [line]}
-        for line in _wrapped_translation_lines(translated_text)
+        for line in translated_lines
     ]
     commands[start_index:end_index] = replacement
     return True
@@ -698,8 +766,17 @@ def _replace_parameter(
     return True
 
 
-def _wrapped_translation_lines(text: str) -> list[str]:
-    lines = text.splitlines()
+def _wrapped_translation_lines(
+    text: str,
+    *,
+    width: int,
+    normalize_lines: bool,
+    polish: bool = False,
+) -> list[str]:
+    if normalize_lines:
+        lines = [" ".join(text.split())]
+    else:
+        lines = text.splitlines()
     if not lines:
         return [text]
 
@@ -708,14 +785,155 @@ def _wrapped_translation_lines(text: str) -> list[str]:
         if not line:
             wrapped_lines.append(line)
             continue
-        wrapped = textwrap.wrap(
-            line,
-            width=MESSAGE_LINE_LIMIT,
-            break_long_words=False,
-            break_on_hyphens=False,
+        wrapped_lines.extend(
+            _wrapped_translation_line(
+                line,
+                width=width,
+                polish=polish,
+            )
         )
-        wrapped_lines.extend(wrapped or [line])
     return wrapped_lines
+
+
+def _wrapped_translation_line(
+    line: str,
+    *,
+    width: int,
+    polish: bool,
+) -> list[str]:
+    prefix, body = _split_leading_visual_prefix(line)
+    text_width = max(1, width - len(prefix))
+    wrapped = textwrap.wrap(
+        body if prefix else line,
+        width=text_width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    if polish:
+        wrapped = _polished_wrapped_lines(wrapped, width=text_width)
+    if not wrapped:
+        return [line]
+    if not prefix:
+        return wrapped
+    return [f"{prefix}{wrapped_line}" for wrapped_line in wrapped]
+
+
+def _split_leading_visual_prefix(line: str) -> tuple[str, str]:
+    match = _RPG_MAKER_LEADING_VISUAL_PREFIX_PATTERN.match(line)
+    if match is None:
+        return "", line
+    return match.group("prefix"), match.group("rest").lstrip()
+
+
+def _message_translation_lines(
+    text: str,
+    *,
+    width: int,
+    reflow_short_lines: bool,
+) -> list[str]:
+    if not reflow_short_lines or not _should_reflow_message_lines(text, width=width):
+        return _wrapped_translation_lines(
+            text,
+            width=width,
+            normalize_lines=False,
+            polish=True,
+        )
+    return _wrapped_translation_lines(
+        text,
+        width=width,
+        normalize_lines=True,
+        polish=True,
+    )
+
+
+def _should_reflow_message_lines(text: str, *, width: int) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 3:
+        return False
+    if any(_split_leading_visual_prefix(line)[0] for line in lines):
+        return False
+    if not any(len(line) <= MESSAGE_SHORT_LINE_REFLOW_LIMIT for line in lines[1:-1]):
+        return False
+    collapsed = _wrapped_translation_lines(
+        text,
+        width=width,
+        normalize_lines=True,
+        polish=True,
+    )
+    return len(collapsed) < len(lines)
+
+
+def _polished_wrapped_lines(lines: list[str], *, width: int) -> list[str]:
+    result = [line for line in lines if line]
+    if len(result) < 2:
+        return lines
+
+    changed = True
+    while changed:
+        changed = False
+        for index in range(len(result) - 1):
+            if _move_sentence_tail(result, index, width=width):
+                changed = True
+                continue
+            if _move_dangling_word(result, index, width=width):
+                changed = True
+    return result
+
+
+def _move_sentence_tail(lines: list[str], index: int, *, width: int) -> bool:
+    current = lines[index]
+    next_line = lines[index + 1]
+    match = _SENTENCE_TAIL_PATTERN.match(current)
+    if match is None:
+        return False
+
+    prefix = match.group("prefix")
+    tail = match.group("tail")
+    if len(prefix) < MESSAGE_SHORT_LINE_REFLOW_LIMIT:
+        return False
+    if tail[0] in ".!?":
+        return False
+    if _word_count(tail) > MESSAGE_SENTENCE_TAIL_WORD_LIMIT:
+        return False
+
+    candidate_next = f"{tail} {next_line}"
+    if len(candidate_next) > width:
+        return False
+
+    lines[index] = prefix
+    lines[index + 1] = candidate_next
+    return True
+
+
+def _move_dangling_word(lines: list[str], index: int, *, width: int) -> bool:
+    current = lines[index]
+    next_line = lines[index + 1]
+    match = _LINE_END_WORD_PATTERN.match(current)
+    if match is None:
+        return False
+
+    prefix = match.group("prefix")
+    word = match.group("word")
+    if len(prefix) < MESSAGE_SHORT_LINE_REFLOW_LIMIT:
+        return False
+    if _normalized_line_word(word) not in _DANGLING_LINE_END_WORDS:
+        return False
+
+    candidate_next = f"{word} {next_line}"
+    if len(candidate_next) > width:
+        return False
+
+    lines[index] = prefix
+    lines[index + 1] = candidate_next
+    return True
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\S+", text))
+
+
+def _normalized_line_word(word: str) -> str:
+    return word.strip(".,;:!?()[]{}\"'").casefold()
 
 
 def _event_by_id(events: Iterable[Any], event_id: int | None) -> Any | None:
