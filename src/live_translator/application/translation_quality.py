@@ -51,8 +51,12 @@ def looks_like_prompt_leak(translated_text: str) -> bool:
     return any(marker in normalized for marker in _PROMPT_LEAK_MARKERS)
 
 
-_RPG_MAKER_ESCAPE_PATTERN = re.compile(r"\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>\\]")
+_RPG_MAKER_ESCAPE_PATTERN = re.compile(r"\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]")
 _RPG_MAKER_PERCENT_PLACEHOLDER_PATTERN = re.compile(r"%\d+")
+_RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN = re.compile(
+    r"^(?P<prefix>(?:\\[{}$!.|^<>#\\])+)(?P<rest>.*)$",
+    flags=re.DOTALL,
+)
 
 _NAME_OR_TERM_TYPES = frozenset(
     {
@@ -64,7 +68,6 @@ _NAME_OR_TERM_TYPES = frozenset(
         RpgMakerTextType.CLASS_NAME,
         RpgMakerTextType.ENEMY_NAME,
         RpgMakerTextType.ACTOR_NAME,
-        RpgMakerTextType.SYSTEM_TERM,
     }
 )
 _DESCRIPTION_TYPES = frozenset(
@@ -105,6 +108,26 @@ def missing_percent_placeholders(source_text: str, translated_text: str) -> bool
         _RPG_MAKER_PERCENT_PLACEHOLDER_PATTERN.findall(translated_text)
     )
     return any(translated_codes[code] < count for code, count in source_codes.items())
+
+
+def restore_missing_leading_rpg_maker_escape_codes(
+    source_text: str,
+    translated_text: str,
+) -> str:
+    source_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(source_text)
+    if source_match is None:
+        return translated_text
+
+    source_prefix = source_match.group("prefix")
+    translated_match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(translated_text)
+    translated_rest = (
+        translated_match.group("rest")
+        if translated_match is not None
+        else translated_text
+    )
+    if translated_text.startswith(source_prefix):
+        return translated_text
+    return f"{source_prefix}{translated_rest.lstrip()}"
 
 
 def looks_like_overlong_name_or_term(

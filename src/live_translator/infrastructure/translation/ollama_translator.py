@@ -12,10 +12,25 @@ from live_translator.application.translation_quality import (
     looks_like_prompt_leak,
     missing_rpg_maker_escape_codes,
     missing_percent_placeholders,
+    restore_missing_leading_rpg_maker_escape_codes,
 )
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
-from .prompt_builder import build_translation_prompt, build_translation_retry_prompt
+from .prompt_builder import (
+    build_compact_description_prompt,
+    build_translation_prompt,
+    build_translation_retry_prompt,
+)
+
+
+_DESCRIPTION_TYPES = frozenset(
+    {
+        RpgMakerTextType.ITEM_DESCRIPTION,
+        RpgMakerTextType.SKILL_DESCRIPTION,
+        RpgMakerTextType.WEAPON_DESCRIPTION,
+        RpgMakerTextType.ARMOR_DESCRIPTION,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +46,7 @@ class OllamaTranslator(Translator):
         *,
         text_type: RpgMakerTextType | None = None,
     ) -> TranslationResult:
-        prompts = (
+        prompts = [
             build_translation_prompt(
                 text,
                 context,
@@ -43,7 +58,10 @@ class OllamaTranslator(Translator):
                 self.target_language,
                 text_type=text_type,
             ),
-        )
+        ]
+        if text_type in _DESCRIPTION_TYPES:
+            prompts.append(build_compact_description_prompt(text, self.target_language))
+
         last_error: OllamaInvalidResponseError | None = None
         for prompt in prompts:
             payload = self.client.generate(prompt)
@@ -82,6 +100,10 @@ class OllamaTranslator(Translator):
         translated_text = translated_text.strip()
         if not translated_text:
             raise OllamaInvalidResponseError("translated_text is empty")
+        translated_text = restore_missing_leading_rpg_maker_escape_codes(
+            source_text,
+            translated_text,
+        )
         if looks_like_context_leak(source_text, translated_text):
             raise OllamaInvalidResponseError(
                 "translated_text appears to include context"

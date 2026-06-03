@@ -88,6 +88,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   usam prompt compacto de UI, evitando conflito com instrucao de nao resumir.
 - Patch MV/MZ agora evita deixar inicio de frase ou conectivo curto pendurado no
   fim de linhas de dialogo.
+- Lote MV/MZ agora repara prefixos visuais simples como `\{` quando o modelo
+  traduz a fala mas perde o codigo, e usa tentativa compacta extra para
+  descricoes longas.
 - Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
   MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de

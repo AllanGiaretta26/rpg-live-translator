@@ -4,6 +4,7 @@ from live_translator.application.translation_quality import (
     looks_like_overlong_name_or_term,
     missing_rpg_maker_escape_codes,
     missing_percent_placeholders,
+    restore_missing_leading_rpg_maker_escape_codes,
 )
 from live_translator.domain.models import RpgMakerTextType
 
@@ -16,6 +17,16 @@ def test_missing_rpg_maker_escape_codes_accepts_preserved_codes():
     assert not missing_rpg_maker_escape_codes(
         r"\N[1] found \I[64].",
         r"\N[1] encontrou \I[64].",
+    )
+
+
+def test_restore_missing_leading_rpg_maker_escape_codes_reapplies_text_prefix():
+    assert (
+        restore_missing_leading_rpg_maker_escape_codes(
+            r"\{\{Once upon a time,",
+            "Era uma vez,",
+        )
+        == r"\{\{Era uma vez,"
     )
 
 
@@ -39,6 +50,13 @@ def test_overlong_name_or_term_rejects_sentence_like_name_translation():
     assert looks_like_overlong_name_or_term(
         "Uma pocao que restaura pontos de vida.",
         RpgMakerTextType.ITEM_NAME,
+    )
+
+
+def test_overlong_name_or_term_does_not_reject_system_battle_message():
+    assert not looks_like_overlong_name_or_term(
+        "%1 recebeu %2 de dano!",
+        RpgMakerTextType.SYSTEM_TERM,
     )
 
 

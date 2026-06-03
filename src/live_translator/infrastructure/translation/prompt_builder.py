@@ -70,6 +70,22 @@ def build_translation_retry_prompt(
     )
 
 
+def build_compact_description_prompt(
+    text: str,
+    target_language: str = "pt-BR",
+) -> str:
+    return (
+        f"Traduza para {target_language} como descricao curta de UI de RPG.\n"
+        "Obrigatorio caber em ate duas linhas curtas de janela de ajuda.\n"
+        "Preserve numeros, porcentagens, HP, MP, TP, nomes proprios, placeholders "
+        "como %1, %2, %3 e codigos RPG Maker como \\N[1], \\V[2], \\C[3], \\I[64].\n"
+        "Corte floreios e explicacoes; mantenha apenas efeito, alvo, duracao e "
+        "restricoes importantes.\n"
+        'Responda apenas JSON valido: {"translated_text": "..."}\n'
+        f"Texto:\n{text}"
+    )
+
+
 _NAME_TYPES = frozenset(
     {
         RpgMakerTextType.ITEM_NAME,

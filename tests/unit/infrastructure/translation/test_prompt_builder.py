@@ -1,4 +1,5 @@
 from live_translator.infrastructure.translation.prompt_builder import (
+    build_compact_description_prompt,
     build_translation_prompt,
     build_vision_translation_prompt,
 )
@@ -83,6 +84,19 @@ def test_translation_prompt_includes_description_fit_profile():
     assert "ate duas linhas curtas" in prompt
     assert "Compacte como descricao de UI" in prompt
     assert "Nao resuma" not in prompt
+
+
+def test_compact_description_prompt_preserves_ui_tokens():
+    prompt = build_compact_description_prompt(
+        "Restores 20% HP and TP.",
+        "pt-BR",
+    )
+
+    assert "ate duas linhas curtas" in prompt
+    assert "HP" in prompt
+    assert "TP" in prompt
+    assert "%1" in prompt
+    assert r"\N[1]" in prompt
 
 
 def test_translation_prompt_includes_battle_placeholder_profile():

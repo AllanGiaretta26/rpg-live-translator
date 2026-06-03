@@ -124,6 +124,14 @@ def test_translator_retries_when_translation_drops_rpg_maker_escape_code():
     assert len(client.prompts) == 2
 
 
+def test_translator_restores_missing_leading_rpg_maker_escape_code():
+    translator = OllamaTranslator(FakeClient({"translated_text": "Era uma vez,"}))
+
+    result = translator.translate(r"\{Once upon a time,", [])
+
+    assert result.translated_text == r"\{Era uma vez,"
+
+
 def test_translator_rejects_missing_rpg_maker_escape_code_after_retry():
     translator = OllamaTranslator(
         FakeClient({"translated_text": "[1] encontrou um item."})
@@ -173,6 +181,35 @@ def test_translator_retries_when_description_is_too_long_for_ui():
 
     assert result.translated_text == "Atinge todos com um golpe rapido."
     assert len(client.prompts) == 2
+
+
+def test_translator_uses_compact_description_prompt_after_two_long_attempts():
+    long_translation = (
+        "Uma habilidade que atravessa todos os inimigos em um flash e "
+        "causa dano sombrio a todos os inimigos, com chance media de "
+        "infligir Slip e mais detalhes explicativos que nao cabem na UI."
+    )
+    client = SequenceClient(
+        [
+            {"translated_text": long_translation},
+            {"translated_text": long_translation},
+            {"translated_text": "Dano sombrio em todos. Chance media de Slip."},
+        ]
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        (
+            "A skill that tears through all enemies in a flash. Deals dark damage "
+            "to all enemies. Medium chance of inflicting Slip."
+        ),
+        [],
+        text_type=RpgMakerTextType.SKILL_DESCRIPTION,
+    )
+
+    assert result.translated_text == "Dano sombrio em todos. Chance media de Slip."
+    assert len(client.prompts) == 3
+    assert "descricao curta de UI" in client.prompts[2]
 
 
 def test_translator_uses_text_type_profile_in_prompt():
