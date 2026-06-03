@@ -86,6 +86,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   ajuda/batalha.
 - Traducoes em lote de descricoes MV/MZ agora aceitam ate duas linhas curtas e
   usam prompt compacto de UI, evitando conflito com instrucao de nao resumir.
+- Patch MV/MZ agora evita deixar inicio de frase ou conectivo curto pendurado no
+  fim de linhas de dialogo.
 - Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
   MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de

@@ -609,6 +609,40 @@ def test_translate_catalog_entries_retranslates_contaminated_cache():
     assert cache.get_by_text("Line 1").translated_text == "pt:Line 1"
 
 
+def test_translate_catalog_entries_retranslates_overlong_skill_description_cache():
+    source_text = (
+        "A skill that tears through all enemies in a flash. Deals dark damage "
+        "to all enemies. Medium chance of inflicting Slip."
+    )
+    cache = FakeTranslationCache(
+        results={
+            source_text: TranslationResult(
+                source_text=source_text,
+                translated_text=(
+                    "Uma habilidade que atravessa todos os inimigos em um flash e "
+                    "causa dano sombrio a todos os inimigos, com chance media de "
+                    "infligir Slip e mais detalhes explicativos que nao cabem na UI."
+                ),
+            ),
+        }
+    )
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(
+            [_typed_entry(1, source_text, RpgMakerTextType.SKILL_DESCRIPTION)]
+        ),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.translated == 1
+    assert result.cache_hits == 0
+    assert translator.calls == [source_text]
+    assert cache.get_by_text(source_text).translated_text == f"pt:{source_text}"
+
+
 def test_translate_catalog_entries_waits_while_paused():
     translator = FakeTranslator()
     service = _service(catalog=FakeCatalog(_entries(2)), translator=translator)

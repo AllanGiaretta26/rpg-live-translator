@@ -317,6 +317,34 @@ _PATCHABLE_TEXT_TYPES = frozenset(
 
 MESSAGE_LINE_LIMIT = 58
 MESSAGE_SHORT_LINE_REFLOW_LIMIT = 18
+MESSAGE_SENTENCE_TAIL_WORD_LIMIT = 5
+_DANGLING_LINE_END_WORDS = frozenset(
+    {
+        "a",
+        "as",
+        "com",
+        "da",
+        "das",
+        "de",
+        "do",
+        "dos",
+        "e",
+        "em",
+        "na",
+        "nas",
+        "no",
+        "nos",
+        "o",
+        "os",
+        "ou",
+        "para",
+        "por",
+        "se",
+        "sem",
+    }
+)
+_SENTENCE_TAIL_PATTERN = re.compile(r"^(?P<prefix>.*[.!?])\s+(?P<tail>\S.*)$")
+_LINE_END_WORD_PATTERN = re.compile(r"^(?P<prefix>.+)\s+(?P<word>\S+)$")
 
 
 def _entries_by_file(
@@ -739,6 +767,7 @@ def _wrapped_translation_lines(
     *,
     width: int,
     normalize_lines: bool,
+    polish: bool = False,
 ) -> list[str]:
     if normalize_lines:
         lines = [" ".join(text.split())]
@@ -758,6 +787,8 @@ def _wrapped_translation_lines(
             break_long_words=False,
             break_on_hyphens=False,
         )
+        if polish:
+            wrapped = _polished_wrapped_lines(wrapped, width=width)
         wrapped_lines.extend(wrapped or [line])
     return wrapped_lines
 
@@ -773,11 +804,13 @@ def _message_translation_lines(
             text,
             width=width,
             normalize_lines=False,
+            polish=True,
         )
     return _wrapped_translation_lines(
         text,
         width=width,
         normalize_lines=True,
+        polish=True,
     )
 
 
@@ -787,8 +820,86 @@ def _should_reflow_message_lines(text: str, *, width: int) -> bool:
         return False
     if not any(len(line) <= MESSAGE_SHORT_LINE_REFLOW_LIMIT for line in lines[1:-1]):
         return False
-    collapsed = _wrapped_translation_lines(text, width=width, normalize_lines=True)
+    collapsed = _wrapped_translation_lines(
+        text,
+        width=width,
+        normalize_lines=True,
+        polish=True,
+    )
     return len(collapsed) < len(lines)
+
+
+def _polished_wrapped_lines(lines: list[str], *, width: int) -> list[str]:
+    result = [line for line in lines if line]
+    if len(result) < 2:
+        return lines
+
+    changed = True
+    while changed:
+        changed = False
+        for index in range(len(result) - 1):
+            if _move_sentence_tail(result, index, width=width):
+                changed = True
+                continue
+            if _move_dangling_word(result, index, width=width):
+                changed = True
+    return result
+
+
+def _move_sentence_tail(lines: list[str], index: int, *, width: int) -> bool:
+    current = lines[index]
+    next_line = lines[index + 1]
+    match = _SENTENCE_TAIL_PATTERN.match(current)
+    if match is None:
+        return False
+
+    prefix = match.group("prefix")
+    tail = match.group("tail")
+    if len(prefix) < MESSAGE_SHORT_LINE_REFLOW_LIMIT:
+        return False
+    if tail[0] in ".!?":
+        return False
+    if _word_count(tail) > MESSAGE_SENTENCE_TAIL_WORD_LIMIT:
+        return False
+
+    candidate_next = f"{tail} {next_line}"
+    if len(candidate_next) > width:
+        return False
+
+    lines[index] = prefix
+    lines[index + 1] = candidate_next
+    return True
+
+
+def _move_dangling_word(lines: list[str], index: int, *, width: int) -> bool:
+    current = lines[index]
+    next_line = lines[index + 1]
+    match = _LINE_END_WORD_PATTERN.match(current)
+    if match is None:
+        return False
+
+    prefix = match.group("prefix")
+    word = match.group("word")
+    if len(prefix) < MESSAGE_SHORT_LINE_REFLOW_LIMIT:
+        return False
+    if _normalized_line_word(word) not in _DANGLING_LINE_END_WORDS:
+        return False
+
+    candidate_next = f"{word} {next_line}"
+    if len(candidate_next) > width:
+        return False
+
+    lines[index] = prefix
+    lines[index + 1] = candidate_next
+    return True
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\S+", text))
+
+
+def _normalized_line_word(word: str) -> str:
+    return word.strip(".,;:!?()[]{}\"'").casefold()
 
 
 def _event_by_id(events: Iterable[Any], event_id: int | None) -> Any | None:

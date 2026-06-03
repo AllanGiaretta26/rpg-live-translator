@@ -887,8 +887,99 @@ def test_export_patch_breaks_message_before_rpg_maker_forced_wrap(tmp_path):
     lines = [command["parameters"][0] for command in commands]
     assert lines == [
         "Antes de invadirmos Bohelos, enviamos alguns embaixadores",
-        "para o Imperio. Um foi decapitado na hora, enquanto o",
-        "outro foi devolvido",
+        "para o Imperio. Um foi decapitado na hora, enquanto",
+        "o outro foi devolvido",
+    ]
+    assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_keeps_sentence_start_with_next_message_line(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    translated = (
+        "A garota e responsavel por cuidar dos assuntos humanos. Se e isso que ela "
+        "quer fazer, entao eu nao tenho objecoes."
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache({"Hello": translated}),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [command["parameters"][0] for command in commands]
+    assert lines == [
+        "A garota e responsavel por cuidar dos assuntos humanos.",
+        "Se e isso que ela quer fazer, entao eu nao tenho objecoes.",
+    ]
+    assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_breaks_npc_message_at_sentence_boundary(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    translated = (
+        "Cavaleiro Escravo:\n"
+        "Por favor! Por favor, le-! ...Ha? Voce derrotou o Rei de Shingana?"
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache({"Hello": translated}),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [command["parameters"][0] for command in commands]
+    assert lines == [
+        "Cavaleiro Escravo:",
+        "Por favor! Por favor, le-! ...Ha?",
+        "Voce derrotou o Rei de Shingana?",
     ]
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
