@@ -11,6 +11,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   destaque (`Salvar`, `Importar`, `Traduzir`, `Gerar patch`).
 - Relatorio V12 com fechamento do suporte inicial a database MV/MZ no catalogo
   e no patch.
+- Relatorio V13 com fechamento das correcoes de qualidade para lote/cache e
+  quebra visual do patch MV/MZ.
 - Catalogacao e patch MV/MZ para `Weapons.json`, `Armors.json`, `States.json`,
   `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
 - Catalogacao e patch MV/MZ para cenas custom em `Scenario.json`, incluindo
@@ -95,6 +97,12 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   compacto de descricoes passou a limitar tamanho total.
 - Lote MV/MZ agora mascara codigos RPG Maker e placeholders antes de chamar o
   modelo, restaurando os valores originais depois da traducao.
+- Lote MV/MZ agora trata textos so de pontuacao/controle, como `...`, como
+  passthrough e rejeita caches que expandem esse texto para falas inventadas.
+- Patch MV/MZ agora preserva prefixos visuais simples como `\#` em cada linha
+  criada pela quebra automatica.
+- Validacao MV/MZ agora rejeita traducoes que adicionam marcadores visuais
+  inesperados como `€`, `¥` ou `￥` no inicio da fala.
 - Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
   MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de

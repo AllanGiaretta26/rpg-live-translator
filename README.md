@@ -237,6 +237,11 @@ lote tenta traduzir novamente e sobrescrever o cache. O status final mostra
 processados, traduzidos, cache hits, erros, tempo total e media por traducao
 real.
 
+Textos que contem apenas pontuacao ou controle, como `...`, sao mantidos como
+estao e nao sao enviados ao modelo. Se um cache antigo expandiu esse tipo de
+texto para uma fala inventada, `Limpar cache contaminado` remove a entrada e o
+proximo lote salva o passthrough correto.
+
 ### Patch de traducao MV/MZ
 
 A area `Patch de traducao` gera arquivos JSON traduzidos para resolver partes
@@ -294,6 +299,10 @@ traducao cacheada perder esses codigos, ela e tratada como invalida. Se o texto
 original nao bater mais com o JSON do jogo, a entrada e pulada.
 Textos sem cache ou com traducao contaminada tambem sao pulados e aparecem no
 relatorio:
+
+Ao quebrar linhas, o patch preserva prefixos visuais simples como `\#` nas
+continuacoes geradas. Traducoes que adicionam simbolos inesperados como `€`,
+`¥` ou `￥` no inicio da fala sao tratadas como invalidas para reprocessamento.
 
 ```txt
 live-translator-patch-report.json

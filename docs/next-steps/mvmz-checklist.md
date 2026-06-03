@@ -61,11 +61,17 @@
 - [x] Preservar codigos RPG Maker como `\N[1]` durante traducao/cache/patch.
 - [x] Preservar placeholders de batalha como `%1`, `%2` e `%3`.
 - [x] Quebrar linhas longas de mensagens ao gerar patch.
+- [x] Preservar prefixos visuais como `\#` em continuacoes geradas pela quebra
+  automatica do patch.
+- [x] Evitar que textos so de pontuacao/controle, como `...`, sejam enviados ao
+  modelo e virem falas inventadas.
+- [x] Rejeitar marcadores visuais inesperados como `€`, `¥` e `￥` quando nao
+  existem no texto original.
 - [x] Expandir catalogo e patch para `Weapons.json`, `Armors.json` e `States.json`.
 - [x] Expandir catalogo e patch para `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
 - [x] Expandir catalogo e patch para cenas custom em `Scenario.json`.
 - [x] Usar prompts por tipo de texto para nomes, descricoes, termos e mensagens de batalha.
-- [ ] Documentar riscos de patch em jogos com plugins customizados.
+- [x] Documentar riscos de patch em jogos com plugins customizados.
 
 ## Validacao antes de merge
 
