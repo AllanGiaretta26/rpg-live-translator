@@ -803,6 +803,63 @@ def test_export_patch_wraps_long_message_lines(tmp_path):
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
 
+def test_export_patch_repeats_visual_prefix_on_wrapped_message_lines(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {
+                                    "code": 401,
+                                    "indent": 0,
+                                    "parameters": [r"\#The Empire manipulated people."],
+                                },
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    translated = (
+        r"\#O Imperio manipulava livremente pessoas, paises e leis "
+        "por todo o continente."
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache(
+            {
+                r"\#The Empire manipulated people.": translated,
+            }
+        ),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[
+            _entry(
+                r"\#The Empire manipulated people.",
+                RpgMakerTextType.MESSAGE,
+                0,
+            )
+        ],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [command["parameters"][0] for command in commands]
+    assert len(lines) > 1
+    assert all(line.startswith(r"\#") for line in lines)
+    assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
 def test_export_patch_reflows_cached_message_line_breaks(tmp_path):
     project = _project(tmp_path)
     _write_json(

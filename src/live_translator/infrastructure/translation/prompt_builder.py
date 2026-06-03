@@ -48,6 +48,8 @@ def build_translation_prompt(
         "Preserve exatamente placeholders como %1, %2 e %3.\n"
         "Nao traduza, remova ou altere barras invertidas desses codigos.\n"
         "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+        "nao existirem no texto original.\n"
         f"{_translation_profile_instructions(text_type)}"
         f"{_translation_completion_instructions(text_type)}"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
@@ -66,6 +68,8 @@ def build_translation_retry_prompt(
         "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3] e \\I[64].\n"
         "Preserve exatamente placeholders como %1, %2 e %3.\n"
         "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+        "nao existirem no texto original.\n"
         f"{_translation_profile_instructions(text_type)}"
         'Responda apenas JSON valido: {"translated_text": "..."}\n'
         f"Texto:\n{text}"
@@ -83,6 +87,8 @@ def build_compact_description_prompt(
         "Preserve numeros, porcentagens, HP, MP, TP, nomes proprios, placeholders "
         "como %1, %2, %3 e codigos RPG Maker como \\N[1], \\V[2], \\C[3], \\I[64].\n"
         "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+        "nao existirem no texto original.\n"
         "Corte floreios e explicacoes; mantenha apenas efeito, alvo, duracao e "
         "restricoes importantes.\n"
         "Exemplo de estilo: 'Dano sombrio em todos. Chance media de Slip.'\n"

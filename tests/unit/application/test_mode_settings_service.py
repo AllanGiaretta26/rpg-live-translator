@@ -450,6 +450,29 @@ def test_translate_catalog_entries_skips_cache_hits():
     assert translator.calls == ["Line 2"]
 
 
+def test_translate_catalog_entries_saves_punctuation_without_translator():
+    cache = FakeTranslationCache()
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(
+            [
+                _typed_entry(1, "...", RpgMakerTextType.MESSAGE),
+            ]
+        ),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert result.processed == 1
+    assert result.translated == 1
+    assert result.errors == 0
+    assert translator.calls == []
+    assert cache.saved == [TranslationResult(source_text="...", translated_text="...")]
+    assert cache.saved_scopes == [str(Path("C:/game"))]
+
+
 def test_translate_catalog_entries_can_be_cancelled():
     cache = FakeTranslationCache()
     translator = FakeTranslator()
@@ -762,3 +785,23 @@ def test_clear_contaminated_catalog_cache_keeps_other_project_scope():
     assert cache.deleted_scopes == [active_scope]
     assert cache.get_by_text("Line 1", scope=active_scope) is None
     assert cache.get_by_text("Line 1", scope=other_scope) is not None
+
+
+def test_clear_contaminated_catalog_cache_deletes_expanded_punctuation_text():
+    cache = FakeTranslationCache(
+        results={
+            "...": TranslationResult(
+                source_text="...",
+                translated_text="Eu nao sei quem voce e, mas me pediram para falar.",
+            ),
+        }
+    )
+    service = _service(
+        catalog=FakeCatalog([_typed_entry(1, "...", RpgMakerTextType.MESSAGE)]),
+        cache=cache,
+    )
+
+    deleted = service.clear_contaminated_catalog_cache()
+
+    assert deleted == 1
+    assert cache.deleted == ["..."]

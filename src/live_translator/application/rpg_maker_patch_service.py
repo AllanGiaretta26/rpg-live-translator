@@ -345,6 +345,10 @@ _DANGLING_LINE_END_WORDS = frozenset(
 )
 _SENTENCE_TAIL_PATTERN = re.compile(r"^(?P<prefix>.*[.!?])\s+(?P<tail>\S.*)$")
 _LINE_END_WORD_PATTERN = re.compile(r"^(?P<prefix>.+)\s+(?P<word>\S+)$")
+_RPG_MAKER_LEADING_VISUAL_PREFIX_PATTERN = re.compile(
+    r"^(?P<prefix>(?:\\[{}$!.|^<>#\\])+)(?P<rest>.*)$",
+    flags=re.DOTALL,
+)
 
 
 def _entries_by_file(
@@ -781,16 +785,44 @@ def _wrapped_translation_lines(
         if not line:
             wrapped_lines.append(line)
             continue
-        wrapped = textwrap.wrap(
-            line,
-            width=width,
-            break_long_words=False,
-            break_on_hyphens=False,
+        wrapped_lines.extend(
+            _wrapped_translation_line(
+                line,
+                width=width,
+                polish=polish,
+            )
         )
-        if polish:
-            wrapped = _polished_wrapped_lines(wrapped, width=width)
-        wrapped_lines.extend(wrapped or [line])
     return wrapped_lines
+
+
+def _wrapped_translation_line(
+    line: str,
+    *,
+    width: int,
+    polish: bool,
+) -> list[str]:
+    prefix, body = _split_leading_visual_prefix(line)
+    text_width = max(1, width - len(prefix))
+    wrapped = textwrap.wrap(
+        body if prefix else line,
+        width=text_width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    if polish:
+        wrapped = _polished_wrapped_lines(wrapped, width=text_width)
+    if not wrapped:
+        return [line]
+    if not prefix:
+        return wrapped
+    return [f"{prefix}{wrapped_line}" for wrapped_line in wrapped]
+
+
+def _split_leading_visual_prefix(line: str) -> tuple[str, str]:
+    match = _RPG_MAKER_LEADING_VISUAL_PREFIX_PATTERN.match(line)
+    if match is None:
+        return "", line
+    return match.group("prefix"), match.group("rest").lstrip()
 
 
 def _message_translation_lines(
@@ -817,6 +849,8 @@ def _message_translation_lines(
 def _should_reflow_message_lines(text: str, *, width: int) -> bool:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if len(lines) < 3:
+        return False
+    if any(_split_leading_visual_prefix(line)[0] for line in lines):
         return False
     if not any(len(line) <= MESSAGE_SHORT_LINE_REFLOW_LIMIT for line in lines[1:-1]):
         return False

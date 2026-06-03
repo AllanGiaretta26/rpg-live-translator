@@ -1,10 +1,12 @@
 from live_translator.application.translation_quality import (
+    adds_unexpected_leading_visual_marker,
     looks_like_invalid_translation,
     looks_like_overlong_description,
     looks_like_overlong_name_or_term,
     missing_rpg_maker_escape_codes,
     missing_percent_placeholders,
     restore_missing_leading_rpg_maker_escape_codes,
+    should_bypass_rpg_maker_translation,
 )
 from live_translator.domain.models import RpgMakerTextType
 
@@ -44,6 +46,34 @@ def test_restore_missing_leading_rpg_maker_escape_codes_reapplies_each_line_pref
 
 def test_invalid_translation_includes_missing_rpg_maker_escape_codes():
     assert looks_like_invalid_translation(r"\N[1] found an item.", "[1] achou item.")
+
+
+def test_punctuation_only_rpg_maker_text_bypasses_translation():
+    assert should_bypass_rpg_maker_translation("...")
+    assert should_bypass_rpg_maker_translation(r"\#...")
+    assert not should_bypass_rpg_maker_translation(
+        r"\#The Empire manipulated countries and laws."
+    )
+
+
+def test_invalid_translation_rejects_expanded_punctuation_only_text():
+    assert looks_like_invalid_translation(
+        "...",
+        "Eu nao sei quem voce e, mas me pediram para falar.",
+        text_type=RpgMakerTextType.MESSAGE,
+    )
+
+
+def test_invalid_translation_rejects_added_leading_visual_marker():
+    assert adds_unexpected_leading_visual_marker(
+        r"\#The Empire manipulated countries and laws.",
+        r"\#€O Imperio manipulava paises e leis.",
+    )
+    assert looks_like_invalid_translation(
+        r"\#The Empire manipulated countries and laws.",
+        r"\#€O Imperio manipulava paises e leis.",
+        text_type=RpgMakerTextType.MESSAGE,
+    )
 
 
 def test_missing_percent_placeholders_detects_removed_battle_placeholder():

@@ -57,6 +57,8 @@ _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN = re.compile(
     r"^(?P<prefix>(?:\\[{}$!.|^<>#\\])+)(?P<rest>.*)$",
     flags=re.DOTALL,
 )
+_RPG_MAKER_TOKEN_PATTERN = re.compile(r"%\d+|\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]")
+_UNEXPECTED_LEADING_VISUAL_MARKERS = ("€", "¥", "￥")
 
 _NAME_OR_TERM_TYPES = frozenset(
     {
@@ -155,6 +157,52 @@ def _restore_missing_leading_rpg_maker_escape_codes_for_line(
     return f"{source_prefix}{translated_rest.lstrip()}"
 
 
+def should_bypass_rpg_maker_translation(source_text: str) -> bool:
+    visible_text = _RPG_MAKER_TOKEN_PATTERN.sub("", source_text).strip()
+    if not visible_text:
+        return True
+    return not any(character.isalnum() for character in visible_text)
+
+
+def looks_like_non_translatable_expansion(
+    source_text: str,
+    translated_text: str,
+) -> bool:
+    if not should_bypass_rpg_maker_translation(source_text):
+        return False
+    return translated_text.strip() != source_text.strip()
+
+
+def adds_unexpected_leading_visual_marker(
+    source_text: str,
+    translated_text: str,
+) -> bool:
+    source_lines = source_text.splitlines()
+    translated_lines = translated_text.splitlines()
+    if not source_lines:
+        source_lines = [source_text]
+    if not translated_lines:
+        translated_lines = [translated_text]
+
+    for index, translated_line in enumerate(translated_lines):
+        source_line = source_lines[index] if index < len(source_lines) else ""
+        source_rest = _line_without_leading_rpg_maker_escape_codes(source_line)
+        translated_rest = _line_without_leading_rpg_maker_escape_codes(translated_line)
+        for marker in _UNEXPECTED_LEADING_VISUAL_MARKERS:
+            if translated_rest.startswith(marker) and not source_rest.startswith(
+                marker
+            ):
+                return True
+    return False
+
+
+def _line_without_leading_rpg_maker_escape_codes(line: str) -> str:
+    match = _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN.match(line)
+    if match is None:
+        return line.lstrip()
+    return match.group("rest").lstrip()
+
+
 def looks_like_overlong_name_or_term(
     translated_text: str,
     text_type: RpgMakerTextType | None,
@@ -216,7 +264,9 @@ def looks_like_invalid_translation(
             source_text,
             translated_text,
         )
+        or looks_like_non_translatable_expansion(source_text, translated_text)
         or looks_like_prompt_leak(translated_text)
+        or adds_unexpected_leading_visual_marker(source_text, translated_text)
         or missing_rpg_maker_escape_codes(source_text, translated_text)
         or missing_percent_placeholders(source_text, translated_text)
         or looks_like_overlong_name_or_term(translated_text, text_type)

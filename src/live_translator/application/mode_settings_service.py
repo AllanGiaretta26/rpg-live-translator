@@ -24,7 +24,10 @@ from live_translator.domain.models import (
     TranslationResult,
 )
 
-from .translation_quality import looks_like_invalid_translation
+from .translation_quality import (
+    looks_like_invalid_translation,
+    should_bypass_rpg_maker_translation,
+)
 from .rpg_maker_patch_service import (
     RpgMakerPatchApplyResult,
     RpgMakerPatchRestoreResult,
@@ -164,8 +167,17 @@ class ModeSettingsService:
 
         scope = self.get_rpg_maker_cache_scope()
         cached = self.translation_cache.get_by_text(entry.source_text, scope=scope)
-        if cached is not None:
+        if cached is not None and not looks_like_invalid_translation(
+            entry.source_text,
+            cached.translated_text,
+            text_type=entry.text_type,
+        ):
             return cached
+
+        passthrough = _passthrough_translation(entry)
+        if passthrough is not None:
+            self.translation_cache.save_translation(passthrough, scope=scope)
+            return passthrough
 
         result = self.translator.translate(
             entry.source_text,
@@ -182,6 +194,11 @@ class ModeSettingsService:
 
         scope = self.get_rpg_maker_cache_scope()
         self.translation_cache.delete_by_text(entry.source_text, scope=scope)
+        passthrough = _passthrough_translation(entry)
+        if passthrough is not None:
+            self.translation_cache.save_translation(passthrough, scope=scope)
+            return passthrough
+
         result = self.translator.translate(
             entry.source_text,
             [],
@@ -266,13 +283,17 @@ class ModeSettingsService:
                 ):
                     cache_hits += 1
                 else:
-                    translation_started_at = self.clock()
-                    result = self.translator.translate(
-                        entry.source_text,
-                        [],
-                        text_type=entry.text_type,
-                    )
-                    translation_seconds_total += self.clock() - translation_started_at
+                    result = _passthrough_translation(entry)
+                    if result is None:
+                        translation_started_at = self.clock()
+                        result = self.translator.translate(
+                            entry.source_text,
+                            [],
+                            text_type=entry.text_type,
+                        )
+                        translation_seconds_total += (
+                            self.clock() - translation_started_at
+                        )
                     self.translation_cache.save_translation(result, scope=scope)
                     translated += 1
             except Exception as error:
@@ -474,6 +495,15 @@ def _format_entry_origin(entry: RpgMakerTextEntry) -> str:
     if origin.command_index is not None:
         parts.append(f"cmd {origin.command_index}")
     return " | ".join(parts)
+
+
+def _passthrough_translation(entry: RpgMakerTextEntry) -> TranslationResult | None:
+    if not should_bypass_rpg_maker_translation(entry.source_text):
+        return None
+    return TranslationResult(
+        source_text=entry.source_text,
+        translated_text=entry.source_text,
+    )
 
 
 def _average(total: float, count: int) -> float:
