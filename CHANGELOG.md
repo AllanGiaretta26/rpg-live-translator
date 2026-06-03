@@ -4,6 +4,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+## [0.3.0] - 2026-06-03
+
 ### Added
 
 - Tema visual escuro coeso na janela principal, com grupos em cartoes
