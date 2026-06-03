@@ -93,6 +93,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   descricoes longas.
 - Reparo de prefixos visuais do lote MV/MZ agora funciona por linha e o prompt
   compacto de descricoes passou a limitar tamanho total.
+- Lote MV/MZ agora mascara codigos RPG Maker e placeholders antes de chamar o
+  modelo, restaurando os valores originais depois da traducao.
 - Aviso de overlay sobre area capturada agora fica oculto no modo RPG Maker
   MV/MZ, onde a captura/OCR esta desativada.
 - Bridge MV/MZ agora captura o texto realmente renderizado pela janela de

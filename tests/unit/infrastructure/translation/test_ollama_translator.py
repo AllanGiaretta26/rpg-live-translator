@@ -153,6 +153,46 @@ def test_translator_restores_missing_leading_rpg_maker_escape_code_per_line():
     )
 
 
+def test_translator_masks_midline_rpg_maker_escape_codes_in_prompt():
+    client = FakeClient(
+        {"translated_text": ("Tratar com plantas? __LT_RPG_TOKEN_0__ restantes.")}
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(
+        r"Treat them with plants? \INUM[9] remaining.",
+        [],
+    )
+
+    assert result.translated_text == r"Tratar com plantas? \INUM[9] restantes."
+    assert r"\INUM[9]" not in client.prompt
+    assert "__LT_RPG_TOKEN_0__" in client.prompt
+
+
+def test_translator_restores_masked_escape_codes_and_percent_placeholders():
+    client = FakeClient(
+        {"translated_text": ("__LT_RPG_TOKEN_0__ sofreu __LT_RPG_TOKEN_1__ de dano!")}
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(r"\V[35] took %1 damage!", [])
+
+    assert result.translated_text == r"\V[35] sofreu %1 de dano!"
+    assert r"\V[35]" not in client.prompt
+    assert "took %1 damage" not in client.prompt
+
+
+def test_translator_masks_inline_wait_and_end_escape_codes():
+    client = FakeClient(
+        {"translated_text": "...__LT_RPG_TOKEN_0__Desculpe.__LT_RPG_TOKEN_1__"}
+    )
+    translator = OllamaTranslator(client)
+
+    result = translator.translate(r"...\|I'm sorry.\^", [])
+
+    assert result.translated_text == r"...\|Desculpe.\^"
+
+
 def test_translator_rejects_missing_rpg_maker_escape_code_after_retry():
     translator = OllamaTranslator(
         FakeClient({"translated_text": "[1] encontrou um item."})

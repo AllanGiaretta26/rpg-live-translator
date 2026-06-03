@@ -57,6 +57,7 @@ def test_translation_prompt_requires_preserving_rpg_maker_escape_codes():
     assert r"\V[2]" in prompt
     assert "Preserve exatamente codigos RPG Maker" in prompt
     assert "barras invertidas" in prompt
+    assert "__LT_RPG_TOKEN_0__" in prompt
 
 
 def test_translation_prompt_includes_name_profile_for_catalog_names():
@@ -95,6 +96,7 @@ def test_compact_description_prompt_preserves_ui_tokens():
     assert "ate duas linhas curtas" in prompt
     assert "95 caracteres" in prompt
     assert "Dano sombrio em todos" in prompt
+    assert "__LT_RPG_TOKEN_0__" in prompt
     assert "HP" in prompt
     assert "TP" in prompt
     assert "%1" in prompt
