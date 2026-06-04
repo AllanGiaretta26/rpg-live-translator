@@ -316,6 +316,7 @@ _PATCHABLE_TEXT_TYPES = frozenset(
 )
 
 MESSAGE_LINE_LIMIT = 58
+MESSAGE_FACE_LINE_LIMIT = 44
 MESSAGE_SHORT_LINE_REFLOW_LIMIT = 18
 MESSAGE_SENTENCE_TAIL_WORD_LIMIT = 5
 _DANGLING_LINE_END_WORDS = frozenset(
@@ -670,7 +671,12 @@ def _replace_grouped_commands(
     indent = template.get("indent", 0)
     translated_lines = _message_translation_lines(
         translated_text,
-        width=line_limit,
+        width=_grouped_command_line_limit(
+            commands,
+            start_index,
+            code=code,
+            default_limit=line_limit,
+        ),
         reflow_short_lines=reflow_short_lines,
     )
     replacement = [
@@ -679,6 +685,35 @@ def _replace_grouped_commands(
     ]
     commands[start_index:end_index] = replacement
     return True
+
+
+def _grouped_command_line_limit(
+    commands: list[Any],
+    start_index: int,
+    *,
+    code: int,
+    default_limit: int,
+) -> int:
+    if code != 401 or not _previous_show_text_has_face(commands, start_index):
+        return default_limit
+    return MESSAGE_FACE_LINE_LIMIT
+
+
+def _previous_show_text_has_face(commands: list[Any], start_index: int) -> bool:
+    show_text_index = start_index - 1
+    if show_text_index < 0:
+        return False
+
+    command = commands[show_text_index]
+    if not isinstance(command, dict) or command.get("code") != 101:
+        return False
+
+    parameters = command.get("parameters")
+    if not isinstance(parameters, list) or not parameters:
+        return False
+
+    face_name = parameters[0]
+    return isinstance(face_name, str) and bool(face_name.strip())
 
 
 def _replace_choice(

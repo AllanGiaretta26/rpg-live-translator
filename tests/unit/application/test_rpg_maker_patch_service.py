@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from live_translator.application.rpg_maker_patch_service import (
+    MESSAGE_FACE_LINE_LIMIT,
     MESSAGE_LINE_LIMIT,
     RpgMakerPatchService,
 )
@@ -801,6 +802,56 @@ def test_export_patch_wraps_long_message_lines(tmp_path):
     lines = [command["parameters"][0] for command in commands]
     assert len(lines) > 1
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_uses_shorter_message_lines_when_face_is_shown(tmp_path):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {
+                                    "code": 101,
+                                    "indent": 0,
+                                    "parameters": ["Actor1", 0, 0, 2],
+                                },
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    translated = (
+        "Macho Gorilla:\n"
+        "Nao podemos mudar o pais... Nao importa quantas vezes entremos no "
+        "Saint Coliseum, nunca vamos conseguir vencer o rei..."
+    )
+    service = RpgMakerPatchService(
+        FakeTranslationCache({"Hello": translated}),
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 1)],
+    )
+
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    lines = [
+        command["parameters"][0] for command in commands if command.get("code") == 401
+    ]
+    assert len(lines) > 3
+    assert all(len(line) <= MESSAGE_FACE_LINE_LIMIT for line in lines)
 
 
 def test_export_patch_repeats_visual_prefix_on_wrapped_message_lines(tmp_path):
