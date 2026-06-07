@@ -77,6 +77,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
             ollama_base_url="http://127.0.0.1:9",
             ollama_timeout_seconds=0.01,
             rpg_maker_bridge_enabled=False,
+            patch_message_line_limit=40,
         ),
         overlay_factory=_overlay_factory,
         ui_factory=_ui_factory,
@@ -92,6 +93,7 @@ def test_bootstrap_wires_dependencies_and_starts(tmp_path):
     assert runtime.pipeline is ui_instances[0].pipeline_diagnostics
     assert runtime.overlay_settings_service is ui_instances[0].overlay_settings
     assert runtime.mode_settings_service is ui_instances[0].mode_settings
+    assert runtime.mode_settings_service.patch_message_line_limit == 40
     assert runtime.capture_preview_service.preview_path == tmp_path / "preview.png"
     assert any("Ollama indisponivel" in message for message in overlay.messages)
     with runtime.database.open() as connection:

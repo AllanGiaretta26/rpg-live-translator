@@ -29,6 +29,9 @@ from .translation_quality import (
     should_bypass_rpg_maker_translation,
 )
 from .rpg_maker_patch_service import (
+    DESCRIPTION_LINE_LIMIT,
+    MESSAGE_FACE_LINE_LIMIT,
+    MESSAGE_LINE_LIMIT,
     RpgMakerPatchApplyResult,
     RpgMakerPatchRestoreResult,
     RpgMakerPatchResult,
@@ -111,6 +114,9 @@ class ModeSettingsService:
     batch_error_repository: CatalogTranslationErrorRepository
     patch_export_root: Path = Path("exports") / "patches"
     patch_backup_root: Path = Path("backups") / "patches"
+    patch_message_line_limit: int = MESSAGE_LINE_LIMIT
+    patch_message_face_line_limit: int = MESSAGE_FACE_LINE_LIMIT
+    patch_description_line_limit: int = DESCRIPTION_LINE_LIMIT
     clock: Clock = monotonic
 
     def get_active_mode(self) -> OperationMode:
@@ -465,6 +471,9 @@ class ModeSettingsService:
             cache_scope=cache_scope,
             export_root=self.patch_export_root,
             backup_root=self.patch_backup_root,
+            message_line_limit=self.patch_message_line_limit,
+            message_face_line_limit=self.patch_message_face_line_limit,
+            description_line_limit=self.patch_description_line_limit,
         )
 
     def _build_progress(

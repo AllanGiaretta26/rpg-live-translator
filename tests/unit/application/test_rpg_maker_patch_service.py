@@ -6,6 +6,7 @@ from live_translator.application.rpg_maker_patch_service import (
     MESSAGE_FACE_LINE_LIMIT,
     MESSAGE_LINE_LIMIT,
     RpgMakerPatchService,
+    _visible_width,
 )
 from live_translator.application.translation_quality import (
     RPG_MAKER_DESCRIPTION_LINE_LIMIT,
@@ -125,11 +126,14 @@ def test_export_patch_rewrites_messages_choices_and_scrolling_text(tmp_path):
 
     patched = _read_json(result.data_path / "Map001.json")
     commands = patched["events"][1]["pages"][0]["list"]
-    assert commands[1]["parameters"][0] == "Ola."
-    assert commands[2]["parameters"][0] == "Segunda linha."
-    assert commands[3]["parameters"][0] == ["Sim", "Nao"]
-    assert commands[4]["parameters"][1] == "Sim"
-    assert commands[5]["parameters"][0] == "Ha muito..."
+    message_lines = [c["parameters"][0] for c in commands if c["code"] == 401]
+    choice_lists = [c["parameters"][0] for c in commands if c["code"] == 102]
+    choice_results = [c["parameters"][1] for c in commands if c["code"] == 402]
+    scrolling = [c["parameters"][0] for c in commands if c["code"] == 405]
+    assert " ".join(message_lines) == "Ola. Segunda linha."
+    assert choice_lists == [["Sim", "Nao"]]
+    assert choice_results == ["Sim"]
+    assert scrolling == ["Ha muito..."]
     assert result.applied_entries == 5
     assert result.files_written == 1
 
@@ -244,12 +248,16 @@ def test_export_patch_rewrites_scenario_command_lists(tmp_path):
 
     patched = _read_json(result.data_path / "Scenario.json")
     intro = patched["intro"]
-    assert intro[0]["parameters"][0] == "Tachie showName Deathpolca PT"
-    assert intro[1]["parameters"][0] == "Tudo certo."
-    assert intro[2]["parameters"][0] == "Segunda linha."
-    assert intro[3]["parameters"][0] == ["Lutar", "Esperar"]
-    assert intro[4]["parameters"][1] == "Lutar"
-    assert intro[5]["parameters"][0] == "Ha muito..."
+    tachie = [c["parameters"][0] for c in intro if c["code"] == 356]
+    message_lines = [c["parameters"][0] for c in intro if c["code"] == 401]
+    choice_lists = [c["parameters"][0] for c in intro if c["code"] == 102]
+    choice_results = [c["parameters"][1] for c in intro if c["code"] == 402]
+    scrolling = [c["parameters"][0] for c in intro if c["code"] == 405]
+    assert tachie == ["Tachie showName Deathpolca PT"]
+    assert " ".join(message_lines) == "Tudo certo. Segunda linha."
+    assert choice_lists == [["Lutar", "Esperar"]]
+    assert choice_results == ["Lutar"]
+    assert scrolling == ["Ha muito..."]
     assert patched["other"][0]["parameters"][0] == "Do not touch."
     assert result.applied_entries == 6
     assert result.files_written == 1
@@ -995,8 +1003,8 @@ def test_export_patch_breaks_message_before_rpg_maker_forced_wrap(tmp_path):
     lines = [command["parameters"][0] for command in commands]
     assert lines == [
         "Antes de invadirmos Bohelos, enviamos alguns embaixadores",
-        "para o Imperio. Um foi decapitado na hora, enquanto",
-        "o outro foi devolvido",
+        "para o Imperio. Um foi decapitado na hora, enquanto o",
+        "outro foi devolvido",
     ]
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
@@ -1040,13 +1048,13 @@ def test_export_patch_keeps_sentence_start_with_next_message_line(tmp_path):
     commands = patched["events"][1]["pages"][0]["list"]
     lines = [command["parameters"][0] for command in commands]
     assert lines == [
-        "A garota e responsavel por cuidar dos assuntos humanos.",
-        "Se e isso que ela quer fazer, entao eu nao tenho objecoes.",
+        "A garota e responsavel por cuidar dos assuntos humanos. Se",
+        "e isso que ela quer fazer, entao eu nao tenho objecoes.",
     ]
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
 
-def test_export_patch_breaks_npc_message_at_sentence_boundary(tmp_path):
+def test_export_patch_fills_npc_message_to_width(tmp_path):
     project = _project(tmp_path)
     _write_json(
         project.data_path / "Map001.json",
@@ -1085,11 +1093,159 @@ def test_export_patch_breaks_npc_message_at_sentence_boundary(tmp_path):
     commands = patched["events"][1]["pages"][0]["list"]
     lines = [command["parameters"][0] for command in commands]
     assert lines == [
-        "Cavaleiro Escravo:",
-        "Por favor! Por favor, le-! ...Ha?",
-        "Voce derrotou o Rei de Shingana?",
+        "Cavaleiro Escravo: Por favor! Por favor, le-! ...Ha? Voce",
+        "derrotou o Rei de Shingana?",
     ]
     assert all(len(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def _single_message_project(tmp_path, translated: str):
+    project = _project(tmp_path)
+    _write_json(
+        project.data_path / "Map001.json",
+        {
+            "events": [
+                None,
+                {
+                    "id": 7,
+                    "pages": [
+                        {
+                            "list": [
+                                {"code": 401, "indent": 0, "parameters": ["Hello"]},
+                            ]
+                        }
+                    ],
+                },
+            ]
+        },
+    )
+    return project, FakeTranslationCache({"Hello": translated})
+
+
+def _patched_message_lines(result):
+    patched = _read_json(result.data_path / "Map001.json")
+    commands = patched["events"][1]["pages"][0]["list"]
+    return [command["parameters"][0] for command in commands]
+
+
+def test_visible_width_ignores_zero_width_codes_and_estimates_dynamic():
+    assert _visible_width("abc") == 3
+    assert _visible_width(r"\C[3]abc\C[0]") == 3
+    assert _visible_width(r"\{abc\}") == 3
+    assert _visible_width(r"\I[64]abc") == 3
+    assert _visible_width(r"\\") == 1
+    assert _visible_width(r"\N[1]") == 8
+    assert _visible_width(r"\V[2]") == 8
+
+
+def test_export_patch_does_not_duplicate_font_size_code_on_wrapped_lines(tmp_path):
+    translated = (
+        r"\{Era uma vez um reino distante cercado por altas montanhas "
+        "e rios profundos que protegiam o povo."
+    )
+    project, cache = _single_message_project(tmp_path, translated)
+    service = RpgMakerPatchService(
+        cache,
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    lines = _patched_message_lines(result)
+    assert len(lines) > 1
+    # The cumulative font-size code must appear exactly once, not on every line.
+    assert sum(line.count(r"\{") for line in lines) == 1
+    assert all(_visible_width(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_repeats_only_hash_prefix_not_other_codes(tmp_path):
+    translated = (
+        r"\#\{Era uma vez um reino distante cercado por altas montanhas "
+        "e rios profundos que protegiam o povo."
+    )
+    project, cache = _single_message_project(tmp_path, translated)
+    service = RpgMakerPatchService(
+        cache,
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    lines = _patched_message_lines(result)
+    assert len(lines) > 1
+    assert all(line.startswith(r"\#") for line in lines)
+    assert sum(line.count(r"\{") for line in lines) == 1
+
+
+def test_export_patch_uses_visible_width_so_color_codes_do_not_split_early(tmp_path):
+    # Raw length exceeds the limit, but the visible width fits on one line.
+    translated = r"\C[3]Vermelho\C[0] e \C[2]verde\C[0] e \C[4]azul\C[0] num so balao."
+    assert len(translated) > MESSAGE_LINE_LIMIT
+    assert _visible_width(translated) <= MESSAGE_LINE_LIMIT
+    project, cache = _single_message_project(tmp_path, translated)
+    service = RpgMakerPatchService(
+        cache,
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    lines = _patched_message_lines(result)
+    assert lines == [translated]
+
+
+def test_export_patch_wraps_long_single_line_into_multiple_lines(tmp_path):
+    translated = (
+        "Esta e uma fala muito longa que o modelo devolveu em uma unica linha "
+        "sem nenhuma quebra e que precisa ser dividida para nao sair da tela."
+    )
+    project, cache = _single_message_project(tmp_path, translated)
+    service = RpgMakerPatchService(
+        cache,
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    lines = _patched_message_lines(result)
+    assert len(lines) > 1
+    assert all(_visible_width(line) <= MESSAGE_LINE_LIMIT for line in lines)
+
+
+def test_export_patch_honors_configurable_message_line_limit(tmp_path):
+    translated = "Uma fala de tamanho medio que cabe folgada em cinquenta e oito."
+    project, cache = _single_message_project(tmp_path, translated)
+    service = RpgMakerPatchService(
+        cache,
+        export_root=tmp_path / "exports",
+        backup_root=tmp_path / "backups",
+        message_line_limit=30,
+    )
+
+    result = service.export_patch(
+        project=project,
+        entries=[_entry("Hello", RpgMakerTextType.MESSAGE, 0)],
+    )
+
+    lines = _patched_message_lines(result)
+    assert len(lines) > 1
+    assert all(_visible_width(line) <= 30 for line in lines)
 
 
 def test_export_patch_reports_missing_invalid_and_mismatched_entries(tmp_path):

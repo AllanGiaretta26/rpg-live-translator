@@ -195,6 +195,9 @@ def bootstrap(
         translation_cache=translation_cache_repository,
         translator=translator,
         batch_error_repository=catalog_translation_error_repository,
+        patch_message_line_limit=resolved_settings.patch_message_line_limit,
+        patch_message_face_line_limit=resolved_settings.patch_message_face_line_limit,
+        patch_description_line_limit=resolved_settings.patch_description_line_limit,
     )
     rpg_maker_runtime_service = RpgMakerRuntimeService(
         mode_settings=mode_settings_service,
