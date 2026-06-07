@@ -4,6 +4,8 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+## [0.4.0] - 2026-06-07
+
 ### Added
 
 - Relatorio V14 com a auditoria de otimizacao e tratamento de bugs (persistencia
