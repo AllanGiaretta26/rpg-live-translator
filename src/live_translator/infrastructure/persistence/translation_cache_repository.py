@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Sequence
 import unicodedata
 
 from live_translator.domain.interfaces import TranslationCache
 from live_translator.domain.models import TranslationResult
 
 from .sqlite_connection import SQLiteConnectionManager
+
+
+# Stay well under SQLite's bound-parameter limit (the scope occupies one slot).
+_QUERY_CHUNK_SIZE = 500
 
 
 def _normalize_text(text: str) -> str:
@@ -61,6 +66,56 @@ class SQLiteTranslationCacheRepository(TranslationCache):
             source_lang=row["source_lang"],
             target_lang=row["target_lang"],
         )
+
+    def get_many_by_text(
+        self,
+        texts: Sequence[str],
+        *,
+        scope: str | None = None,
+    ) -> dict[str, TranslationResult]:
+        # Map each requested (original) text to its normalized cache key, keeping
+        # only the ones that normalize to something non-empty.
+        normalized_by_text: dict[str, str] = {}
+        for text in texts:
+            key = _normalize_text(text)
+            if key:
+                normalized_by_text[text] = key
+        if not normalized_by_text:
+            return {}
+        normalized_scope = _normalize_scope(scope)
+
+        unique_keys = list(dict.fromkeys(normalized_by_text.values()))
+        rows_by_key: dict[str, TranslationResult] = {}
+        with self._database.open() as connection:
+            for start in range(0, len(unique_keys), _QUERY_CHUNK_SIZE):
+                chunk = unique_keys[start : start + _QUERY_CHUNK_SIZE]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = connection.execute(
+                    f"""
+                    SELECT
+                        normalized_source_text,
+                        source_text,
+                        translated_text,
+                        source_lang,
+                        target_lang
+                    FROM translations
+                    WHERE scope = ? AND normalized_source_text IN ({placeholders})
+                    """,
+                    (normalized_scope, *chunk),
+                ).fetchall()
+                for row in rows:
+                    rows_by_key[row["normalized_source_text"]] = TranslationResult(
+                        source_text=row["source_text"],
+                        translated_text=row["translated_text"],
+                        source_lang=row["source_lang"],
+                        target_lang=row["target_lang"],
+                    )
+
+        return {
+            text: rows_by_key[key]
+            for text, key in normalized_by_text.items()
+            if key in rows_by_key
+        }
 
     def save_translation(
         self,

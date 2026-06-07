@@ -76,6 +76,22 @@ def test_invalid_translation_rejects_added_leading_visual_marker():
     )
 
 
+def test_visual_marker_allows_extra_translated_lines_without_marker():
+    # A translation that wraps a single source line into several lines must not
+    # be rejected just because the extra lines have no source counterpart.
+    assert not adds_unexpected_leading_visual_marker(
+        "The Empire manipulated countries and laws over many years.",
+        "O Imperio manipulava\npaises e leis\nao longo de muitos anos.",
+    )
+
+
+def test_visual_marker_still_detected_on_aligned_line():
+    assert adds_unexpected_leading_visual_marker(
+        "Line one\nLine two",
+        "Linha um\n€Linha dois",
+    )
+
+
 def test_missing_percent_placeholders_detects_removed_battle_placeholder():
     assert missing_percent_placeholders("%1 attacks %2!", "Ataca!")
 

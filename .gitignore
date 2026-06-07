@@ -10,3 +10,4 @@ captures/
 docs/annotation/
 backups/
 exports/
+.claude/
