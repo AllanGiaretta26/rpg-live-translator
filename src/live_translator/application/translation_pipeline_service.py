@@ -60,6 +60,10 @@ class TranslationPipelineService:
     overlay: OverlayRenderer
     text_normalizer: TextNormalizer = field(default_factory=DefaultTextNormalizer)
     clock: Clock = monotonic
+    # Recent context is intentionally kept empty: the pipeline never feeds prior
+    # lines back to the translator, to avoid leaking earlier dialogue into the
+    # current translation. The property is exposed so tests can guard that the
+    # context never accumulates (see translate(..., []) below).
     _context: list[str] = field(default_factory=list, init=False, repr=False)
     _last_diagnostic: str | None = field(default=None, init=False, repr=False)
     _last_timing_summary: str | None = field(default=None, init=False, repr=False)

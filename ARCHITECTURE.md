@@ -351,6 +351,11 @@ class TranslationCache(Protocol):
     def get_by_text(self, source_text: str) -> TranslationResult | None:
         ...
 
+    def get_many_by_text(
+        self, texts: Sequence[str]
+    ) -> dict[str, TranslationResult]:
+        ...
+
     def save_translation(self, result: TranslationResult) -> None:
         ...
 
@@ -643,6 +648,18 @@ translated_text
 5. salvar ambos
 ```
 
+## Consulta em lote
+
+Fluxos que verificam muitos textos de uma vez (contagem de cache do catálogo
+MV/MZ e limpeza de cache contaminado) não devem consultar o cache texto a texto.
+Use `get_many_by_text`, que resolve a lista inteira em uma única consulta (com
+chunking para respeitar o limite de parâmetros do SQLite) e devolve um mapa
+chaveado pelo texto original. Isso evita o padrão N+1 de uma conexão por entrada.
+
+A contagem de cache do catálogo só conta como hit traduções válidas: entradas
+contaminadas (com vazamento de contexto/prompt) são descartadas, alinhando o
+número ao que o lote e o patch consideram um hit real.
+
 ---
 
 ## 14.1 Suporte RPG Maker MV/MZ
@@ -757,6 +774,15 @@ CREATE TABLE settings (
     value TEXT NOT NULL
 );
 ```
+
+## Inicialização do schema
+
+O `SQLiteConnectionManager` cria/migra o schema uma única vez por instância, e não
+a cada conexão aberta. A criação de tabelas (`CREATE TABLE IF NOT EXISTS ...`) e a
+introspecção de migração rodam apenas na primeira vez (com lock), enquanto cada
+conexão configura apenas estado barato por conexão, como `PRAGMA foreign_keys`.
+Como todo acesso ao banco abre uma conexão nova via `open()`, manter o DDL fora
+desse caminho reduz o custo de cada operação de cache.
 
 ---
 

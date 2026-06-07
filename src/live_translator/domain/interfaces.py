@@ -45,6 +45,18 @@ class TranslationCache(Protocol):
     ) -> TranslationResult | None:
         """Return cached translation by normalized source text."""
 
+    def get_many_by_text(
+        self,
+        texts: Sequence[str],
+        *,
+        scope: str | None = None,
+    ) -> dict[str, TranslationResult]:
+        """Return cached translations for many texts in a single lookup.
+
+        The returned mapping is keyed by the original input text and omits any
+        text without a cached translation.
+        """
+
     def save_translation(
         self,
         result: TranslationResult,

@@ -4,6 +4,34 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+### Added
+
+- Relatorio V14 com a auditoria de otimizacao e tratamento de bugs (persistencia
+  SQLite, contagem de cache, validacao de traducao e bridge runtime).
+
+### Changed
+
+- `SQLiteConnectionManager` agora inicializa schema e migracoes apenas uma vez por
+  instancia, em vez de re-executar todo o `SCHEMA_SQL` e a introspeccao de
+  migracao a cada conexao aberta, reduzindo o custo de cada acesso ao banco.
+- Contagem e limpeza de cache do catalogo MV/MZ agora usam uma unica consulta em
+  lote (`get_many_by_text`) no lugar de uma consulta por entrada, acelerando
+  catalogos grandes.
+- Importacao do catalogo MV/MZ (`replace_project_entries`) agora grava as entradas
+  com `executemany` em vez de um `INSERT` por entrada.
+
+### Fixed
+
+- A contagem `Cache: X/Y entradas ja traduzidas` deixou de incluir traducoes
+  contaminadas; agora conta apenas traducoes validas, alinhando o numero ao que o
+  lote e a limpeza de cache consideram hit real.
+- A validacao de traducao deixou de rejeitar por engano traducoes validas que
+  quebram uma linha de origem em varias linhas, ao detectar marcadores visuais
+  inesperados (`€`, `¥`, `￥`) apenas em linhas com origem correspondente.
+- A bridge runtime MV/MZ agora limita o tamanho do corpo das requisicoes (responde
+  `413` quando excede o limite e `400` para `Content-Length` invalido) e separa
+  erro de cliente (`400`) de erro interno de processamento (`500`).
+
 ## [0.3.0] - 2026-06-03
 
 ### Added

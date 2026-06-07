@@ -185,7 +185,12 @@ def adds_unexpected_leading_visual_marker(
         translated_lines = [translated_text]
 
     for index, translated_line in enumerate(translated_lines):
-        source_line = source_lines[index] if index < len(source_lines) else ""
+        # Only compare lines that have a matching source line. A translation that
+        # legitimately wraps into more lines must not be rejected just because the
+        # extra lines have no source counterpart to compare against.
+        if index >= len(source_lines):
+            break
+        source_line = source_lines[index]
         source_rest = _line_without_leading_rpg_maker_escape_codes(source_line)
         translated_rest = _line_without_leading_rpg_maker_escape_codes(translated_line)
         for marker in _UNEXPECTED_LEADING_VISUAL_MARKERS:

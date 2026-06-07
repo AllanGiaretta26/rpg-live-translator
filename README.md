@@ -229,7 +229,9 @@ Controles uteis quando aparecer uma traducao ruim:
 - `Ver erros do ultimo lote`: abre a lista de falhas salvas do lote mais
   recente, com origem e mensagem de erro;
 - `Cache: X/Y entradas ja traduzidas`: mostra quantos textos do catalogo atual
-  ja possuem traducao no cache.
+  ja possuem traducao valida no cache. Traducoes contaminadas (com contexto ou
+  instrucao de prompt) nao entram na contagem, alinhando o numero ao que o lote
+  considera hit real.
 
 No lote MV/MZ, cache existente so conta como hit quando a traducao parece
 valida. Se a entrada cacheada parecer conter contexto ou instrucao de prompt, o
@@ -302,7 +304,10 @@ relatorio:
 
 Ao quebrar linhas, o patch preserva prefixos visuais simples como `\#` nas
 continuacoes geradas. Traducoes que adicionam simbolos inesperados como `€`,
-`¥` ou `￥` no inicio da fala sao tratadas como invalidas para reprocessamento.
+`¥` ou `￥` no inicio de uma fala sao tratadas como invalidas para
+reprocessamento. Essa checagem compara cada linha traduzida com a linha de
+origem correspondente, entao traducoes validas que quebram uma linha em varias
+nao sao mais marcadas como invalidas por engano.
 
 ```txt
 live-translator-patch-report.json

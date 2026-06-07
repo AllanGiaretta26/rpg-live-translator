@@ -9,6 +9,10 @@ from typing import Callable, Protocol
 
 logger = logging.getLogger(__name__)
 
+# Bound the request body. The bridge only ever receives short dialogue lines, so
+# anything larger is malformed or hostile and must not be buffered into memory.
+MAX_REQUEST_BODY_BYTES = 1024 * 1024
+
 
 class RuntimeTextProcessor(Protocol):
     def process_text(self, text: str) -> object | None:
@@ -83,14 +87,35 @@ class RpgMakerRuntimeBridgeServer:
 
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
+                except ValueError:
+                    self._send_json(
+                        400, {"ok": False, "error": "invalid Content-Length"}
+                    )
+                    return
+                if length < 0:
+                    self._send_json(
+                        400, {"ok": False, "error": "invalid Content-Length"}
+                    )
+                    return
+                if length > MAX_REQUEST_BODY_BYTES:
+                    self._send_json(413, {"ok": False, "error": "payload too large"})
+                    return
+
+                try:
                     body = self.rfile.read(length)
                     payload = json.loads(body.decode("utf-8"))
                     text = payload.get("text", "")
                     if not isinstance(text, str):
                         raise ValueError("text must be a string")
-                    processor.process_text(text)
-                except Exception as error:
+                except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
                     self._send_json(400, {"ok": False, "error": str(error)})
+                    return
+
+                try:
+                    processor.process_text(text)
+                except Exception:
+                    logger.exception("RPG Maker bridge failed to process text")
+                    self._send_json(500, {"ok": False, "error": "processing failed"})
                     return
 
                 self._send_json(200, {"ok": True})

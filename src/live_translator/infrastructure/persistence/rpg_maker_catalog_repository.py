@@ -37,17 +37,41 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
         project_root = str(project.root_path)
         now = _utc_now()
 
+        data_path = str(project.data_path)
+        engine_version = project.version.value
+        rows = []
+        for entry in entries:
+            normalized_text = _normalize_text(entry.source_text)
+            if not normalized_text:
+                continue
+            rows.append(
+                (
+                    project_root,
+                    data_path,
+                    engine_version,
+                    entry.source_text,
+                    normalized_text,
+                    entry.text_type.value,
+                    entry.origin.file_name,
+                    entry.origin.origin_key,
+                    entry.origin.map_id,
+                    entry.origin.event_id,
+                    entry.origin.page_index,
+                    entry.origin.command_index,
+                    entry.origin.parameter_index,
+                    entry.origin.database_id,
+                    entry.origin.field_name,
+                    now,
+                )
+            )
+
         with self._database.open() as connection:
             connection.execute(
                 "DELETE FROM rpg_maker_text_catalog WHERE project_root = ?",
                 (project_root,),
             )
-            for entry in entries:
-                normalized_text = _normalize_text(entry.source_text)
-                if not normalized_text:
-                    continue
-
-                connection.execute(
+            if rows:
+                connection.executemany(
                     """
                     INSERT INTO rpg_maker_text_catalog (
                         project_root,
@@ -83,24 +107,7 @@ class SQLiteRpgMakerTextCatalogRepository(RpgMakerTextCatalog):
                         database_id = excluded.database_id,
                         field_name = excluded.field_name
                     """,
-                    (
-                        project_root,
-                        str(project.data_path),
-                        project.version.value,
-                        entry.source_text,
-                        normalized_text,
-                        entry.text_type.value,
-                        entry.origin.file_name,
-                        entry.origin.origin_key,
-                        entry.origin.map_id,
-                        entry.origin.event_id,
-                        entry.origin.page_index,
-                        entry.origin.command_index,
-                        entry.origin.parameter_index,
-                        entry.origin.database_id,
-                        entry.origin.field_name,
-                        now,
-                    ),
+                    rows,
                 )
 
             row = connection.execute(

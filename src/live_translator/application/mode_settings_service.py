@@ -372,21 +372,38 @@ class ModeSettingsService:
         return self.rpg_maker_catalog.get_entry(entry_id)
 
     def count_cached_catalog_entries(self) -> int:
-        count = 0
         scope = self.get_rpg_maker_cache_scope()
-        for entry in self.list_rpg_maker_entries():
-            if (
-                self.translation_cache.get_by_text(entry.source_text, scope=scope)
-                is not None
+        entries = self.list_rpg_maker_entries()
+        cached_by_text = self.translation_cache.get_many_by_text(
+            [entry.source_text for entry in entries],
+            scope=scope,
+        )
+        count = 0
+        for entry in entries:
+            cached = cached_by_text.get(entry.source_text)
+            if cached is None:
+                continue
+            # A contaminated cache entry is not a real hit: the batch and the
+            # patch flow both retranslate it, so it must not inflate the count.
+            if looks_like_invalid_translation(
+                entry.source_text,
+                cached.translated_text,
+                text_type=entry.text_type,
             ):
-                count += 1
+                continue
+            count += 1
         return count
 
     def clear_contaminated_catalog_cache(self) -> int:
-        deleted = 0
         scope = self.get_rpg_maker_cache_scope()
-        for entry in self.list_rpg_maker_entries():
-            cached = self.translation_cache.get_by_text(entry.source_text, scope=scope)
+        entries = self.list_rpg_maker_entries()
+        cached_by_text = self.translation_cache.get_many_by_text(
+            [entry.source_text for entry in entries],
+            scope=scope,
+        )
+        deleted = 0
+        for entry in entries:
+            cached = cached_by_text.get(entry.source_text)
             if cached is None:
                 continue
             if not looks_like_invalid_translation(

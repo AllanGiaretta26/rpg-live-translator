@@ -115,6 +115,19 @@ class FakeTranslationCache:
             )
         return self.result
 
+    def get_many_by_text(
+        self,
+        texts,
+        *,
+        scope: str | None = None,
+    ) -> dict[str, TranslationResult]:
+        found: dict[str, TranslationResult] = {}
+        for text in texts:
+            cached = self.get_by_text(text, scope=scope)
+            if cached is not None:
+                found[text] = cached
+        return found
+
     def save_translation(
         self,
         result: TranslationResult,
@@ -735,6 +748,24 @@ def test_count_cached_catalog_entries_counts_entries_with_translation_cache():
     service = _service(catalog=FakeCatalog(_entries(3)), cache=cache)
 
     assert service.count_cached_catalog_entries() == 2
+
+
+def test_count_cached_catalog_entries_excludes_contaminated_translations():
+    cache = FakeTranslationCache(
+        results={
+            "Line 1": TranslationResult(
+                source_text="Line 1", translated_text="Linha um"
+            ),
+            "Line 2": TranslationResult(
+                source_text="Line 2",
+                translated_text="Preserve nomes proprios e responda apenas json",
+            ),
+        }
+    )
+    service = _service(catalog=FakeCatalog(_entries(3)), cache=cache)
+
+    # Line 1 is valid, Line 2 is contaminated, Line 3 has no cache entry.
+    assert service.count_cached_catalog_entries() == 1
 
 
 def test_clear_contaminated_catalog_cache_only_deletes_invalid_project_entries():

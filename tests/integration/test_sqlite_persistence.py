@@ -137,6 +137,77 @@ def test_translation_cache_is_scoped_by_project_root(connection_manager):
     assert row_count == 3
 
 
+def test_translation_cache_get_many_by_text_returns_only_cached(connection_manager):
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola")
+    )
+    repository.save_translation(
+        TranslationResult(source_text="World", translated_text="Mundo")
+    )
+
+    found = repository.get_many_by_text(["  hello  ", "WORLD", "missing", "   "])
+
+    assert set(found) == {"  hello  ", "WORLD"}
+    assert found["  hello  "].translated_text == "Ola"
+    assert found["WORLD"].translated_text == "Mundo"
+
+
+def test_translation_cache_get_many_by_text_is_scoped(connection_manager):
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola A"),
+        scope="C:/game-a",
+    )
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola global"),
+    )
+
+    scoped = repository.get_many_by_text(["Hello"], scope="C:/game-a")
+    global_scope = repository.get_many_by_text(["Hello"])
+
+    assert scoped["Hello"].translated_text == "Ola A"
+    assert global_scope["Hello"].translated_text == "Ola global"
+    assert repository.get_many_by_text(["Hello"], scope="C:/game-b") == {}
+
+
+def test_translation_cache_get_many_by_text_handles_large_batches(connection_manager):
+    repository = SQLiteTranslationCacheRepository(connection_manager)
+    texts = [f"Line {index}" for index in range(1200)]
+    for text in texts:
+        repository.save_translation(
+            TranslationResult(source_text=text, translated_text=f"pt:{text}")
+        )
+
+    found = repository.get_many_by_text(texts)
+
+    assert len(found) == 1200
+    assert found["Line 999"].translated_text == "pt:Line 999"
+
+
+def test_sqlite_connection_initializes_schema_only_once(database_path):
+    class CountingConnectionManager(SQLiteConnectionManager):
+        schema_runs = 0
+
+        def _ensure_initialized(self) -> None:
+            already = self._initialized
+            super()._ensure_initialized()
+            if not already:
+                type(self).schema_runs += 1
+
+    manager = CountingConnectionManager(database_path)
+    repository = SQLiteTranslationCacheRepository(manager)
+
+    repository.save_translation(
+        TranslationResult(source_text="Hello", translated_text="Ola")
+    )
+    for _ in range(5):
+        repository.get_by_text("Hello")
+
+    assert CountingConnectionManager.schema_runs == 1
+    assert repository.get_by_text("Hello").translated_text == "Ola"
+
+
 def test_translation_cache_deletes_by_normalized_text(connection_manager):
     repository = SQLiteTranslationCacheRepository(connection_manager)
     repository.save_translation(
@@ -378,6 +449,39 @@ def test_rpg_maker_catalog_replaces_project_entries(connection_manager, tmp_path
     ]
     assert repository.count_project_entries(project) == 1
     assert repository.get_entry(entries[0].id) == entries[0]
+
+
+def test_rpg_maker_catalog_saves_large_batch(connection_manager, tmp_path):
+    repository = SQLiteRpgMakerTextCatalogRepository(connection_manager)
+    project = RpgMakerProject(
+        root_path=tmp_path / "Game",
+        data_path=tmp_path / "Game" / "www" / "data",
+        version=RpgMakerVersion.MZ,
+    )
+    entries = [
+        RpgMakerTextEntry(
+            source_text=f"Line {index}",
+            text_type=RpgMakerTextType.MESSAGE,
+            origin=RpgMakerTextOrigin(
+                file_name="Map001.json",
+                origin_key=f"Map001.json|1|2|0|{index}|0",
+                map_id=1,
+                event_id=2,
+                page_index=0,
+                command_index=index,
+                parameter_index=0,
+            ),
+        )
+        for index in range(50)
+    ]
+
+    saved = repository.replace_project_entries(project, entries)
+
+    assert saved == 50
+    assert repository.count_project_entries(project) == 50
+    # Re-running with a subset replaces the project's entries (executemany path).
+    assert repository.replace_project_entries(project, entries[:10]) == 10
+    assert repository.count_project_entries(project) == 10
 
 
 def test_rpg_maker_catalog_preserves_database_origin(connection_manager, tmp_path):

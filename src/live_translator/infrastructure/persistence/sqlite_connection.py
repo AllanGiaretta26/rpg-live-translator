@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Lock
 from typing import Iterator
 import sqlite3
+
+
+DEFAULT_CONNECTION_TIMEOUT_SECONDS = 5.0
 
 
 SCHEMA_SQL = """
@@ -88,8 +92,16 @@ REQUIRED_RPG_MAKER_CATALOG_COLUMNS = {
 
 
 class SQLiteConnectionManager:
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        *,
+        timeout_seconds: float = DEFAULT_CONNECTION_TIMEOUT_SECONDS,
+    ) -> None:
         self._database_path = Path(database_path)
+        self._timeout_seconds = timeout_seconds
+        self._init_lock = Lock()
+        self._initialized = False
 
     @property
     def database_path(self) -> Path:
@@ -97,12 +109,8 @@ class SQLiteConnectionManager:
 
     @contextmanager
     def open(self) -> Iterator[sqlite3.Connection]:
-        self._database_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self._database_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.executescript(SCHEMA_SQL)
-        self._migrate(connection)
+        self._ensure_initialized()
+        connection = self._connect()
         try:
             yield connection
             connection.commit()
@@ -111,6 +119,34 @@ class SQLiteConnectionManager:
             raise
         finally:
             connection.close()
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(
+            self._database_path,
+            timeout=self._timeout_seconds,
+        )
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        return connection
+
+    def _ensure_initialized(self) -> None:
+        if self._initialized:
+            return
+        with self._init_lock:
+            if self._initialized:
+                return
+            self._database_path.parent.mkdir(parents=True, exist_ok=True)
+            connection = self._connect()
+            try:
+                connection.executescript(SCHEMA_SQL)
+                self._migrate(connection)
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                connection.close()
+            self._initialized = True
 
     def _migrate(self, connection: sqlite3.Connection) -> None:
         self._migrate_translations(connection)
