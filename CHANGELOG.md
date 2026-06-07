@@ -8,6 +8,13 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 - Relatorio V14 com a auditoria de otimizacao e tratamento de bugs (persistencia
   SQLite, contagem de cache, validacao de traducao e bridge runtime).
+- Relatorio V15 com as correcoes de quebra de linha, overflow e codigos de escape
+  na geracao de patch MV/MZ.
+- Limites de largura do patch MV/MZ configuraveis por settings/ambiente
+  (`LIVE_TRANSLATOR_PATCH_MESSAGE_LINE_LIMIT`,
+  `LIVE_TRANSLATOR_PATCH_MESSAGE_FACE_LINE_LIMIT`,
+  `LIVE_TRANSLATOR_PATCH_DESCRIPTION_LINE_LIMIT`), ja que a caixa de texto varia
+  por jogo/tema.
 
 ### Changed
 
@@ -19,6 +26,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   catalogos grandes.
 - Importacao do catalogo MV/MZ (`replace_project_entries`) agora grava as entradas
   com `executemany` em vez de um `INSERT` por entrada.
+- O patch MV/MZ agora quebra mensagens preenchendo a largura (reflui a fala), sem
+  pular linha apos virgula/ponto, mantendo falas longas divididas em varias linhas
+  para nao sair da tela.
 
 ### Fixed
 
@@ -31,6 +41,12 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - A bridge runtime MV/MZ agora limita o tamanho do corpo das requisicoes (responde
   `413` quando excede o limite e `400` para `Content-Length` invalido) e separa
   erro de cliente (`400`) de erro interno de processamento (`500`).
+- Patch MV/MZ nao duplica mais codigos de fonte (`\{`/`\}`) nas linhas quebradas,
+  que faziam a fonte crescer e a fala sair da caixa; apenas o marcador `\#` e
+  repetido por linha.
+- Patch MV/MZ agora mede a largura da linha de forma ciente de codigos de escape:
+  codigos de largura zero (`\C[n]`, `\I[n]`, `\{`, espera) nao contam e codigos
+  dinamicos (`\N`, `\P`, `\V`) usam estimativa conservadora, evitando overflow.
 
 ## [0.3.0] - 2026-06-03
 

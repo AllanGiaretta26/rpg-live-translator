@@ -7,13 +7,12 @@ import json
 from pathlib import Path
 import re
 import shutil
-import textwrap
 from typing import Any, Iterable
 
 from live_translator.application.translation_quality import (
-    RPG_MAKER_DESCRIPTION_LINE_LIMIT,
     looks_like_invalid_translation,
 )
+from live_translator.config import defaults
 from live_translator.domain.interfaces import TranslationCache
 from live_translator.domain.models import (
     RpgMakerProject,
@@ -28,6 +27,17 @@ BACKUP_MANIFEST = "live-translator-backup.json"
 _TACHIE_SHOW_NAME_PATTERN = re.compile(
     r"^(?P<prefix>Tachie\s+showName\s+)(?P<name>.+?)(?P<suffix>\s*)$"
 )
+
+MESSAGE_LINE_LIMIT = defaults.DEFAULT_PATCH_MESSAGE_LINE_LIMIT
+MESSAGE_FACE_LINE_LIMIT = defaults.DEFAULT_PATCH_MESSAGE_FACE_LINE_LIMIT
+DESCRIPTION_LINE_LIMIT = defaults.DEFAULT_PATCH_DESCRIPTION_LINE_LIMIT
+
+
+@dataclass(frozen=True, slots=True)
+class _WrapLimits:
+    message: int
+    face: int
+    description: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,11 +82,19 @@ class RpgMakerPatchService:
         cache_scope: str | None = None,
         export_root: Path = Path("exports") / "patches",
         backup_root: Path = Path("backups") / "patches",
+        message_line_limit: int = MESSAGE_LINE_LIMIT,
+        message_face_line_limit: int = MESSAGE_FACE_LINE_LIMIT,
+        description_line_limit: int = DESCRIPTION_LINE_LIMIT,
     ) -> None:
         self._translation_cache = translation_cache
         self._cache_scope = cache_scope
         self._export_root = export_root
         self._backup_root = backup_root
+        self._limits = _WrapLimits(
+            message=message_line_limit,
+            face=message_face_line_limit,
+            description=description_line_limit,
+        )
 
     def export_patch(
         self,
@@ -149,7 +167,7 @@ class RpgMakerPatchService:
                 key=_descending_origin_sort_key,
                 reverse=True,
             ):
-                result = _apply_entry_to_data(data, plan_entry)
+                result = _apply_entry_to_data(data, plan_entry, self._limits)
                 if result is None:
                     counts["source_mismatches"] += 1
                     skipped.append(_skipped_entry(plan_entry.entry, "source mismatch"))
@@ -315,39 +333,22 @@ _PATCHABLE_TEXT_TYPES = frozenset(
     }
 )
 
-MESSAGE_LINE_LIMIT = 58
-MESSAGE_FACE_LINE_LIMIT = 44
-MESSAGE_SHORT_LINE_REFLOW_LIMIT = 18
-MESSAGE_SENTENCE_TAIL_WORD_LIMIT = 5
-_DANGLING_LINE_END_WORDS = frozenset(
-    {
-        "a",
-        "as",
-        "com",
-        "da",
-        "das",
-        "de",
-        "do",
-        "dos",
-        "e",
-        "em",
-        "na",
-        "nas",
-        "no",
-        "nos",
-        "o",
-        "os",
-        "ou",
-        "para",
-        "por",
-        "se",
-        "sem",
-    }
-)
-_SENTENCE_TAIL_PATTERN = re.compile(r"^(?P<prefix>.*[.!?])\s+(?P<tail>\S.*)$")
-_LINE_END_WORD_PATTERN = re.compile(r"^(?P<prefix>.+)\s+(?P<word>\S+)$")
-_RPG_MAKER_LEADING_VISUAL_PREFIX_PATTERN = re.compile(
-    r"^(?P<prefix>(?:\\[{}$!.|^<>#\\])+)(?P<rest>.*)$",
+# Estimated rendered width, in characters, for codes that expand to dynamic text
+# at runtime (actor/party names and variable values). It is conservative so that
+# wrapped lines do not overflow when these codes resolve to longer strings.
+_DYNAMIC_CODE_VISIBLE_WIDTH = 8
+_DYNAMIC_CODE_LETTERS = frozenset({"N", "P", "V"})
+
+# Matches RPG Maker MV/MZ escape codes: a literal backslash, lettered codes such
+# as \C[3], \N[1], \V[2], \I[64], \FS[24], and single-symbol codes such as \{ \}
+# \$ \. \| \! \^ \> \< \#.
+_RPG_MAKER_CODE_PATTERN = re.compile(r"\\\\|\\[A-Za-z]+(?:\[[^\]]*\])?|\\[{}$.|!^<>#]")
+
+# Only \# is treated as a per-line marker that is repeated on every wrapped line.
+# Stateful codes such as \{ (font size up) must NOT be repeated, otherwise their
+# effect accumulates line by line.
+_REPEATED_LINE_PREFIX_PATTERN = re.compile(
+    r"^(?P<prefix>(?:\\#)+)(?P<rest>.*)$",
     flags=re.DOTALL,
 )
 
@@ -370,10 +371,14 @@ def _descending_origin_sort_key(plan_entry: _PatchPlanEntry) -> tuple[int, int, 
     )
 
 
-def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
+def _apply_entry_to_data(
+    data: Any,
+    plan_entry: _PatchPlanEntry,
+    limits: _WrapLimits,
+) -> bool | None:
     entry = plan_entry.entry
     if entry.text_type in _DATABASE_TEXT_TYPES:
-        return _replace_database_field(data, entry, plan_entry.translated_text)
+        return _replace_database_field(data, entry, plan_entry.translated_text, limits)
     if entry.text_type == RpgMakerTextType.SYSTEM_TERM:
         return _replace_system_term(data, entry, plan_entry.translated_text)
 
@@ -395,8 +400,9 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             code=401,
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
-            line_limit=MESSAGE_LINE_LIMIT,
-            reflow_short_lines=True,
+            line_limit=limits.message,
+            face_line_limit=limits.face,
+            collapse=True,
         )
     if entry.text_type in _SCROLLING_TEXT_TYPES:
         return _replace_grouped_commands(
@@ -405,8 +411,9 @@ def _apply_entry_to_data(data: Any, plan_entry: _PatchPlanEntry) -> bool | None:
             code=405,
             source_text=entry.source_text,
             translated_text=plan_entry.translated_text,
-            line_limit=MESSAGE_LINE_LIMIT,
-            reflow_short_lines=False,
+            line_limit=limits.message,
+            face_line_limit=limits.face,
+            collapse=False,
         )
     if entry.text_type in _CHOICE_TEXT_TYPES:
         return _replace_choice(command, entry, plan_entry.translated_text)
@@ -472,6 +479,7 @@ def _replace_database_field(
     data: Any,
     entry: RpgMakerTextEntry,
     translated_text: str,
+    limits: _WrapLimits,
 ) -> bool | None:
     if not isinstance(data, list):
         return None
@@ -489,7 +497,9 @@ def _replace_database_field(
             continue
         if item.get(field_name) != entry.source_text:
             return None
-        item[field_name] = _database_replacement_text(entry.text_type, translated_text)
+        item[field_name] = _database_replacement_text(
+            entry.text_type, translated_text, limits
+        )
         return True
     return None
 
@@ -497,14 +507,15 @@ def _replace_database_field(
 def _database_replacement_text(
     text_type: RpgMakerTextType,
     translated_text: str,
+    limits: _WrapLimits,
 ) -> str:
     if text_type not in _DESCRIPTION_TEXT_TYPES:
         return translated_text
     return "\n".join(
-        _wrapped_translation_lines(
+        _wrap_translation_lines(
             translated_text,
-            width=RPG_MAKER_DESCRIPTION_LINE_LIMIT,
-            normalize_lines=True,
+            width=limits.description,
+            collapse=True,
         )
     )
 
@@ -645,7 +656,8 @@ def _replace_grouped_commands(
     source_text: str,
     translated_text: str,
     line_limit: int,
-    reflow_short_lines: bool,
+    face_line_limit: int,
+    collapse: bool,
 ) -> bool | None:
     end_index = start_index
     source_lines: list[str] = []
@@ -669,15 +681,16 @@ def _replace_grouped_commands(
     if not isinstance(template, dict):
         return None
     indent = template.get("indent", 0)
-    translated_lines = _message_translation_lines(
+    translated_lines = _wrap_translation_lines(
         translated_text,
         width=_grouped_command_line_limit(
             commands,
             start_index,
             code=code,
             default_limit=line_limit,
+            face_limit=face_line_limit,
         ),
-        reflow_short_lines=reflow_short_lines,
+        collapse=collapse,
     )
     replacement = [
         {"code": code, "indent": indent, "parameters": [line]}
@@ -693,10 +706,11 @@ def _grouped_command_line_limit(
     *,
     code: int,
     default_limit: int,
+    face_limit: int,
 ) -> int:
     if code != 401 or not _previous_show_text_has_face(commands, start_index):
         return default_limit
-    return MESSAGE_FACE_LINE_LIMIT
+    return face_limit
 
 
 def _previous_show_text_has_face(commands: list[Any], start_index: int) -> bool:
@@ -801,174 +815,93 @@ def _replace_parameter(
     return True
 
 
-def _wrapped_translation_lines(
+def _wrap_translation_lines(
     text: str,
     *,
     width: int,
-    normalize_lines: bool,
-    polish: bool = False,
+    collapse: bool,
 ) -> list[str]:
-    if normalize_lines:
-        lines = [" ".join(text.split())]
-    else:
-        lines = text.splitlines()
-    if not lines:
-        return [text]
+    """Wrap a translation to fit ``width`` visible characters per line.
 
-    wrapped_lines: list[str] = []
-    for line in lines:
-        if not line:
-            wrapped_lines.append(line)
+    When ``collapse`` is true the model's own line breaks are discarded and the
+    text is reflowed to fill each line (used for message boxes and database
+    descriptions). When false, each existing line is wrapped independently
+    (used for scrolling text, which has intentional line breaks).
+    """
+    if collapse:
+        return _fill_wrap(text, width=width)
+
+    result: list[str] = []
+    for line in text.splitlines() or [text]:
+        if not line.strip():
+            result.append(line)
             continue
-        wrapped_lines.extend(
-            _wrapped_translation_line(
-                line,
-                width=width,
-                polish=polish,
-            )
-        )
-    return wrapped_lines
-
-
-def _wrapped_translation_line(
-    line: str,
-    *,
-    width: int,
-    polish: bool,
-) -> list[str]:
-    prefix, body = _split_leading_visual_prefix(line)
-    text_width = max(1, width - len(prefix))
-    wrapped = textwrap.wrap(
-        body if prefix else line,
-        width=text_width,
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
-    if polish:
-        wrapped = _polished_wrapped_lines(wrapped, width=text_width)
-    if not wrapped:
-        return [line]
-    if not prefix:
-        return wrapped
-    return [f"{prefix}{wrapped_line}" for wrapped_line in wrapped]
-
-
-def _split_leading_visual_prefix(line: str) -> tuple[str, str]:
-    match = _RPG_MAKER_LEADING_VISUAL_PREFIX_PATTERN.match(line)
-    if match is None:
-        return "", line
-    return match.group("prefix"), match.group("rest").lstrip()
-
-
-def _message_translation_lines(
-    text: str,
-    *,
-    width: int,
-    reflow_short_lines: bool,
-) -> list[str]:
-    if not reflow_short_lines or not _should_reflow_message_lines(text, width=width):
-        return _wrapped_translation_lines(
-            text,
-            width=width,
-            normalize_lines=False,
-            polish=True,
-        )
-    return _wrapped_translation_lines(
-        text,
-        width=width,
-        normalize_lines=True,
-        polish=True,
-    )
-
-
-def _should_reflow_message_lines(text: str, *, width: int) -> bool:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if len(lines) < 3:
-        return False
-    if any(_split_leading_visual_prefix(line)[0] for line in lines):
-        return False
-    if not any(len(line) <= MESSAGE_SHORT_LINE_REFLOW_LIMIT for line in lines[1:-1]):
-        return False
-    collapsed = _wrapped_translation_lines(
-        text,
-        width=width,
-        normalize_lines=True,
-        polish=True,
-    )
-    return len(collapsed) < len(lines)
-
-
-def _polished_wrapped_lines(lines: list[str], *, width: int) -> list[str]:
-    result = [line for line in lines if line]
-    if len(result) < 2:
-        return lines
-
-    changed = True
-    while changed:
-        changed = False
-        for index in range(len(result) - 1):
-            if _move_sentence_tail(result, index, width=width):
-                changed = True
-                continue
-            if _move_dangling_word(result, index, width=width):
-                changed = True
+        result.extend(_fill_wrap(line, width=width))
     return result
 
 
-def _move_sentence_tail(lines: list[str], index: int, *, width: int) -> bool:
-    current = lines[index]
-    next_line = lines[index + 1]
-    match = _SENTENCE_TAIL_PATTERN.match(current)
+def _fill_wrap(text: str, *, width: int) -> list[str]:
+    prefix, body = _split_repeated_line_prefix(text)
+    body_width = max(1, width - len(prefix))
+    words = body.split()
+    if not words:
+        return [text]
+
+    lines = _greedy_wrap_words(words, width=body_width)
+    if not prefix:
+        return lines
+    return [f"{prefix}{line}" for line in lines]
+
+
+def _greedy_wrap_words(words: list[str], *, width: int) -> list[str]:
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        if not current:
+            current = word
+            continue
+        candidate = f"{current} {word}"
+        if _visible_width(candidate) <= width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _split_repeated_line_prefix(text: str) -> tuple[str, str]:
+    match = _REPEATED_LINE_PREFIX_PATTERN.match(text)
     if match is None:
-        return False
-
-    prefix = match.group("prefix")
-    tail = match.group("tail")
-    if len(prefix) < MESSAGE_SHORT_LINE_REFLOW_LIMIT:
-        return False
-    if tail[0] in ".!?":
-        return False
-    if _word_count(tail) > MESSAGE_SENTENCE_TAIL_WORD_LIMIT:
-        return False
-
-    candidate_next = f"{tail} {next_line}"
-    if len(candidate_next) > width:
-        return False
-
-    lines[index] = prefix
-    lines[index + 1] = candidate_next
-    return True
+        return "", text
+    return match.group("prefix"), match.group("rest").lstrip()
 
 
-def _move_dangling_word(lines: list[str], index: int, *, width: int) -> bool:
-    current = lines[index]
-    next_line = lines[index + 1]
-    match = _LINE_END_WORD_PATTERN.match(current)
-    if match is None:
-        return False
+def _visible_width(text: str) -> int:
+    """Approximate the rendered width of ``text`` in characters.
 
-    prefix = match.group("prefix")
-    word = match.group("word")
-    if len(prefix) < MESSAGE_SHORT_LINE_REFLOW_LIMIT:
-        return False
-    if _normalized_line_word(word) not in _DANGLING_LINE_END_WORDS:
-        return False
-
-    candidate_next = f"{word} {next_line}"
-    if len(candidate_next) > width:
-        return False
-
-    lines[index] = prefix
-    lines[index + 1] = candidate_next
-    return True
+    RPG Maker escape codes that render with no width (color, icon, font size,
+    waits) are excluded; codes that expand to dynamic text at runtime (\\N, \\P,
+    \\V) are counted with a conservative fixed estimate.
+    """
+    total = 0
+    last = 0
+    for match in _RPG_MAKER_CODE_PATTERN.finditer(text):
+        total += match.start() - last
+        total += _code_visible_width(match.group(0))
+        last = match.end()
+    total += len(text) - last
+    return total
 
 
-def _word_count(text: str) -> int:
-    return len(re.findall(r"\S+", text))
-
-
-def _normalized_line_word(word: str) -> str:
-    return word.strip(".,;:!?()[]{}\"'").casefold()
+def _code_visible_width(code: str) -> int:
+    if code == "\\\\":
+        return 1
+    letters = re.match(r"\\([A-Za-z]+)", code)
+    if letters is not None and letters.group(1)[0].upper() in _DYNAMIC_CODE_LETTERS:
+        return _DYNAMIC_CODE_VISIBLE_WIDTH
+    return 0
 
 
 def _event_by_id(events: Iterable[Any], event_id: int | None) -> Any | None:

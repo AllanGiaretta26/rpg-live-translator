@@ -49,6 +49,19 @@ if BaseSettings is not None:
             le=65535,
         )
 
+        patch_message_line_limit: int = Field(
+            default=defaults.DEFAULT_PATCH_MESSAGE_LINE_LIMIT,
+            gt=0,
+        )
+        patch_message_face_line_limit: int = Field(
+            default=defaults.DEFAULT_PATCH_MESSAGE_FACE_LINE_LIMIT,
+            gt=0,
+        )
+        patch_description_line_limit: int = Field(
+            default=defaults.DEFAULT_PATCH_DESCRIPTION_LINE_LIMIT,
+            gt=0,
+        )
+
         model_config = SettingsConfigDict(
             env_prefix="LIVE_TRANSLATOR_",
             env_file=".env",
@@ -72,3 +85,10 @@ else:
         rpg_maker_bridge_enabled: bool = defaults.DEFAULT_RPG_MAKER_BRIDGE_ENABLED
         rpg_maker_bridge_host: str = defaults.DEFAULT_RPG_MAKER_BRIDGE_HOST
         rpg_maker_bridge_port: int = defaults.DEFAULT_RPG_MAKER_BRIDGE_PORT
+        patch_message_line_limit: int = defaults.DEFAULT_PATCH_MESSAGE_LINE_LIMIT
+        patch_message_face_line_limit: int = (
+            defaults.DEFAULT_PATCH_MESSAGE_FACE_LINE_LIMIT
+        )
+        patch_description_line_limit: int = (
+            defaults.DEFAULT_PATCH_DESCRIPTION_LINE_LIMIT
+        )
