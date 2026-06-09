@@ -1,37 +1,30 @@
 # RPG Live Translator
 
-Aplicativo desktop em Python para traduzir, em tempo real, textos exibidos em jogos RPG Maker. O MVP captura uma região da tela, usa Ollama para extrair/traduzir texto, guarda resultados em cache SQLite e mostra a tradução em um overlay PySide6.
+![Python](https://img.shields.io/badge/Python-3.13%2B-blue?logo=python&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D4?logo=windows&logoColor=white)
+![PySide6](https://img.shields.io/badge/PySide6-UI-41CD52?logo=qt&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-LLM-black)
+![SQLite](https://img.shields.io/badge/cache-SQLite-003B57?logo=sqlite&logoColor=white)
+![Licença](https://img.shields.io/badge/licença-MIT-green)
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
 
-## Estado Atual
+> Aplicativo desktop Windows para traduzir em tempo real textos de jogos RPG Maker para o português brasileiro.
 
-O projeto possui um MVP funcional de traducao em tempo real por captura de tela.
-O fluxo principal ja cobre calibracao, captura, OCR/vision, traducao, cache,
-overlay, pausa/retomada e diagnostico basico de tempo.
+## Sobre o Projeto
 
-- arquitetura em camadas dentro de `src/live_translator/`;
-- cache SQLite por texto e por imagem;
-- captura de tela com MSS;
-- integração com Ollama usando `gemma4:e4b`;
-- overlay PySide6 com posição ajustável e janela de calibração guiada;
-- seletor fullscreen de area de texto com preview de captura e ajuste para DPI;
-- contexto recente desligado por padrao para evitar vazamento de falas anteriores;
-- painel de status com tempo total, OCR, traducao e caminho do ultimo frame;
-- modo RPG Maker MV/MZ com importacao de catalogo, traducao sob demanda e
-  bridge runtime local;
-- controles MV/MZ para limpar cache contaminado, reprocessar fala atual e
-  consultar erros do ultimo lote;
-- scripts de desenvolvimento para criar perfil e testar captura.
+O **RPG Live Translator** captura texto de jogos e exibe a tradução em um overlay transparente, sem modificar os arquivos do jogo. Funciona em dois modos:
 
-O modo universal continua sendo o caminho mais compativel. O modo RPG Maker
-MV/MZ reduz dependencia de OCR em jogos suportados ao ler os arquivos JSON do
-jogo e receber falas do runtime por plugin.
+- **Universal**: captura uma região da tela, usa Ollama com visão computacional (OCR) para extrair e traduzir o texto. Compatível com qualquer jogo.
+- **RPG Maker MV/MZ**: lê o catálogo JSON do jogo e recebe falas em tempo real via plugin local, eliminando a dependência de OCR nos jogos suportados.
+
+Resultados são armazenados em cache SQLite — textos e imagens já processados não precisam ser retraduzidos.
 
 ## Requisitos
 
 - Windows 10/11
 - Python 3.13 ou superior
-- Ollama rodando em `http://127.0.0.1:11434`
-- Modelo `gemma4:e4b` instalado no Ollama
+- [Ollama](https://ollama.com) rodando em `http://127.0.0.1:11434`
+- Modelo `gemma4:e4b` instalado no Ollama (`ollama pull gemma4:e4b`)
 
 ## Instalação
 
@@ -46,36 +39,27 @@ Valide a instalação:
 .venv\Scripts\python.exe -m pytest
 ```
 
-## Configurar Pelo App
+## Rodar o App
+
+```powershell
+.venv\Scripts\pythonw.exe -m live_translator.app.main
+```
+
+A janela principal abre em modo de calibração. O fluxo básico de configuração está descrito abaixo.
+
+## Configurar pelo App
 
 Abra o app e use as abas da janela de calibração:
 
-1. `Modo`: escolha `Universal` ou `RPG Maker MV/MZ`. No modo MV/MZ, selecione
-   a pasta do jogo e clique em `Importar catalogo`.
-2. `Catalogo`: confira textos importados, use `Traduzir selecionado` para
-   testar uma entrada ou `Traduzir catalogo` para preencher o cache em lote.
-   O lote permite escolher `100`, `500` ou `Todos` e filtrar por tipo, com os
-   tipos agrupados em categorias (mensagens e eventos, database e batalha) para
-   facilitar a selecao, alem de pausar, retomar e cancelar. Por padrao, `speaker` fica desativado
-   para evitar traduzir nomes proprios. A aba tambem mostra quantas entradas ja
-   possuem traducao cacheada, permite limpar traducoes contaminadas do projeto
-   atual e consultar os erros do ultimo lote.
-3. `Area do texto`: clique em `Selecionar area do texto`, arraste sobre a
-   caixa de texto do jogo e confira o recorte em `Ver preview da area`. O
-   preview deve mostrar somente a area enviada ao OCR.
-4. `Overlay`: clique em `Ajustar overlay`, arraste a tradução de teste para
-   mover e arraste bordas ou cantos para redimensionar. Mantenha o overlay
-   fora da area capturada para evitar que o OCR leia a traducao em vez do jogo.
-5. `Executar`: pause, retome e acompanhe o estado da captura e do pipeline.
-   A linha `Tempo` mostra o ultimo frame processado, por exemplo:
-   `total 3.40s | ocr 1.42s | traducao 1.36s | cache miss`.
-   No modo MV/MZ, esta aba tambem mostra a ultima fonte recebida pela bridge e
-   a ultima traducao aceita pelo runtime. Use `Reprocessar fala atual` para
-   apagar o cache da fala runtime atual e forcar uma nova traducao.
+1. **Modo**: escolha `Universal` ou `RPG Maker MV/MZ`. No modo MV/MZ, selecione a pasta do jogo e clique em `Importar catálogo`.
+2. **Catálogo**: confira os textos importados, use `Traduzir selecionado` para testar uma entrada ou `Traduzir catálogo` para preencher o cache em lote. O lote permite escolher `100`, `500` ou `Todos` e filtrar por tipo, com os tipos agrupados em categorias (mensagens e eventos, database e batalha), além de pausar, retomar e cancelar. Por padrão, `speaker` fica desativado para evitar traduzir nomes próprios. A aba também mostra quantas entradas já possuem tradução em cache, permite limpar traduções contaminadas do projeto atual e consultar os erros do último lote.
+3. **Área do texto**: clique em `Selecionar área do texto`, arraste sobre a caixa de texto do jogo e confira o recorte em `Ver preview da área`. O preview deve mostrar somente a área enviada ao OCR.
+4. **Overlay**: clique em `Ajustar overlay`, arraste a tradução de teste para mover e arraste bordas ou cantos para redimensionar. Mantenha o overlay fora da área capturada para evitar que o OCR leia a tradução em vez do jogo.
+5. **Executar**: pause, retome e acompanhe o estado da captura e do pipeline. A linha `Tempo` mostra o último frame processado, por exemplo: `total 3.40s | ocr 1.42s | traducao 1.36s | cache miss`. No modo MV/MZ, esta aba também mostra a última fonte recebida pela bridge e a última tradução aceita pelo runtime. Use `Reprocessar fala atual` para apagar o cache da fala runtime atual e forçar uma nova tradução.
 
-Clique em `Salvar area` e `Salvar overlay` para manter os ajustes após reiniciar.
+Clique em `Salvar área` e `Salvar overlay` para manter os ajustes após reiniciar.
 
-## Configurar Região Por Script
+## Configurar Região por Script
 
 Crie ou atualize o perfil ativo:
 
@@ -91,83 +75,48 @@ Teste a captura:
 
 Abra `captures\latest.png` e ajuste `x`, `y`, `width` e `height` até a imagem conter a caixa de diálogo do jogo.
 
-## Rodar O App
-
-Sem terminal:
-
-```powershell
-.venv\Scripts\pythonw.exe -m live_translator.app.main
-```
-
-A janela separa a area capturada do overlay de traducao. Os numeros `X`, `Y`,
-`Largura` e `Altura` sao mantidos para ajuste fino; o fluxo principal e por
-mouse.
-
-Se a traducao parecer repetir falas antigas, verifique primeiro se o preview
-contem apenas a caixa de texto atual e se o overlay nao esta dentro da area
-capturada.
-
 ## Modo RPG Maker MV/MZ
 
-O app nao modifica arquivos do jogo. O suporte MV/MZ tem duas partes:
+O app não modifica arquivos do jogo. O suporte MV/MZ tem duas partes:
 
-- importacao read-only dos JSONs em `www/data/` ou `data`;
+- importação read-only dos JSONs em `www/data/` ou `data/`;
 - plugin runtime opcional para enviar falas atuais ao app sem OCR.
 
-Importacao atual:
+Arquivos importados:
 
-- detecta pasta MV/MZ valida;
-- le `MapXXX.json` e `CommonEvents.json`;
-- le `Items.json`, `Skills.json`, `Weapons.json`, `Armors.json`, `States.json`,
-  `Classes.json`, `Enemies.json`, `Actors.json`, `System.json`, `Troops.json`
-  e `Scenario.json` quando existirem;
-- extrai comandos de mensagem, escolhas, texto rolante, nomes de itens,
-  descricoes de itens, nomes de skills, descricoes de skills, mensagens de
-  skills, armas, armaduras, estados, classes, inimigos, nomes de atores, termos
-  de sistema/menu, eventos de batalha e cenas custom em formato de lista de
-  comandos;
-- salva textos em `rpg_maker_text_catalog`, com origem rastreavel;
-- salva traducoes geradas no cache `translations`, isoladas pelo caminho do
-  projeto MV/MZ ativo;
-- permite pre-cache em lote com limite, filtros por tipo, progresso, cache hits,
-  pausa, retomada e cancelamento;
-- persiste erros do ultimo lote em `rpg_maker_batch_errors`, com ID da entrada,
-  origem, texto fonte e mensagem do erro.
+- `Map*.json` e `CommonEvents.json`
+- `Items.json`, `Skills.json`, `Weapons.json`, `Armors.json`, `States.json`, `Classes.json`, `Enemies.json`, `Actors.json`, `System.json`, `Troops.json` e `Scenario.json` (quando presentes)
+
+Textos extraídos: comandos de mensagem, escolhas, texto rolante, nomes e descrições de itens, skills, armas, armaduras, estados, classes, inimigos, atores, termos de sistema/menu, eventos de batalha e cenas custom.
+
+Traduções geradas ficam no cache `translations`, isoladas pelo caminho do projeto ativo.
 
 ### Instalar `LiveTranslatorBridge.js`
 
-O plugin runtime e opcional, mas e o caminho recomendado no modo MV/MZ: ele
-envia a fala renderizada pelo jogo direto para o app, sem OCR. O arquivo do
-plugin fica no repositorio em:
+O plugin runtime é opcional, mas é o caminho recomendado no modo MV/MZ: ele envia a fala renderizada pelo jogo direto para o app, sem OCR. O arquivo fica em:
 
-```txt
+```
 src/live_translator/infrastructure/rpgmaker/plugin/LiveTranslatorBridge.js
 ```
 
-Instalacao pelo editor RPG Maker:
+**Instalação pelo editor RPG Maker:**
 
 1. Feche o jogo antes de alterar arquivos.
-2. Copie `LiveTranslatorBridge.js` para a pasta de plugins do jogo:
-   - projetos MV/MZ normalmente usam `js/plugins/`;
-   - jogos empacotados podem usar `www/js/plugins/`.
+2. Copie `LiveTranslatorBridge.js` para a pasta de plugins do jogo (`js/plugins/` ou `www/js/plugins/`).
 3. Mantenha o nome do arquivo exatamente como `LiveTranslatorBridge.js`.
 4. Abra o projeto no RPG Maker.
 5. Acesse `Tools` > `Plugin Manager`.
-6. Crie uma nova entrada, escolha `LiveTranslatorBridge` e deixe `Status` como
-   `ON`.
-7. Confira o parametro `Endpoint`. O padrao deve ser
-   `http://127.0.0.1:8765/rpgmaker/text`.
+6. Crie uma nova entrada, escolha `LiveTranslatorBridge` e deixe `Status` como `ON`.
+7. Confirme o parâmetro `Endpoint`: o padrão deve ser `http://127.0.0.1:8765/rpgmaker/text`.
 8. Salve o projeto.
-9. Rode o app com `.venv\Scripts\pythonw.exe -m live_translator.app.main`,
-   escolha `RPG Maker MV/MZ`, importe o catalogo e inicie o jogo.
+9. Rode o app, escolha `RPG Maker MV/MZ`, importe o catálogo e inicie o jogo.
 
-Instalacao manual em jogo distribuido ou Steam sem acesso ao Plugin Manager:
+**Instalação manual (jogo distribuído ou Steam sem acesso ao Plugin Manager):**
 
 1. Feche o jogo e faça backup de `js/plugins.js` ou `www/js/plugins.js`.
-2. Copie `LiveTranslatorBridge.js` para `js/plugins/` ou `www/js/plugins/`,
-   conforme a estrutura do jogo.
+2. Copie `LiveTranslatorBridge.js` para `js/plugins/` ou `www/js/plugins/`, conforme a estrutura do jogo.
 3. Abra `plugins.js` em um editor de texto.
-4. Dentro da lista `var $plugins = [...]`, adicione uma entrada como esta:
+4. Dentro da lista `var $plugins = [...]`, adicione:
 
 ```js
 {
@@ -180,175 +129,95 @@ Instalacao manual em jogo distribuido ou Steam sem acesso ao Plugin Manager:
 }
 ```
 
-5. Se ja existir uma entrada antes ou depois dela, mantenha as virgulas da lista
-   validas.
+5. Mantenha as vírgulas da lista válidas se já existirem outras entradas.
 6. Salve `plugins.js`, rode o app em modo `RPG Maker MV/MZ` e abra o jogo.
 
-Se voce alterou `LIVE_TRANSLATOR_RPG_MAKER_BRIDGE_PORT`, ajuste tambem o
-parametro `Endpoint` do plugin para usar a mesma porta.
+Se você alterou `LIVE_TRANSLATOR_RPG_MAKER_BRIDGE_PORT`, ajuste também o parâmetro `Endpoint` do plugin para usar a mesma porta.
 
-Quando o jogo chama mensagens ou escolhas, o plugin envia o texto para o app. O
-app busca no cache, traduz quando necessario e atualiza o overlay sem passar por
-captura/OCR.
+Quando o jogo chama mensagens ou escolhas, o plugin envia o texto para o app. O app busca no cache, traduz quando necessário e atualiza o overlay sem passar por captura/OCR.
 
-Para validar a instalacao, abra a aba `Executar` no app. Ao avancar uma fala no
-jogo, `Fonte MV/MZ` deve mostrar o texto recebido pela bridge. Se continuar
-`aguardando`, confira se o app esta aberto em modo `RPG Maker MV/MZ`, se o
-endpoint do plugin esta correto e se o plugin esta ativo em `plugins.js`.
+Para validar a instalação, abra a aba `Executar` no app. Ao avançar uma fala no jogo, `Fonte MV/MZ` deve mostrar o texto recebido pela bridge. Se continuar `aguardando`, confirme se o app está aberto em modo `RPG Maker MV/MZ`, se o endpoint do plugin está correto e se o plugin está ativo em `plugins.js`.
 
-### Diagnostico MV/MZ
+### Diagnóstico MV/MZ
 
 No modo `RPG Maker MV/MZ`, a aba `Executar` mostra:
 
-- `Fonte MV/MZ`: ultimo texto recebido pela bridge;
-- `Traducao MV/MZ`: ultima traducao aceita pelo runtime;
-- `Pipeline`: caminho usado, como `runtime cache texto`, `runtime cache invalido`
-  ou `runtime traduzido`;
+- `Fonte MV/MZ`: último texto recebido pela bridge;
+- `Tradução MV/MZ`: última tradução aceita pelo runtime;
+- `Pipeline`: caminho usado, como `runtime cache texto`, `runtime cache inválido` ou `runtime traduzido`;
 - `Tempo`: tempo do runtime MV/MZ.
 
-Use esses campos para separar a causa de problemas:
+Use esses campos para identificar a origem do problema:
 
-- se `Fonte MV/MZ` ja vier errada, o problema esta no plugin ou no fluxo do jogo;
-- se `Fonte MV/MZ` vier limpa e `Traducao MV/MZ` vier contaminada, o problema
-  esta no modelo ou no cache;
-- se `Pipeline` mostrar `runtime cache texto`, a traducao veio do cache
-  `translations`;
-- se `Pipeline` mostrar `runtime cache invalido`, o cache antigo foi ignorado e
-  o app esta tentando gerar uma nova traducao.
+- se `Fonte MV/MZ` já vier errada, o problema está no plugin ou no fluxo do jogo;
+- se `Fonte MV/MZ` vier limpa e `Tradução MV/MZ` vier contaminada, o problema está no modelo ou no cache;
+- se `Pipeline` mostrar `runtime cache texto`, a tradução veio do cache `translations`;
+- se `Pipeline` mostrar `runtime cache inválido`, o cache antigo foi ignorado e o app está tentando gerar uma nova tradução.
 
-O runtime MV/MZ valida traducoes vindas do cache. Entradas antigas que parecem
-conter contexto ou instrucoes de prompt sao ignoradas e sobrescritas por uma
-nova traducao quando a fala aparecer novamente.
+O runtime MV/MZ valida traduções vindas do cache. Entradas antigas que parecem conter contexto ou instruções de prompt são ignoradas e sobrescritas por uma nova tradução quando a fala aparecer novamente.
 
-Controles uteis quando aparecer uma traducao ruim:
+**Controles úteis quando aparecer uma tradução ruim:**
 
-- `Limpar cache contaminado`: varre o catalogo MV/MZ ativo e remove do cache
-  apenas traducoes que parecem conter contexto ou instrucoes de prompt;
-- `Reprocessar fala atual`: remove o cache da ultima `Fonte MV/MZ` recebida e
-  traduz novamente;
-- `Ver erros do ultimo lote`: abre a lista de falhas salvas do lote mais
-  recente, com origem e mensagem de erro;
-- `Cache: X/Y entradas ja traduzidas`: mostra quantos textos do catalogo atual
-  ja possuem traducao valida no cache. Traducoes contaminadas (com contexto ou
-  instrucao de prompt) nao entram na contagem, alinhando o numero ao que o lote
-  considera hit real.
+- `Limpar cache contaminado`: varre o catálogo MV/MZ ativo e remove do cache apenas traduções que parecem conter contexto ou instruções de prompt;
+- `Reprocessar fala atual`: remove o cache da última `Fonte MV/MZ` recebida e traduz novamente;
+- `Ver erros do último lote`: abre a lista de falhas salvas do lote mais recente, com origem e mensagem de erro;
+- `Cache: X/Y entradas já traduzidas`: mostra quantos textos do catálogo atual já possuem tradução válida no cache. Traduções contaminadas não entram na contagem.
 
-No lote MV/MZ, cache existente so conta como hit quando a traducao parece
-valida. Se a entrada cacheada parecer conter contexto ou instrucao de prompt, o
-lote tenta traduzir novamente e sobrescrever o cache. O status final mostra
-processados, traduzidos, cache hits, erros, tempo total e media por traducao
-real.
+No lote MV/MZ, cache existente só conta como hit quando a tradução parece válida. Se a entrada em cache parecer conter contexto ou instrução de prompt, o lote tenta traduzir novamente e sobrescrever. O status final mostra processados, traduzidos, cache hits, erros, tempo total e média por tradução real.
 
-Textos que contem apenas pontuacao ou controle, como `...`, sao mantidos como
-estao e nao sao enviados ao modelo. Se um cache antigo expandiu esse tipo de
-texto para uma fala inventada, `Limpar cache contaminado` remove a entrada e o
-proximo lote salva o passthrough correto.
+Textos que contêm apenas pontuação ou controle, como `...`, são mantidos como estão e não são enviados ao modelo. Se um cache antigo expandiu esse tipo de texto para uma fala inventada, `Limpar cache contaminado` remove a entrada e o próximo lote salva o passthrough correto.
 
-### Patch de traducao MV/MZ
+### Patch de Tradução MV/MZ
 
-A area `Patch de traducao` gera arquivos JSON traduzidos para resolver partes
-que o overlay nao substitui bem, como escolhas dentro da UI do jogo. O fluxo
-atual usa apenas o catalogo MV/MZ ja importado e traducoes existentes no cache;
-ele nao chama Ollama durante a geracao do patch.
+A área `Patch de tradução` gera arquivos JSON traduzidos para resolver partes que o overlay não substitui bem, como escolhas dentro da UI do jogo. O fluxo usa apenas o catálogo MV/MZ já importado e as traduções existentes no cache — não chama Ollama durante a geração.
 
-Escopo atual do patch:
+**Escopo atual do patch:**
 
-- `Map*.json`;
-- `CommonEvents.json`;
-- `Items.json`;
-- `Skills.json`;
-- `Weapons.json`;
-- `Armors.json`;
-- `States.json`;
-- `Classes.json`;
-- `Enemies.json`;
-- `Actors.json`;
-- `System.json`;
-- `Troops.json`;
-- `Scenario.json`;
-- mensagens;
-- escolhas;
-- texto rolante;
-- nomes e descricoes de itens;
-- nomes e descricoes de skills;
-- mensagens de skills;
-- nomes e descricoes de armas;
-- nomes e descricoes de armaduras;
-- nomes e mensagens de estados;
-- nomes de classes;
-- nomes de inimigos;
-- nomes de atores;
-- termos de sistema/menu, como comandos `Item` e `Skill`;
-- mensagens, escolhas, texto rolante e speakers de batalha;
-- mensagens, escolhas, texto rolante e nomes `Tachie showName` em
-  `Scenario.json`;
-- `speaker`, somente se `Incluir speakers` estiver marcado.
+| Arquivo | Conteúdo traduzido |
+|---|---|
+| `Map*.json`, `CommonEvents.json` | Mensagens, escolhas, texto rolante, speakers (opcional) |
+| `Items.json`, `Skills.json` | Nomes, descrições, mensagens |
+| `Weapons.json`, `Armors.json` | Nomes e descrições |
+| `States.json`, `Classes.json` | Nomes e mensagens |
+| `Enemies.json`, `Actors.json` | Nomes |
+| `System.json` | Termos de sistema/menu (ex.: `Item`, `Skill`) |
+| `Troops.json` | Mensagens, escolhas, texto rolante e speakers de batalha |
+| `Scenario.json` | Mensagens, escolhas, texto rolante e nomes `Tachie showName` |
 
 `Gerar patch` cria uma pasta separada em:
 
-```txt
+```
 exports/patches/<nome-do-jogo>-ptBR-<timestamp>/data/
 ```
 
-O patcher substitui textos pela origem exata do catalogo. Em eventos, ele
-valida arquivo, evento, pagina, comando e parametro antes de alterar. Em
-database, ele valida arquivo, ID do objeto e campo (`name` ou `description`).
-Em `System.json`, ele valida o caminho do termo antes de substituir. Mensagens
-longas sao quebradas em linhas menores para reduzir o risco de sair da caixa de
-texto do jogo. Codigos RPG Maker como `\N[1]`, `\V[2]`, `\C[3]` e `\I[64]`, e
-placeholders como `%1`, `%2` e `%3`, precisam ser preservados na traducao; se a
-traducao cacheada perder esses codigos, ela e tratada como invalida. Se o texto
-original nao bater mais com o JSON do jogo, a entrada e pulada.
-Textos sem cache ou com traducao contaminada tambem sao pulados e aparecem no
-relatorio:
+O patcher substitui textos pela origem exata do catálogo e valida arquivo, evento, página, comando e parâmetro antes de alterar. Mensagens longas são quebradas em linhas menores para reduzir o risco de saírem da caixa de texto do jogo. Códigos RPG Maker como `\N[1]`, `\V[2]`, `\C[3]` e `\I[64]`, e placeholders como `%1`, `%2` e `%3`, precisam ser preservados na tradução — se a tradução em cache perder esses códigos, ela é tratada como inválida. Textos sem cache, com tradução contaminada ou com texto original que não bate mais com o JSON do jogo são pulados e aparecem no relatório:
 
-Ao quebrar linhas, o patch preserva prefixos visuais simples como `\#` nas
-continuacoes geradas. Traducoes que adicionam simbolos inesperados como `€`,
-`¥` ou `￥` no inicio de uma fala sao tratadas como invalidas para
-reprocessamento. Essa checagem compara cada linha traduzida com a linha de
-origem correspondente, entao traducoes validas que quebram uma linha em varias
-nao sao mais marcadas como invalidas por engano.
-
-```txt
+```
 live-translator-patch-report.json
 live-translator-patch-report.md
 ```
 
-`Aplicar patch` copia os JSON gerados para `data/` ou `www/data/` do projeto
-ativo. Antes de sobrescrever, o app cria backup automatico em:
+`Aplicar patch` copia os JSON gerados para `data/` ou `www/data/` do projeto ativo. Antes de sobrescrever, o app cria backup automático em:
 
-```txt
+```
 backups/patches/<nome-do-jogo>-<timestamp>/data/
 ```
 
-`Restaurar ultimo backup` restaura o backup mais recente criado pelo app para o
-projeto ativo. O app nao apaga patches nem backups automaticamente. Depois de
-atualizar o app, reimporte o catalogo antes de gerar um novo patch para incluir
-arquivos recem-suportados como `Scenario.json`.
-
-## Known Issues
-
-- Ainda nao existe build empacotado para Windows; o app roda pelo ambiente
-  Python local.
-- A captura usa coordenadas absolutas da tela. Se o jogo ou monitor mudar de
-  posicao, a area precisa ser recalibrada.
-- O modo universal ainda depende de OCR/vision. O modo MV/MZ reduz essa
-  dependencia, mas textos gerados por plugins custom podem exigir fallback.
-- Plugins customizados ainda podem armazenar textos fora dos JSONs padrao e de
-  `Scenario.json`.
-- Logs persistentes gerais do runtime ainda nao foram implementados; o
-  diagnostico principal fica no painel `Status`.
-- O modo click-through do overlay ainda nao e configuravel pela UI.
+`Restaurar último backup` restaura o backup mais recente criado pelo app para o projeto ativo. O app não apaga patches nem backups automaticamente. Depois de atualizar o app, reimporte o catálogo antes de gerar um novo patch para incluir arquivos recém-suportados.
 
 ## Arquitetura
 
-- `src/live_translator/domain/`: modelos imutáveis, contratos e erros.
-- `src/live_translator/application/`: orquestração do pipeline, loop de captura e configurações de perfil.
-- `src/live_translator/infrastructure/`: SQLite, captura MSS, utilitários de imagem e Ollama.
-- `src/live_translator/ui/`: overlay e janela de configuração PySide6.
-- `src/live_translator/app/`: bootstrap, composition root e entrada principal.
+Monólito em camadas sob `src/live_translator/`. A regra central é: **UI e infraestrutura dependem do domínio; o domínio não depende de nada externo.**
 
-Regra central: UI não acessa SQLite, Ollama ou captura diretamente; o bootstrap conecta implementações concretas.
+| Camada | Responsabilidade |
+|---|---|
+| `domain/` | Modelos imutáveis, contratos (Protocols) e erros. Sem dependências externas. |
+| `application/` | Orquestração: pipeline de tradução, loop de captura, serviços MV/MZ. |
+| `infrastructure/` | Adaptadores concretos: SQLite, MSS, Ollama, utilitários de imagem, bridge HTTP. |
+| `ui/` | Janela principal, overlay e seletor de região (PySide6). |
+| `app/bootstrap.py` | Composition root — único lugar onde implementações concretas são conectadas aos Protocols. |
+
+A UI nunca acessa SQLite, Ollama ou captura diretamente; tudo passa pelos serviços de aplicação.
 
 ## Testes
 
@@ -356,7 +225,16 @@ Regra central: UI não acessa SQLite, Ollama ou captura diretamente; o bootstrap
 .venv\Scripts\python.exe -m pytest
 ```
 
-A suíte cobre cache SQLite, pipeline de tradução, loop de captura, utilitários de imagem, client Ollama, scripts de perfil/captura e bootstrap.
+A suíte cobre cache SQLite, pipeline de tradução, loop de captura, utilitários de imagem, client Ollama, scripts de perfil/captura e bootstrap. Os testes rodam sem dependências de desktop, Ollama ou display.
+
+## Limitações Conhecidas
+
+- Não existe build empacotado para Windows; o app roda pelo ambiente Python local.
+- A captura usa coordenadas absolutas da tela. Se o jogo ou monitor mudar de posição, a área precisa ser recalibrada.
+- O modo universal depende de OCR/visão. O modo MV/MZ reduz essa dependência, mas textos gerados por plugins customizados podem exigir fallback.
+- Plugins customizados ainda podem armazenar textos fora dos JSONs padrão e de `Scenario.json`.
+- Logs persistentes gerais do runtime ainda não foram implementados; o diagnóstico principal fica no painel `Status`.
+- O modo click-through do overlay ainda não é configurável pela UI.
 
 ## Licença
 
