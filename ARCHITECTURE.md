@@ -363,6 +363,7 @@ recuperável; nada derruba o app.**
 | --- | --- |
 | Ollama indisponível no start | aviso no overlay, app continua |
 | Ollama falha/timeout em runtime | erro registrado (`last_error_message` / erros de lote), frame/entrada pulado |
+| Modelo não instalado no Ollama (HTTP 404) | `OllamaModelNotFoundError` com instrução de `ollama pull` — distinto de "fora do ar" |
 | Resposta inválida do modelo | rejeitada por `translation_quality`, tratada como miss/erro de lote |
 | `pyside6`/`mss` ausentes | fallbacks console/null via `ImportError` |
 | Porta do bridge ocupada | `start()` retorna `False`, `last_error` preenchido |

@@ -61,7 +61,7 @@ overlay. Precisa de: cache do scope + degradação com diagnóstico claro.
 `OllamaInvalidResponseError` de JSON malformado aborta o loop em vez de
 acionar o prompt de retry.
 
-### 2.5 Classificação de erros do OllamaClient (MÉDIO — já no checklist)
+### 2.5 Classificação de erros do OllamaClient (MÉDIO) — RESOLVIDO 2026-06-10
 
 - `error.HTTPError` é capturado pelo `except error.URLError` (subclasse) —
   404 "modelo não instalado" vira "Ollama is unavailable".

@@ -95,11 +95,12 @@
 - [ ] Mover `client.generate(prompt)` para dentro do `try` no loop de retry do
   `OllamaTranslator.translate` — JSON invalido do modelo deve acionar o prompt
   de retry, nao abortar o loop.
-- [ ] Tratar `error.HTTPError` separado de `error.URLError` no `OllamaClient`,
+- [x] Tratar `error.HTTPError` separado de `error.URLError` no `OllamaClient`,
   lendo o corpo do erro para distinguir "Ollama fora do ar" de "modelo nao
-  instalado" (404).
-- [ ] Classificar timeout embrulhado em `URLError(reason=TimeoutError)` como
-  `OllamaTimeoutError`, nao como erro de conexao.
+  instalado" (404) — feito em 2026-06-10; 404 vira `OllamaModelNotFoundError`,
+  outros status viram `OllamaError` com codigo e detalhe do corpo.
+- [x] Classificar timeout embrulhado em `URLError(reason=TimeoutError)` como
+  `OllamaTimeoutError`, nao como erro de conexao — feito em 2026-06-10.
 - [ ] Rejeitar traducao se marcadores `__LT_RPG_TOKEN` (ou variacao mutilada)
   sobrarem no texto apos o `restore()` da mascara.
 - [ ] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — o
