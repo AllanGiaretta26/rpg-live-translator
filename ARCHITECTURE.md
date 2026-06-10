@@ -367,6 +367,7 @@ recuperável; nada derruba o app.**
 | Resposta inválida do modelo | rejeitada por `translation_quality`, tratada como miss/erro de lote |
 | `pyside6`/`mss` ausentes | fallbacks console/null via `ImportError` |
 | Porta do bridge ocupada | `start()` retorna `False`, `last_error` preenchido |
+| Caminho do projeto MV/MZ ficou inválido (jogo movido/atualizado) | runtime ignora a fala com diagnóstico "projeto MV/MZ inacessível" — sem HTTP 500 por linha |
 | Região/perfil inválido | validação em `__post_init__` dos modelos (`ValueError` na borda) |
 | JSON do jogo mudou desde o import | entrada do patch é pulada e reportada |
 | SQLite falhou | segue sem cache, loga |

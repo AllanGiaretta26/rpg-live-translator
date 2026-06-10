@@ -46,7 +46,7 @@ o lote, a contagem e o patch validam todo hit. Consequência: tradução
 contaminada antiga continua aparecendo no overlay do modo universal para
 sempre (e o hit de texto ainda a propaga para o image_cache).
 
-### 2.3 Runtime MV/MZ refaz detecção de projeto no disco a cada fala (ALTO)
+### 2.3 Runtime MV/MZ refaz detecção de projeto no disco a cada fala (ALTO) — RESOLVIDO 2026-06-10
 
 `RpgMakerRuntimeService.process_text` → `_cache_scope()` →
 `ModeSettingsService.get_rpg_maker_cache_scope()` → `detector.detect(path)`

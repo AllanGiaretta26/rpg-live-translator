@@ -78,7 +78,17 @@ class RpgMakerRuntimeService:
             return None
 
         request_id = self._start_request(normalized_text)
-        cache_scope = self._cache_scope()
+        try:
+            cache_scope = self._cache_scope()
+        except Exception as error:
+            # Caminho do projeto invalido (jogo movido/atualizado) nao pode
+            # virar uma excecao por fala no bridge: degrada com diagnostico.
+            self._set_diagnostics(
+                f"projeto MV/MZ inacessivel: {error}",
+                started_at,
+                stage="erro",
+            )
+            return None
         if force_retranslate:
             self.translation_cache.delete_by_text(normalized_text, scope=cache_scope)
         else:

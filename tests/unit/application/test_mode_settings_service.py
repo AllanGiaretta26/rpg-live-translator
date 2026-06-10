@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
+import pytest
+
 from live_translator.application.mode_settings_service import ModeSettingsService
 from live_translator.application.mode_settings_service import (
     DEFAULT_CATALOG_TRANSLATION_TYPES,
@@ -38,8 +40,13 @@ class FakeSettingsRepository:
 @dataclass
 class FakeDetector:
     project: RpgMakerProject
+    calls: int = 0
+    error: Exception | None = None
 
     def detect(self, path: str | Path) -> RpgMakerProject:
+        self.calls += 1
+        if self.error is not None:
+            raise self.error
         return self.project
 
 
@@ -306,6 +313,35 @@ def test_import_rpg_maker_project_detects_parses_and_saves_catalog():
     assert result.imported_count == 1
     assert catalog.entries == [_entry()]
     assert service.get_rpg_maker_project_path() == Path("C:/game")
+
+
+def test_cache_scope_is_memoized_until_project_path_changes():
+    service = _service()
+    detector = service.rpg_maker_detector
+
+    first = service.get_rpg_maker_cache_scope()
+    second = service.get_rpg_maker_cache_scope()
+
+    assert first == second == str(Path("C:/game"))
+    assert detector.calls == 1
+
+    service.set_rpg_maker_project_path("C:/game")
+    service.get_rpg_maker_cache_scope()
+
+    assert detector.calls == 2
+
+
+def test_cache_scope_detect_failure_is_not_memoized():
+    service = _service()
+    detector = service.rpg_maker_detector
+    detector.error = ValueError("pasta MV/MZ invalida")
+
+    with pytest.raises(ValueError):
+        service.get_rpg_maker_cache_scope()
+
+    detector.error = None
+
+    assert service.get_rpg_maker_cache_scope() == str(Path("C:/game"))
 
 
 def test_translate_catalog_entry_uses_existing_cache():

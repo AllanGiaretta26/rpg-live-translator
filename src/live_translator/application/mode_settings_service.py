@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
 from typing import Callable
@@ -118,6 +118,11 @@ class ModeSettingsService:
     patch_message_face_line_limit: int = MESSAGE_FACE_LINE_LIMIT
     patch_description_line_limit: int = DESCRIPTION_LINE_LIMIT
     clock: Clock = monotonic
+    # Memoiza o scope por caminho de projeto: o runtime consulta o scope a cada
+    # fala do bridge e detect() faz I/O de filesystem. Invalidado em
+    # set_rpg_maker_project_path. Falhas de detect nao sao memoizadas, para o
+    # scope voltar sozinho quando o caminho ficar valido de novo.
+    _scope_cache: dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
     def get_active_mode(self) -> OperationMode:
         raw_value = self.settings_repository.get(ACTIVE_MODE_SETTING_KEY)
@@ -139,6 +144,7 @@ class ModeSettingsService:
         return Path(raw_value)
 
     def set_rpg_maker_project_path(self, path: str | Path | None) -> None:
+        self._scope_cache.clear()
         if path is None or not str(path).strip():
             self.settings_repository.delete(RPG_MAKER_PROJECT_PATH_SETTING_KEY)
             return
@@ -153,8 +159,15 @@ class ModeSettingsService:
         if project_path is None:
             return None
 
+        cache_key = str(project_path)
+        memoized = self._scope_cache.get(cache_key)
+        if memoized is not None:
+            return memoized
+
         project = self.rpg_maker_detector.detect(project_path)
-        return str(project.root_path)
+        scope = str(project.root_path)
+        self._scope_cache[cache_key] = scope
+        return scope
 
     def import_rpg_maker_project(self, path: str | Path) -> RpgMakerImportResult:
         project = self.rpg_maker_detector.detect(path)
