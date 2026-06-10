@@ -26,7 +26,7 @@ bootstrap, persistência, bridge HTTP, patch MV/MZ e threading.
 
 ## 2. Achados, por prioridade
 
-### 2.1 Violação de camada: infraestrutura importa Application (ALTO)
+### 2.1 Violação de camada: infraestrutura importa Application (ALTO) — RESOLVIDO 2026-06-10
 
 `infrastructure/translation/ollama_translator.py:9` importa 7 funções de
 `application/translation_quality.py`. O módulo é stdlib puro — pertence ao
@@ -37,7 +37,7 @@ domínio.
 `rpg_maker_runtime_service.py` e os testes
 (`tests/unit/application/test_translation_quality.py`).
 
-### 2.2 Modo universal NÃO valida cache contaminado (ALTO)
+### 2.2 Modo universal NÃO valida cache contaminado (ALTO) — RESOLVIDO 2026-06-10
 
 `TranslationPipelineService.process_frame` aceita qualquer hit de cache sem
 passar por `looks_like_invalid_translation` — tanto o hit por **imagem**

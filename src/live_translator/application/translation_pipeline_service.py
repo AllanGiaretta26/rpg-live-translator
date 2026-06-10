@@ -16,6 +16,7 @@ from live_translator.domain.interfaces import (
     TranslationCache,
     Translator,
 )
+from live_translator.domain.translation_quality import looks_like_invalid_translation
 
 
 Clock = Callable[[], float]
@@ -96,10 +97,17 @@ class TranslationPipelineService:
             image_hash = self.image_hasher.hash_image(image)
             cached_by_image = self.image_cache.get_by_hash(image_hash)
             if cached_by_image is not None:
-                self._set_diagnostic("cache imagem")
-                self._set_timing_summary(started_at, stage="cache imagem")
-                self.overlay.show_text(cached_by_image.translated_text)
-                return
+                if looks_like_invalid_translation(
+                    cached_by_image.source_text,
+                    cached_by_image.translated_text,
+                ):
+                    # Hit contaminado vira miss: segue para OCR + retraducao.
+                    self._set_diagnostic("cache imagem invalido")
+                else:
+                    self._set_diagnostic("cache imagem")
+                    self._set_timing_summary(started_at, stage="cache imagem")
+                    self.overlay.show_text(cached_by_image.translated_text)
+                    return
 
             ocr_started_at = self.clock()
             extracted = self.text_extractor.extract(image)
@@ -116,15 +124,22 @@ class TranslationPipelineService:
 
             cached_by_text = self.translation_cache.get_by_text(normalized_text)
             if cached_by_text is not None:
-                self._set_diagnostic("cache texto")
-                self._set_timing_summary(
-                    started_at,
-                    ocr_seconds=ocr_seconds,
-                    stage="cache texto",
-                )
-                self.image_cache.save_image_result(image_hash, cached_by_text)
-                self.overlay.show_text(cached_by_text.translated_text)
-                return
+                if looks_like_invalid_translation(
+                    normalized_text,
+                    cached_by_text.translated_text,
+                ):
+                    # Hit contaminado vira miss e nao propaga para o image_cache.
+                    self._set_diagnostic("cache texto invalido")
+                else:
+                    self._set_diagnostic("cache texto")
+                    self._set_timing_summary(
+                        started_at,
+                        ocr_seconds=ocr_seconds,
+                        stage="cache texto",
+                    )
+                    self.image_cache.save_image_result(image_hash, cached_by_text)
+                    self.overlay.show_text(cached_by_text.translated_text)
+                    return
 
             self._set_diagnostic("traduzindo")
             translation_started_at = self.clock()

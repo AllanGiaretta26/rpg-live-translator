@@ -183,17 +183,23 @@ short-circuits nesta ordem (cada etapa evita o custo das seguintes):
 
 ```txt
 1. ImageChangeDetector.has_changed?      → não mudou: retorna
-2. ImageHasher + ImageCache.get_by_hash  → hit: overlay e retorna
+2. ImageHasher + ImageCache.get_by_hash  → hit válido: overlay e retorna
 3. TextExtractor.extract (Ollama vision) + DefaultTextNormalizer
 4. filtro _looks_like_non_game_text      → descarta vazamento de prompt do OCR
-5. TranslationCache.get_by_text          → hit: salva no image_cache, overlay
+5. TranslationCache.get_by_text          → hit válido: salva no image_cache, overlay
 6. Translator.translate (Ollama)
 7. salva nos dois caches
 8. OverlayRenderer.show_text
 ```
 
-O pipeline mantém um contexto curto das últimas falas (propriedade `context`) e
-expõe `last_diagnostic` / `last_timing_summary`, consumidos pelo painel de
+Todo hit de cache (imagem ou texto) passa por
+`looks_like_invalid_translation` antes de ir ao overlay; hit contaminado é
+tratado como miss e re-traduzido — o mesmo contrato dos fluxos MV/MZ
+(runtime, lote, contagem e patch).
+
+O pipeline mantém o contexto de falas deliberadamente vazio (a propriedade
+`context` existe para os testes garantirem que ele nunca acumula — falas
+anteriores não vazam para a tradução atual) e expõe `last_diagnostic` / `last_timing_summary`, consumidos pelo painel de
 Status da UI — diagnóstico é parte do contrato, não detalhe interno.
 
 ### Loop de captura (`CaptureLoopService`)
