@@ -34,7 +34,7 @@
 
 ## Plugin MV/MZ
 
-- [ ] Testar compatibilidade do `LiveTranslatorBridge.js` em jogos MV e MZ diferentes.
+- [x] Testar compatibilidade do `LiveTranslatorBridge.js` em jogos MV e MZ diferentes.
 - [x] Verificar comportamento com jogos Steam sem acesso ao Plugin Manager.
 - [ ] Criar instalador/registrador de plugin para copiar o arquivo e atualizar `plugins.js` com backup.
 - [ ] Adicionar desinstalador/restaurador do plugin usando o backup.
@@ -51,8 +51,6 @@
 
 ## Futuro sem overlay
 
-- [ ] Planejar substituicao runtime de texto dentro da janela do jogo usando cache.
-- [ ] Definir fallback quando a traducao ainda nao estiver pronta.
 - [x] Avaliar exportacao de patch traduzido para pasta separada, sem sobrescrever o jogo original.
 - [x] Adicionar geracao de patch JSON MV/MZ para mensagens, escolhas, texto rolante e speaker opcional.
 - [x] Adicionar aplicacao de patch com backup automatico e restauracao do ultimo backup.
