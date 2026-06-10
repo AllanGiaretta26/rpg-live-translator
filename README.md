@@ -17,7 +17,7 @@ O **RPG Live Translator** captura texto de jogos e exibe a tradução em um over
 - **Universal**: captura uma região da tela, usa Ollama com visão computacional (OCR) para extrair e traduzir o texto. Compatível com qualquer jogo.
 - **RPG Maker MV/MZ**: lê o catálogo JSON do jogo e recebe falas em tempo real via plugin local, eliminando a dependência de OCR nos jogos suportados.
 
-Resultados são armazenados em cache SQLite — textos e imagens já processados não precisam ser retraduzidos.
+Resultados são armazenados em cache SQLite — textos e imagens já processados não precisam ser retraduzidos. Em ambos os modos, traduções antigas do cache que parecem contaminadas (contexto, instruções de prompt, códigos RPG Maker perdidos) são ignoradas e retraduzidas automaticamente.
 
 ## Requisitos
 
@@ -152,7 +152,8 @@ Use esses campos para identificar a origem do problema:
 - se `Fonte MV/MZ` já vier errada, o problema está no plugin ou no fluxo do jogo;
 - se `Fonte MV/MZ` vier limpa e `Tradução MV/MZ` vier contaminada, o problema está no modelo ou no cache;
 - se `Pipeline` mostrar `runtime cache texto`, a tradução veio do cache `translations`;
-- se `Pipeline` mostrar `runtime cache inválido`, o cache antigo foi ignorado e o app está tentando gerar uma nova tradução.
+- se `Pipeline` mostrar `runtime cache inválido`, o cache antigo foi ignorado e o app está tentando gerar uma nova tradução;
+- se `Pipeline` mostrar `projeto MV/MZ inacessível`, o caminho salvo do projeto ficou inválido (jogo movido, renomeado ou atualizado pela Steam) — selecione a pasta do jogo novamente na aba `Modo`.
 
 O runtime MV/MZ valida traduções vindas do cache. Entradas antigas que parecem conter contexto ou instruções de prompt são ignoradas e sobrescritas por uma nova tradução quando a fala aparecer novamente.
 
@@ -211,7 +212,7 @@ Monólito em camadas sob `src/live_translator/`. A regra central é: **UI e infr
 
 | Camada | Responsabilidade |
 |---|---|
-| `domain/` | Modelos imutáveis, contratos (Protocols) e erros. Sem dependências externas. |
+| `domain/` | Modelos imutáveis, contratos (Protocols) e heurísticas de qualidade de tradução. Sem dependências externas. |
 | `application/` | Orquestração: pipeline de tradução, loop de captura, serviços MV/MZ. |
 | `infrastructure/` | Adaptadores concretos: SQLite, MSS, Ollama, utilitários de imagem, bridge HTTP. |
 | `ui/` | Janela principal, overlay e seletor de região (PySide6). |

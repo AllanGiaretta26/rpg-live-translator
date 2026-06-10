@@ -4,6 +4,65 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+## [0.5.0] - 2026-06-10
+
+### Added
+
+- `ARCHITECTURE.md` reescrita do zero, fiel ao codigo real: regras de
+  dependencia verificaveis, mapa de tratamento de falhas e prioridades de
+  teste (`app/bootstrap.py` como fonte da verdade).
+- Guard-rails de arquitetura automatizados em
+  `tests/unit/test_architecture_rules.py`: pureza do Domain, proibicao de
+  infraestrutura importar Application/UI e imports desktop (`PySide6`/`mss`)
+  apenas lazy fora de `ui/` e `infrastructure/capture/`.
+- Teste de bootstrap headless (`tests/unit/app/test_bootstrap_headless.py`)
+  garantindo os fallbacks `ConsoleOverlay`/`ConsoleUiApp` sem GUI instalada.
+- Auditoria completa do projeto em `docs/report/auditoria-2026-06-10.md`, com
+  mapa de interdependencias e ordem de execucao das correcoes.
+- Novo erro `OllamaModelNotFoundError` distinguindo "modelo nao instalado"
+  (HTTP 404, com instrucao de `ollama pull`) de "Ollama fora do ar".
+
+### Changed
+
+- `translation_quality` movido de `application/` para `domain/`, eliminando a
+  violacao de camada em que a infraestrutura importava Application.
+- Lote de traducao do catalogo e export de patch MV/MZ agora usam uma unica
+  consulta em lote (`get_many_by_text`) em vez de uma consulta SQLite por
+  entrada, preservando o reaproveitamento de textos duplicados do catalogo.
+- Scope de cache MV/MZ agora e memoizado por caminho de projeto: o bridge nao
+  refaz deteccao de projeto no disco a cada fala; o cache e invalidado ao
+  trocar o caminho do projeto e falhas de deteccao nao sao memoizadas.
+- Prompts de traducao deduplicados (blocos "Preserve exatamente..."
+  compartilhados); o prompt de retry passou a listar os codigos RPG Maker
+  completos; o idioma destino respeita `target_language` em vez de
+  "portugues brasileiro" fixo; o limite de caracteres da descricao compacta e
+  derivado dos limites de validacao do dominio.
+- Heuristica de texto nao-jogo unificada em
+  `domain/translation_quality.looks_like_non_game_text`, usada pelo pipeline
+  universal e pelo extrator de visao (que agora tambem descarta texto do
+  proprio overlay).
+
+### Fixed
+
+- Modo universal agora valida hits de cache (imagem e texto) com
+  `looks_like_invalid_translation`: traducao contaminada antiga vira cache
+  miss e e retraduzida, em vez de aparecer no overlay para sempre e se
+  propagar para o cache de imagem.
+- `OllamaTranslator` agora aciona o prompt de retry tambem quando o modelo
+  devolve JSON invalido (antes abortava o loop) e rejeita traducoes com
+  marcadores de mascara `__LT_RPG_TOKEN` residuais ou mutilados.
+- `OllamaClient` classifica `HTTPError` antes de `URLError` (um 404 nao vira
+  mais "Ollama is unavailable") e timeout embrulhado em
+  `URLError(reason=TimeoutError)` vira `OllamaTimeoutError`.
+- Runtime MV/MZ degrada com diagnostico "projeto MV/MZ inacessivel" quando o
+  caminho do projeto fica invalido (jogo movido/atualizado), em vez de
+  responder HTTP 500 a cada fala do plugin.
+
+### Removed
+
+- `domain/errors.py` (exceções sem nenhum uso) e a tabela `glossary` sem uso
+  do schema SQLite (bancos existentes nao sao alterados).
+
 ## [0.4.0] - 2026-06-07
 
 ### Added
