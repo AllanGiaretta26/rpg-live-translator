@@ -30,13 +30,6 @@ CREATE TABLE IF NOT EXISTS image_cache (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS glossary (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_term TEXT NOT NULL,
-    target_term TEXT NOT NULL,
-    note TEXT
-);
-
 CREATE TABLE IF NOT EXISTS game_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,

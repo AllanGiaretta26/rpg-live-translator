@@ -6,7 +6,8 @@ import re
 
 from live_translator.domain.interfaces import Translator
 from live_translator.domain.models import RpgMakerTextType, TranslationResult
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
+    DESCRIPTION_TYPES,
     looks_like_overlong_description,
     looks_like_overlong_name_or_term,
     looks_like_context_leak,
@@ -24,17 +25,12 @@ from .prompt_builder import (
 )
 
 
-_DESCRIPTION_TYPES = frozenset(
-    {
-        RpgMakerTextType.ITEM_DESCRIPTION,
-        RpgMakerTextType.SKILL_DESCRIPTION,
-        RpgMakerTextType.WEAPON_DESCRIPTION,
-        RpgMakerTextType.ARMOR_DESCRIPTION,
-    }
-)
 _MASKABLE_RPG_MAKER_TOKEN_PATTERN = re.compile(
     r"%\d+|\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]"
 )
+# Detecta marcadores de mascara que sobraram apos o restore(), inclusive
+# variacoes mutiladas pelo modelo (caixa trocada, underscores perdidos).
+_RESIDUAL_MASK_MARKER_PATTERN = re.compile(r"LT_RPG_TOKEN", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +72,7 @@ class OllamaTranslator(Translator):
                 text_type=text_type,
             ),
         ]
-        if text_type in _DESCRIPTION_TYPES:
+        if text_type in DESCRIPTION_TYPES:
             prompts.append(
                 build_compact_description_prompt(
                     masked_text.text,
@@ -86,8 +82,11 @@ class OllamaTranslator(Translator):
 
         last_error: OllamaInvalidResponseError | None = None
         for prompt in prompts:
-            payload = self.client.generate(prompt)
+            # generate() dentro do try: JSON invalido do modelo tambem deve
+            # acionar o prompt de retry, nao abortar o loop. Erros de
+            # conexao/timeout/modelo continuam propagando imediatamente.
             try:
+                payload = self.client.generate(prompt)
                 translated_text = self._validated_translated_text(
                     text,
                     payload,
@@ -125,6 +124,10 @@ class OllamaTranslator(Translator):
         if not translated_text:
             raise OllamaInvalidResponseError("translated_text is empty")
         translated_text = masked_text.restore(translated_text)
+        if _RESIDUAL_MASK_MARKER_PATTERN.search(translated_text):
+            raise OllamaInvalidResponseError(
+                "translated_text contains residual mask markers"
+            )
         translated_text = restore_missing_leading_rpg_maker_escape_codes(
             source_text,
             translated_text,

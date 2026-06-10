@@ -3,6 +3,34 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from live_translator.domain.models import RpgMakerTextType
+from live_translator.domain.translation_quality import (
+    BATTLE_MESSAGE_TYPES,
+    DESCRIPTION_TYPES,
+    NAME_OR_TERM_TYPES,
+    RPG_MAKER_DESCRIPTION_LINE_LIMIT,
+    RPG_MAKER_DESCRIPTION_MAX_LINES,
+)
+
+
+# Orcamento de caracteres da descricao compacta, derivado dos limites usados
+# por looks_like_overlong_description (52 x 2 linhas), com margem de ~1 palavra
+# para o wrap por palavra inteira nao estourar o numero maximo de linhas.
+_COMPACT_DESCRIPTION_MAX_CHARS = (
+    RPG_MAKER_DESCRIPTION_LINE_LIMIT * RPG_MAKER_DESCRIPTION_MAX_LINES - 9
+)
+
+# Blocos compartilhados pelos prompts de traducao — manter uma definicao unica.
+_ESCAPE_CODE_GUARDRAILS = (
+    "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3], "
+    "\\I[64], \\G, \\\\, \\., \\|, \\!, \\>, \\< e \\^.\n"
+    "Preserve exatamente placeholders como %1, %2 e %3.\n"
+    "Nao traduza, remova ou altere barras invertidas desses codigos.\n"
+)
+_TOKEN_AND_SYMBOL_GUARDRAILS = (
+    "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
+    "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
+    "nao existirem no texto original.\n"
+)
 
 
 def build_vision_translation_prompt(target_language: str = "pt-BR") -> str:
@@ -37,19 +65,14 @@ def build_translation_prompt(
             "</context_only_do_not_translate>\n"
         )
     return (
-        "Voce e um tradutor de dialogos de RPG para portugues brasileiro.\n"
+        "Voce e um tradutor de dialogos de RPG.\n"
         f"Idioma destino: {target_language}.\n"
         f"{context_section}"
         f"<text_to_translate>\n{text}\n"
         "</text_to_translate>\n"
         "Preserve nomes proprios. Nao explique.\n"
-        "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3], "
-        "\\I[64], \\G, \\\\, \\., \\|, \\!, \\>, \\< e \\^.\n"
-        "Preserve exatamente placeholders como %1, %2 e %3.\n"
-        "Nao traduza, remova ou altere barras invertidas desses codigos.\n"
-        "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
-        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
-        "nao existirem no texto original.\n"
+        f"{_ESCAPE_CODE_GUARDRAILS}"
+        f"{_TOKEN_AND_SYMBOL_GUARDRAILS}"
         f"{_translation_profile_instructions(text_type)}"
         f"{_translation_completion_instructions(text_type)}"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
@@ -65,11 +88,8 @@ def build_translation_retry_prompt(
     return (
         f"Traduza para {target_language} somente o texto abaixo.\n"
         "Nao inclua instrucoes, explicacoes, chaves extras ou texto anterior.\n"
-        "Preserve exatamente codigos RPG Maker como \\N[1], \\V[2], \\C[3] e \\I[64].\n"
-        "Preserve exatamente placeholders como %1, %2 e %3.\n"
-        "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
-        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
-        "nao existirem no texto original.\n"
+        f"{_ESCAPE_CODE_GUARDRAILS}"
+        f"{_TOKEN_AND_SYMBOL_GUARDRAILS}"
         f"{_translation_profile_instructions(text_type)}"
         'Responda apenas JSON valido: {"translated_text": "..."}\n'
         f"Texto:\n{text}"
@@ -82,13 +102,12 @@ def build_compact_description_prompt(
 ) -> str:
     return (
         f"Traduza para {target_language} como descricao curta de UI de RPG.\n"
-        "Obrigatorio caber em ate duas linhas curtas de janela de ajuda.\n"
-        "Use no maximo 95 caracteres no total.\n"
+        f"Obrigatorio caber em ate {RPG_MAKER_DESCRIPTION_MAX_LINES} linhas "
+        "curtas de janela de ajuda.\n"
+        f"Use no maximo {_COMPACT_DESCRIPTION_MAX_CHARS} caracteres no total.\n"
         "Preserve numeros, porcentagens, HP, MP, TP, nomes proprios, placeholders "
         "como %1, %2, %3 e codigos RPG Maker como \\N[1], \\V[2], \\C[3], \\I[64].\n"
-        "Preserve exatamente marcadores internos como __LT_RPG_TOKEN_0__.\n"
-        "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
-        "nao existirem no texto original.\n"
+        f"{_TOKEN_AND_SYMBOL_GUARDRAILS}"
         "Corte floreios e explicacoes; mantenha apenas efeito, alvo, duracao e "
         "restricoes importantes.\n"
         "Exemplo de estilo: 'Dano sombrio em todos. Chance media de Slip.'\n"
@@ -98,49 +117,17 @@ def build_compact_description_prompt(
     )
 
 
-_NAME_TYPES = frozenset(
-    {
-        RpgMakerTextType.ITEM_NAME,
-        RpgMakerTextType.SKILL_NAME,
-        RpgMakerTextType.WEAPON_NAME,
-        RpgMakerTextType.ARMOR_NAME,
-        RpgMakerTextType.STATE_NAME,
-        RpgMakerTextType.CLASS_NAME,
-        RpgMakerTextType.ENEMY_NAME,
-        RpgMakerTextType.ACTOR_NAME,
-    }
-)
-_DESCRIPTION_TYPES = frozenset(
-    {
-        RpgMakerTextType.ITEM_DESCRIPTION,
-        RpgMakerTextType.SKILL_DESCRIPTION,
-        RpgMakerTextType.WEAPON_DESCRIPTION,
-        RpgMakerTextType.ARMOR_DESCRIPTION,
-    }
-)
-_BATTLE_MESSAGE_TYPES = frozenset(
-    {
-        RpgMakerTextType.SKILL_MESSAGE,
-        RpgMakerTextType.STATE_MESSAGE,
-        RpgMakerTextType.TROOP_MESSAGE,
-        RpgMakerTextType.TROOP_CHOICE,
-        RpgMakerTextType.TROOP_SCROLLING_TEXT,
-        RpgMakerTextType.TROOP_SPEAKER,
-    }
-)
-
-
 def _translation_profile_instructions(
     text_type: RpgMakerTextType | None,
 ) -> str:
     if text_type is None:
         return ""
-    if text_type in _NAME_TYPES:
+    if text_type in NAME_OR_TERM_TYPES:
         return (
             "Perfil do texto: nome de jogo. Use traducao curta, natural, sem frase "
             "longa e sem ponto final.\n"
         )
-    if text_type in _DESCRIPTION_TYPES:
+    if text_type in DESCRIPTION_TYPES:
         return (
             "Perfil do texto: descricao de item, skill ou equipamento. Use texto curto, "
             "claro e adequado para UI de RPG. Escreva para caber em janela de ajuda "
@@ -151,7 +138,7 @@ def _translation_profile_instructions(
             "Perfil do texto: termo de menu ou sistema. Use um termo curto de UI, nao "
             "uma frase explicativa.\n"
         )
-    if text_type in _BATTLE_MESSAGE_TYPES:
+    if text_type in BATTLE_MESSAGE_TYPES:
         return (
             "Perfil do texto: mensagem de batalha ou estado. Preserve %1, %2, %3 e "
             "codigos como \\N[1], \\V[2], \\C[3] e \\I[64] exatamente.\n"
@@ -165,7 +152,7 @@ def _translation_profile_instructions(
 def _translation_completion_instructions(
     text_type: RpgMakerTextType | None,
 ) -> str:
-    if text_type in _DESCRIPTION_TYPES:
+    if text_type in DESCRIPTION_TYPES:
         return (
             "Traduza apenas o texto dentro de <text_to_translate>.\n"
             "Compacte como descricao de UI: preserve efeito, alvo, numeros e "

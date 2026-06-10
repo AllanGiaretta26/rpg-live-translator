@@ -4,24 +4,10 @@ from dataclasses import dataclass
 
 from live_translator.domain.interfaces import TextExtractor
 from live_translator.domain.models import ExtractedText
+from live_translator.domain.translation_quality import looks_like_non_game_text
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
 from .prompt_builder import build_vision_translation_prompt
-
-
-_PROMPT_ECHO_MARKERS = (
-    "sistema de ocr",
-    "traducao para jogos rpg",
-    "tradução para jogos rpg",
-    "responda apenas json",
-    "source_text",
-    "translated_text",
-)
-
-
-def _looks_like_prompt_echo(text: str) -> bool:
-    normalized = text.casefold()
-    return any(marker in normalized for marker in _PROMPT_ECHO_MARKERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +23,6 @@ class OllamaVisionTextExtractor(TextExtractor):
         source_text = payload.get("source_text")
         if not isinstance(source_text, str):
             raise OllamaInvalidResponseError("source_text missing from vision response")
-        if _looks_like_prompt_echo(source_text):
+        if looks_like_non_game_text(source_text):
             return ExtractedText(text="")
         return ExtractedText(text=source_text)

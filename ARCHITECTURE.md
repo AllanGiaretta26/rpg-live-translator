@@ -2,1107 +2,429 @@
 
 # RPG Live Translator — Arquitetura do Projeto
 
+Este documento descreve a arquitetura **real** do código em `src/live_translator/`.
+Quando houver dúvida entre este documento e o código, o código vence — e o ponto
+de partida para conferir é sempre `app/bootstrap.py` (composition root).
+
+---
+
 ## 1. Visão geral
 
-O projeto é um aplicativo desktop em Python para tradução em tempo real de jogos RPG Maker.
+Aplicativo desktop Windows-first, em Python 3.13+, que traduz textos de jogos
+RPG Maker para pt-BR em tempo real. Existem **dois modos de operação**
+(`OperationMode` em `domain/models.py`):
 
-A arquitetura recomendada é um **monólito modular desktop**, organizado em camadas leves:
+| Modo | Como funciona | Quando usar |
+| --- | --- | --- |
+| `UNIVERSAL` | Captura de tela (MSS) → OCR via Ollama vision → tradução via Ollama → overlay PySide6 | Qualquer jogo/janela |
+| `RPG_MAKER_MV_MZ` | Lê o catálogo JSON do jogo + recebe a fala atual via bridge HTTP local (plugin `LiveTranslatorBridge.js`) — **sem OCR** | Jogos MV/MZ com acesso à pasta `data/` |
 
-```txt
-UI
-Application
-Domain
-Infrastructure
-```
-
-O objetivo não é aplicar Clean Architecture de forma rígida, mas separar responsabilidades o suficiente para manter o projeto testável, evolutivo e fácil de modificar com ferramentas como Codex ou Claude Code.
-
----
-
-## 2. Objetivos arquiteturais
-
-A arquitetura deve favorecer:
-
-- baixa latência na tradução;
-- fácil troca de OCR, modelo LLM ou mecanismo de captura;
-- UI desacoplada da lógica de tradução;
-- cache agressivo para reduzir chamadas ao modelo;
-- testes unitários nos fluxos principais;
-- suporte futuro a leitura direta de arquivos RPG Maker;
-- empacotamento simples para Windows.
-
----
-
-## 3. Decisão arquitetural principal
-
-## Estilo escolhido
+Resultados são cacheados em SQLite (por texto normalizado e por hash perceptual
+de imagem). O estilo arquitetural é um **monólito modular desktop** em quatro
+camadas, com contratos `Protocol` no domínio e injeção de dependência manual no
+bootstrap.
 
 ```txt
-Modular Monolith Desktop
-```
-
-## Por que usar
-
-Resolve o problema de manter o app simples para distribuição, mas organizado o bastante para crescer.
-
-O projeto precisa lidar com captura de tela, OCR/vision, tradução, cache, overlay, atalhos e configurações. Colocar tudo em um único arquivo ou em classes gigantes geraria acoplamento rápido.
-
-## Quando usar
-
-Use essa arquitetura enquanto o app for executado localmente em uma única máquina.
-
-## Quando evitar ou evoluir
-
-Evite transformar cedo demais em microsserviços ou backend web.
-
-Considere dividir em processos separados apenas se:
-
-- o OCR/tradução travar a UI;
-- for necessário rodar o modelo em outro computador;
-- for necessário servir múltiplos clientes;
-- o pipeline de tradução precisar escalar separadamente.
-
-Primeira evolução possível:
-
-```txt
-Desktop UI
-    ↓
-Local Translation Server
-    ↓
-Ollama / OCR / Cache
+UI  ──────────────┐
+                  ▼
+            Application
+                  ▼
+               Domain  ◄────── Infrastructure
 ```
 
 ---
 
-## 4. Camadas
+## 2. Regras de dependência (invariantes)
 
-## 4.1 UI
+Estas regras são o que mantém o projeto testável e robusto. Violações devem ser
+tratadas como bug em review.
 
-Responsável por interação com o usuário.
+1. **Domain não importa nada externo.** Nada de PySide6, mss, sqlite3,
+   requests, PIL etc. em `domain/`. Apenas stdlib (`dataclasses`, `enum`,
+   `pathlib`, `typing`).
+2. **Application depende só de Domain.** Os serviços de aplicação recebem
+   dependências pelos contratos `Protocol` de `domain/interfaces.py`; nunca
+   instanciam adaptadores concretos.
+3. **UI nunca toca infraestrutura.** A UI fala com serviços de Application
+   (`CaptureLoopService`, `ModeSettingsService`, …), nunca com SQLite, Ollama,
+   MSS ou parsers diretamente.
+4. **Infrastructure implementa os Protocols do Domain.** Bibliotecas externas
+   só aparecem aqui e em `ui/`.
+5. **Imports de desktop são lazy/guardados.** `pyside6` e `mss` só podem ser
+   importados no topo de módulo dentro de `ui/` e
+   `infrastructure/capture/`. Em qualquer outro lugar (especialmente
+   `app/bootstrap.py`), o import fica dentro de função e protegido por
+   `try/except ImportError` — é isso que permite rodar testes e CI sem GUI.
+6. **O único lugar que liga implementação a contrato é `app/bootstrap.py`.**
+   Nenhum outro módulo decide "qual" implementação usar.
+7. **Banco só é acessado por repositories** (`infrastructure/persistence/`).
+   Prompts só existem em `infrastructure/translation/prompt_builder.py`.
 
-Exemplos:
+Checagem rápida de violações:
 
-- janela principal;
-- overlay;
-- seletor de região;
-- tray icon;
-- atalhos;
-- telas de configuração.
-
-A UI não deve conhecer detalhes de OCR, SQLite, Ollama ou captura de tela.
-
-```txt
-Correto:
-UI → Application Service
-```
-
-```txt
-Errado:
-UI → Ollama Client
-UI → SQLite direto
-UI → MSS direto
-```
-
----
-
-## 4.2 Application
-
-Responsável por orquestrar casos de uso.
-
-Exemplos:
-
-- loop de captura;
-- pipeline de tradução;
-- seleção de região;
-- gerenciamento de perfis;
-- controle de pausa/resume;
-- aplicação de cache.
-
-Essa camada sabe coordenar dependências, mas não conhece detalhes técnicos internos delas.
-
-Exemplo:
-
-```txt
-CaptureLoopService
-    usa ScreenCapture
-    usa TranslationPipelineService
+```powershell
+# Domain importando infra/UI (deve retornar vazio)
+Get-ChildItem src/live_translator/domain -Filter *.py |
+    Select-String "import (PySide6|mss|sqlite3|requests|PIL)"
+# Imports desktop no topo de módulo fora dos lugares permitidos (deve retornar vazio)
+Get-ChildItem src/live_translator -Recurse -Filter *.py |
+    Where-Object { $_.FullName -notmatch '\\(ui|capture)\\' } |
+    Select-String "^(import|from) (PySide6|mss)"
 ```
 
 ---
 
-## 4.3 Domain
-
-Responsável pelos modelos e contratos centrais.
-
-Deve conter:
-
-- entidades simples;
-- value objects;
-- interfaces;
-- erros de domínio;
-- regras puras quando existirem.
-
-O domínio não deve importar PySide6, MSS, SQLite, OpenCV, requests ou bibliotecas específicas de infraestrutura.
-
----
-
-## 4.4 Infrastructure
-
-Responsável por implementações técnicas.
-
-Exemplos:
-
-- captura com MSS;
-- detecção de janela com Win32;
-- chamada HTTP para Ollama;
-- cache com SQLite;
-- pré-processamento com OpenCV;
-- leitura de arquivos RPG Maker;
-- persistência de configurações.
-
-A infraestrutura implementa contratos definidos no domínio.
-
----
-
-## 5. Diagrama de dependências
+## 3. Estrutura real de pastas
 
 ```txt
-┌─────────────────────────────┐
-│             UI              │
-│ MainWindow / Overlay / Tray │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│         Application         │
-│ Pipeline / Capture Loop     │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│            Domain           │
-│ Models / Interfaces / Errors│
-└──────────────▲──────────────┘
-               │
-┌──────────────┴──────────────┐
-│        Infrastructure       │
-│ MSS / Ollama / SQLite / OCR │
-└─────────────────────────────┘
-```
-
-Regra importante:
-
-```txt
-UI e Infrastructure dependem de Domain.
-Domain não depende de UI nem Infrastructure.
-Application depende de Domain.
-```
-
----
-
-## 6. Estrutura de pastas
-
-```txt
-rpg_live_translator/
+src/live_translator/
   app/
-    main.py
-    bootstrap.py
-
-  ui/
-    main_window.py
-    overlay_window.py
-    settings_window.py
-    region_selector_window.py
-    tray_icon.py
-
-  application/
-    capture_loop_service.py
-    translation_pipeline_service.py
-    region_selection_service.py
-    hotkey_service.py
-    game_profile_service.py
+    main.py                     # entry point (python -m live_translator.app.main)
+    bootstrap.py                # composition root + AppRuntime + fallbacks headless
 
   domain/
-    models.py
-    interfaces.py
-    errors.py
+    models.py                   # dataclasses frozen com validação em __post_init__
+    interfaces.py               # contratos Protocol
+    translation_quality.py      # heurísticas de validação de tradução (crítico)
+
+  application/
+    capture_loop_service.py     # tick de captura, pause/resume, busy flag, last_error
+    translation_pipeline_service.py  # pipeline universal (frame → overlay)
+    capture_preview_service.py  # salva preview da região capturada
+    profile_settings_service.py # perfil ativo (janela + região)
+    overlay_settings_service.py # posição/opacidade/fonte do overlay
+    mode_settings_service.py    # modo ativo + todo o fluxo de catálogo MV/MZ
+    rpg_maker_runtime_service.py# processa fala recebida pelo bridge
+    rpg_maker_patch_service.py  # export/apply/restore de patch MV/MZ
+    geometry.py                 # regras puras de geometria
 
   infrastructure/
     capture/
-      mss_screen_capture.py
-      win32_window_detector.py
-
+      mss_screen_capture.py     # ScreenCapture via MSS
+      win32_window_detector.py  # detecção de janela Win32
     image/
-      image_preprocessor.py
-      image_change_detector.py
-      image_hasher.py
-
-    translation/
-      ollama_client.py
-      ollama_vision_text_extractor.py
-      ollama_translator.py
-      prompt_builder.py
-
+      image_hasher.py           # hash perceptual (ImageHasher)
+      image_change_detector.py  # detecção de mudança de frame
+      image_preprocessor.py     # pré-processamento
     persistence/
-      sqlite_connection.py
-      translation_cache_repository.py
-      image_cache_repository.py
-      glossary_repository.py
-      settings_repository.py
-      game_profile_repository.py
-
+      sqlite_connection.py      # SQLiteConnectionManager (schema único por instância)
+      translation_cache_repository.py   # TranslationCache (com scope)
+      image_cache_repository.py         # ImageCache
+      settings_repository.py            # SettingsRepository (key/value)
+      game_profile_repository.py        # GameProfileRepository
+      rpg_maker_catalog_repository.py   # RpgMakerTextCatalog
+      catalog_translation_error_repository.py  # erros do batch
+    translation/
+      ollama_client.py          # HTTP client (timeout, is_available)
+      ollama_translator.py      # Translator
+      ollama_vision_text_extractor.py   # TextExtractor (OCR por vision)
+      prompt_builder.py         # único lugar com prompts
     rpgmaker/
-      game_detector.py
-      mv_mz_reader.py
-      vx_ace_reader.py
+      project_detector.py       # detecta projeto MV/MZ (www/data ou data)
+      json_text_parser.py       # extrai textos preservando origem exata
+      runtime_bridge_server.py  # servidor HTTP local do bridge
+      plugin/LiveTranslatorBridge.js    # plugin que roda dentro do jogo
 
+  ui/                           # PySide6: main_window, overlay_window,
+                                # region_selector_window, geometrias
   config/
-    settings.py
-    defaults.py
+    defaults.py                 # constantes DEFAULT_*
+    settings.py                 # AppSettings (pydantic-settings + fallback dataclass)
 
-  tests/
-    unit/
-    integration/
-
-  pyproject.toml
-  README.md
+  scripts/                      # create_profile, capture_region (dev)
 ```
 
 ---
 
-## 7. Modelos de domínio
+## 4. Composition root e robustez de inicialização
 
-```python
-from dataclasses import dataclass
-from typing import Optional
+`bootstrap()` monta o grafo de objetos inteiro e devolve um `AppRuntime`
+(dataclass frozen com todos os serviços). `AppRuntime.start()`:
 
+1. checa `ollama_client.is_available()` — se o Ollama estiver fora do ar,
+   **avisa no overlay e segue**; o app nunca deixa de abrir por causa disso;
+2. inicia o bridge HTTP do RPG Maker se `rpg_maker_bridge_enabled`;
+3. roda a UI (`ui.run()`).
 
-@dataclass(frozen=True)
-class TextRegion:
-    x: int
-    y: int
-    width: int
-    height: int
+### Degradação headless (padrão a preservar)
 
+Cada dependência de desktop tem um fallback nulo, escolhido por
+`try/except ImportError` no bootstrap:
 
-@dataclass(frozen=True)
-class ExtractedText:
-    text: str
-    confidence: Optional[float] = None
+| Dependência ausente | Fallback |
+| --- | --- |
+| `mss` | `NullScreenCaptureService` |
+| `pyside6` (overlay) | `ConsoleOverlay` (imprime no stdout) |
+| `pyside6` (UI) | `ConsoleUiApp` (imprime "pronto" e encerra) |
 
+Nota: `MSSScreenCapture` importa `mss` lazy dentro de `capture_region`, então
+na prática o módulo importa mesmo sem a lib e o `NullScreenCaptureService` só
+cobre o caso de falha de import do próprio adaptador; o bootstrap headless
+funciona de qualquer forma porque nenhuma captura ocorre no start.
 
-@dataclass(frozen=True)
-class TranslationResult:
-    source_text: str
-    translated_text: str
-    source_lang: str = "auto"
-    target_lang: str = "pt-BR"
+É por isso que a suíte de testes e o CI executam o `bootstrap()` completo sem
+display nem Ollama (verificado por `tests/unit/test_architecture_rules.py` e
+`tests/unit/app/test_bootstrap_headless.py`). **Nunca** transforme esses
+imports em imports de topo de módulo fora de `ui/` e `infrastructure/capture/`.
 
+### Injeção para testes
 
-@dataclass(frozen=True)
-class GameProfile:
-    name: str
-    window_title: str
-    text_region: TextRegion
-```
-
-## Por que usar dataclass frozen
-
-Resolve o problema de mutação acidental em objetos que representam dados do fluxo.
-
-Use quando o objeto representa um valor transportado entre camadas.
-
-Evite se o objeto precisar de ciclo de vida complexo, estado mutável ou comportamento rico.
+`bootstrap(settings=…, overlay_factory=…, ui_factory=…)` permite substituir
+overlay e UI por fakes. Testes de fluxo devem usar esses pontos de injeção em
+vez de monkeypatch profundo.
 
 ---
 
-## 8. Interfaces principais
+## 5. Modo universal — pipeline de tradução
 
-As interfaces ficam em `domain/interfaces.py`.
+`TranslationPipelineService.process_frame(image)` processa cada frame com
+short-circuits nesta ordem (cada etapa evita o custo das seguintes):
 
-```python
-from typing import Protocol
-from PIL import Image
-
-from .models import ExtractedText, GameProfile, TextRegion, TranslationResult
-
-
-class ScreenCapture(Protocol):
-    def capture_region(self, region: TextRegion) -> Image.Image:
-        ...
-
-
-class WindowDetector(Protocol):
-    def find_game_window(self, title: str):
-        ...
-
-
-class TextExtractor(Protocol):
-    def extract(self, image: Image.Image) -> ExtractedText:
-        ...
-
-
-class Translator(Protocol):
-    def translate(self, text: str, context: list[str]) -> TranslationResult:
-        ...
-
-
-class TranslationCache(Protocol):
-    def get_by_text(self, source_text: str) -> TranslationResult | None:
-        ...
-
-    def get_many_by_text(
-        self, texts: Sequence[str]
-    ) -> dict[str, TranslationResult]:
-        ...
-
-    def save_translation(self, result: TranslationResult) -> None:
-        ...
-
-
-class ImageCache(Protocol):
-    def get_by_hash(self, image_hash: str) -> TranslationResult | None:
-        ...
-
-    def save_image_result(self, image_hash: str, result: TranslationResult) -> None:
-        ...
-
-
-class OverlayRenderer(Protocol):
-    def show_text(self, text: str) -> None:
-        ...
-
-    def hide(self) -> None:
-        ...
-
-
-class GameProfileRepository(Protocol):
-    def get_active_profile(self) -> GameProfile | None:
-        ...
-
-    def save(self, profile: GameProfile) -> None:
-        ...
+```txt
+1. ImageChangeDetector.has_changed?      → não mudou: retorna
+2. ImageHasher + ImageCache.get_by_hash  → hit válido: overlay e retorna
+3. TextExtractor.extract (Ollama vision) + DefaultTextNormalizer
+4. filtro _looks_like_non_game_text      → descarta vazamento de prompt do OCR
+5. TranslationCache.get_by_text          → hit válido: salva no image_cache, overlay
+6. Translator.translate (Ollama)
+7. salva nos dois caches
+8. OverlayRenderer.show_text
 ```
+
+Todo hit de cache (imagem ou texto) passa por
+`looks_like_invalid_translation` antes de ir ao overlay; hit contaminado é
+tratado como miss e re-traduzido — o mesmo contrato dos fluxos MV/MZ
+(runtime, lote, contagem e patch).
+
+O pipeline mantém o contexto de falas deliberadamente vazio (a propriedade
+`context` existe para os testes garantirem que ele nunca acumula — falas
+anteriores não vazam para a tradução atual) e expõe `last_diagnostic` / `last_timing_summary`, consumidos pelo painel de
+Status da UI — diagnóstico é parte do contrato, não detalhe interno.
+
+### Loop de captura (`CaptureLoopService`)
+
+- `tick()` é chamado por timer da UI; retorna se processou um frame.
+- Flag `is_busy` impede frames concorrentes (não processa um novo frame
+  enquanto outro está em andamento).
+- `pause()`/`resume()` controlam o estado; `last_error_message` +
+  `clear_last_error()` capturam falhas **sem derrubar o app** — erro de captura
+  ou de pipeline vira mensagem na UI, nunca exceção não tratada.
 
 ---
 
-## 9. Pipeline de tradução
+## 6. Modo RPG Maker MV/MZ
 
-## Fluxo principal
+Três fluxos independentes, todos orquestrados por `ModeSettingsService`:
+
+### 6.1 Importação de catálogo (somente leitura)
 
 ```txt
-Capturar região
-    ↓
-Verificar mudança visual
-    ↓
-Gerar hash da imagem
-    ↓
-Consultar cache por imagem
-    ↓
-Extrair texto
-    ↓
-Normalizar texto
-    ↓
-Consultar cache por texto
-    ↓
-Traduzir se necessário
-    ↓
-Salvar cache
-    ↓
-Renderizar overlay
+Usuário aponta a pasta do jogo
+  → FileSystemRpgMakerProjectDetector.detect (www/data ou data; MV/MZ)
+  → RpgMakerJsonTextParser.parse_project
+  → SQLiteRpgMakerTextCatalogRepository.replace_project_entries
 ```
+
+O parser cobre `Map*.json`, `CommonEvents.json`, `System.json`, bancos
+(`Items`, `Skills`, `Weapons`, `Armors`, `States`, `Classes`, `Enemies`,
+`Actors`, `Troops`) e `Scenario.json`. Cada `RpgMakerTextEntry` carrega um
+`RpgMakerTextOrigin` com a origem exata (arquivo/evento/página/comando/parâmetro
+ou id/campo de banco) — é isso que torna o write-back do patch seguro.
+
+### 6.2 Tradução em lote do catálogo
+
+`translate_catalog_entries()` traduz entradas pendentes com progresso
+(`CatalogTranslationProgress`), valida cada resultado com
+`translation_quality`, e registra falhas em
+`CatalogTranslationErrorRepository` (limpo a cada novo lote) em vez de abortar.
+`clear_contaminated_catalog_cache()` remove do cache traduções que ficaram
+inválidas segundo as heurísticas atuais.
+
+### 6.3 Runtime bridge (fala ao vivo, sem OCR)
+
+```txt
+Jogo (plugin LiveTranslatorBridge.js)
+  → POST http://127.0.0.1:8765/rpgmaker/text   (host/porta configuráveis)
+  → RpgMakerRuntimeBridgeServer
+  → RpgMakerRuntimeService.process_text
+       cache (com scope do projeto) → tradução se necessário → overlay
+```
+
+O servidor expõe `is_running` / `last_error`; `start()` retorna `bool` em vez
+de lançar — porta ocupada não derruba o app. O serviço expõe os mesmos
+`last_diagnostic` / `last_timing_summary` do pipeline universal.
+
+### 6.4 Patch (export / apply / restore)
+
+`RpgMakerPatchService` gera JSON traduzido a partir de **catálogo + cache
+existente apenas** — nunca chama o Ollama. Salvaguardas:
+
+- valida que o texto original ainda bate com o JSON do jogo antes de
+  substituir (jogo atualizado ⇒ entrada pulada e reportada, não corrompida);
+- quebra linhas respeitando limites configuráveis
+  (`patch_message_line_limit`, `…_face_line_limit`, `…_description_line_limit`);
+- escreve em `exports/patches/<game>-ptBR-<timestamp>/data/` com relatório;
+- `apply_patch` faz backup em `backups/patches/...` **antes** de tocar nos
+  arquivos do jogo; `restore_latest_backup` desfaz.
+
+**Invariante:** o app nunca modifica arquivos do jogo fora das ações explícitas
+de apply/restore.
 
 ---
 
-## 10. Serviço principal de pipeline
+## 7. Qualidade de tradução é correção, não estilo
 
-```python
-class TranslationPipelineService:
-    def __init__(
-        self,
-        text_extractor,
-        translator,
-        translation_cache,
-        image_cache,
-        image_hasher,
-        change_detector,
-        overlay,
-        text_normalizer,
-    ):
-        self.text_extractor = text_extractor
-        self.translator = translator
-        self.translation_cache = translation_cache
-        self.image_cache = image_cache
-        self.image_hasher = image_hasher
-        self.change_detector = change_detector
-        self.overlay = overlay
-        self.text_normalizer = text_normalizer
-        self.context: list[str] = []
+`domain/translation_quality.py` é o guardião contra traduções
+contaminadas e é o coração da qualidade do patch MV/MZ.
+`looks_like_invalid_translation()` rejeita:
 
-    def process_frame(self, image):
-        if not self.change_detector.has_changed(image):
-            return
+- vazamentos de prompt/contexto na resposta do modelo;
+- perda de códigos de escape do RPG Maker (`\N[1]`, `\V[2]`, `\C[3]`,
+  `\I[64]`) e placeholders `%1`;
+- marcadores de moeda inesperados no início (`€`/`¥`/`￥`);
+- nomes/descrições longos demais para o tipo (`RpgMakerTextType`).
 
-        image_hash = self.image_hasher.hash(image)
-        cached_by_image = self.image_cache.get_by_hash(image_hash)
+Regras de robustez:
 
-        if cached_by_image:
-            self.overlay.show_text(cached_by_image.translated_text)
-            return
-
-        extracted = self.text_extractor.extract(image)
-        normalized_text = self.text_normalizer.normalize(extracted.text)
-
-        if not normalized_text:
-            return
-
-        cached_by_text = self.translation_cache.get_by_text(normalized_text)
-
-        if cached_by_text:
-            self.image_cache.save_image_result(image_hash, cached_by_text)
-            self.overlay.show_text(cached_by_text.translated_text)
-            return
-
-        result = self.translator.translate(normalized_text, self.context)
-
-        self.translation_cache.save_translation(result)
-        self.image_cache.save_image_result(image_hash, result)
-
-        self.context.append(normalized_text)
-        self.context = self.context[-5:]
-
-        self.overlay.show_text(result.translated_text)
-```
+- **Cache hit que falha na validação é tratado como miss** e re-traduzido —
+  cache contaminado não se propaga para overlay nem patch.
+- A contagem de "cache hits" do catálogo só conta traduções válidas, alinhada
+  ao que lote e patch consideram hit real.
+- Ao mudar prompt ou comportamento de tradução, **atualize as heurísticas e
+  seus testes na mesma mudança** (`tests/unit/domain/test_translation_quality.py`).
 
 ---
 
-## 11. Loop de captura
+## 8. Cache e escopo
 
-O `CaptureLoopService` controla quando capturar e processar frames.
+Dois caches complementares, consultados nessa ordem no modo universal:
 
-Responsabilidades:
+| Cache | Chave | Resolve |
+| --- | --- | --- |
+| `image_cache` | hash perceptual da imagem | mesma caixa de diálogo parada na tela |
+| `translations` | texto-fonte normalizado (+ `scope`) | mesma fala em frames diferentes |
 
-- respeitar intervalo configurado;
-- capturar a região ativa;
-- evitar bloquear a UI;
-- pausar e retomar;
-- lidar com erros sem derrubar o app.
+### Escopo (`scope`)
 
-Fluxo:
+Todo o `TranslationCache` Protocol aceita `scope: str | None`. Traduções MV/MZ
+usam o caminho do projeto ativo como escopo
+(`ModeSettingsService.get_rpg_maker_cache_scope()`), para que jogos diferentes
+nunca compartilhem/contaminem cache. O modo universal usa escopo nulo (global).
+Ao adicionar qualquer consulta nova ao cache, propague o `scope`.
 
-```txt
-Timer dispara
-    ↓
-Verifica se tradução está ativa
-    ↓
-Obtém perfil de jogo
-    ↓
-Captura região
-    ↓
-Envia imagem ao pipeline
-```
+### Consultas em lote
 
-Importante: a chamada ao modelo não deve rodar na thread principal da UI.
+Fluxos que checam muitos textos (contagem de cache do catálogo, limpeza de
+cache contaminado) usam `get_many_by_text`, que resolve a lista inteira em uma
+consulta (com chunking para o limite de parâmetros do SQLite). Não escreva
+loops `get_by_text` — é o anti-padrão N+1.
 
 ---
 
-## 12. OCR e tradução
+## 9. Persistência (SQLite)
 
-## MVP
+`SQLiteConnectionManager` abre uma conexão nova por operação (`open()`), mas
+cria/migra o schema **uma única vez por instância** (com lock); cada conexão só
+configura estado barato (`PRAGMA foreign_keys`). DDL fora do caminho quente é
+intencional — não mover `CREATE TABLE` para dentro de `open()`.
 
-No MVP, pode existir um adaptador combinado:
+Tabelas: `translations` (unique por texto normalizado + escopo),
+`image_cache` (unique por hash), `game_profiles`, `settings` (key/value),
+catálogo MV/MZ e erros de lote. O schema autoritativo está em
+`sqlite_connection.py` e nos repositories — não duplique DDL em docs.
 
-```txt
-Imagem → Ollama Vision → source_text + translated_text
-```
-
-Isso acelera o desenvolvimento.
-
-Mesmo assim, internamente, mantenha o contrato separado:
-
-```txt
-TextExtractor
-Translator
-```
-
-## Arquitetura final
-
-Fluxo recomendado depois do MVP:
-
-```txt
-Imagem
-    ↓
-OCR dedicado
-    ↓
-Correção com LLM
-    ↓
-Tradução com LLM
-```
-
-## Quando usar vision direto
-
-Use quando:
-
-- o OCR dedicado falhar;
-- a fonte for muito estilizada;
-- houver texto com sombra, contorno ou baixa resolução;
-- for mais importante funcionar do que ser rápido.
-
-## Quando evitar vision direto
-
-Evite quando:
-
-- o texto é simples e frequente;
-- há muitas chamadas repetidas;
-- a latência está alta;
-- o hardware local é limitado.
+Falha de cache é não-fatal: o fluxo segue sem cache e registra log.
 
 ---
 
-## 13. Integração com Ollama
+## 10. Configurações
 
-Módulos sugeridos:
+- `config/defaults.py` concentra as constantes `DEFAULT_*` (URL/modelo/timeout
+  do Ollama, intervalo de captura, caminhos, host/porta do bridge, limites de
+  quebra de linha do patch).
+- `config/settings.py` define `AppSettings` via `pydantic-settings`, lendo env
+  com prefixo `LIVE_TRANSLATOR_` (ex.:
+  `LIVE_TRANSLATOR_RPG_MAKER_BRIDGE_PORT`) e arquivo `.env`.
+- Existe um **fallback dataclass sem pydantic** no mesmo módulo — ao adicionar
+  um campo, **adicione nas duas definições** e em `defaults.py`.
+- Configurações editáveis pela UI (modo ativo, projeto MV/MZ, posição do
+  overlay, perfil ativo) são persistidas no SQLite via `SettingsRepository`,
+  não em `.env`.
 
-```txt
-infrastructure/translation/ollama_client.py
-infrastructure/translation/ollama_vision_text_extractor.py
-infrastructure/translation/ollama_translator.py
-infrastructure/translation/prompt_builder.py
-```
+---
 
-Responsabilidades do client:
+## 11. Tratamento de erros — mapa de falhas
 
-- chamar API local do Ollama;
-- aplicar timeout;
-- tratar erro HTTP;
-- validar JSON de resposta;
-- registrar logs úteis;
-- não conter regra de UI.
+Princípio: **toda falha de dependência externa degrada para um estado visível e
+recuperável; nada derruba o app.**
 
-Prompt base para MVP:
+| Falha | Comportamento |
+| --- | --- |
+| Ollama indisponível no start | aviso no overlay, app continua |
+| Ollama falha/timeout em runtime | erro registrado (`last_error_message` / erros de lote), frame/entrada pulado |
+| Modelo não instalado no Ollama (HTTP 404) | `OllamaModelNotFoundError` com instrução de `ollama pull` — distinto de "fora do ar" |
+| Resposta inválida do modelo | rejeitada por `translation_quality`, tratada como miss/erro de lote |
+| `pyside6`/`mss` ausentes | fallbacks console/null via `ImportError` |
+| Porta do bridge ocupada | `start()` retorna `False`, `last_error` preenchido |
+| Caminho do projeto MV/MZ ficou inválido (jogo movido/atualizado) | runtime ignora a fala com diagnóstico "projeto MV/MZ inacessível" — sem HTTP 500 por linha |
+| Região/perfil inválido | validação em `__post_init__` dos modelos (`ValueError` na borda) |
+| JSON do jogo mudou desde o import | entrada do patch é pulada e reportada |
+| SQLite falhou | segue sem cache, loga |
 
-```txt
-Você é um sistema de OCR e tradução para jogos RPG.
+Os modelos de domínio validam invariantes no `__post_init__` (região com
+dimensões positivas, textos não vazios, opacidade em (0,1]…), então dados
+inválidos falham cedo e perto da origem.
 
-Tarefa:
-1. Leia o texto visível na imagem.
-2. Ignore elementos decorativos.
-3. Traduza para português brasileiro.
-4. Preserve nomes próprios.
-5. Não explique.
-6. Responda apenas em JSON válido.
+---
 
-Formato:
-{
-  "source_text": "...",
-  "translated_text": "..."
-}
+## 12. Testes
+
+- A suíte roda **sem** desktop nem Ollama: não adicione testes que exijam
+  servidor Ollama vivo, display, `pyside6` ou `mss`.
+- Layout espelha o pacote: `tests/unit/<layer>/...` e `tests/integration/`;
+  nomes `test_<module>.py` / `test_<behavior>()`.
+- Teste contra os Protocols com fakes/mocks; SQLite real só em banco
+  temporário nos testes de integração.
+- Prioridades de cobertura (em ordem de criticidade):
+  1. `translation_quality` — qualquer mudança de prompt/heurística;
+  2. pipeline com mocks (ordem dos short-circuits, escopo de cache);
+  3. parser/patch MV/MZ (origem preservada, validação de write-back, backup);
+  4. repositories (escopo, lote, unicidade);
+  5. normalização e detecção de mudança de imagem.
+
+```powershell
+.venv\Scripts\python.exe -m pytest          # suíte completa
+ruff check . ; ruff format .                # lint/format (linha 88, py313)
 ```
 
 ---
 
-## 14. Cache
+## 13. Regras para agentes de código e contribuição
 
-O cache é parte crítica da performance.
-
-## Cache por imagem
-
-Resolve chamadas repetidas quando a mesma caixa de diálogo continua na tela.
-
-Chave:
-
-```txt
-image_hash
-```
-
-Valor:
-
-```txt
-source_text
-translated_text
-```
-
-## Cache por texto
-
-Resolve falas repetidas mesmo quando a imagem muda levemente.
-
-Chave:
-
-```txt
-normalized_source_text
-```
-
-Valor:
-
-```txt
-translated_text
-```
-
-## Ordem recomendada
-
-```txt
-1. cache por imagem
-2. OCR / extração
-3. cache por texto
-4. tradução
-5. salvar ambos
-```
-
-## Consulta em lote
-
-Fluxos que verificam muitos textos de uma vez (contagem de cache do catálogo
-MV/MZ e limpeza de cache contaminado) não devem consultar o cache texto a texto.
-Use `get_many_by_text`, que resolve a lista inteira em uma única consulta (com
-chunking para respeitar o limite de parâmetros do SQLite) e devolve um mapa
-chaveado pelo texto original. Isso evita o padrão N+1 de uma conexão por entrada.
-
-A contagem de cache do catálogo só conta como hit traduções válidas: entradas
-contaminadas (com vazamento de contexto/prompt) são descartadas, alinhando o
-número ao que o lote e o patch consideram um hit real.
+- Comece a leitura por `app/bootstrap.py`; é o mapa de como tudo se conecta.
+- Peça/faça mudanças pequenas, por módulo, respeitando os Protocols existentes.
+- Ao criar um serviço novo: contrato em `domain/interfaces.py` (se precisar de
+  infra), implementação em `infrastructure/`, orquestração em `application/`,
+  fiação **apenas** no `bootstrap()` e no `AppRuntime`.
+- Ao adicionar setting: `defaults.py` + as duas definições de `AppSettings` +
+  passagem explícita no `bootstrap()`.
+- Código, comentários, docs e strings de UI em **português brasileiro**.
+- Commits com assunto curto no imperativo.
 
 ---
 
-## 14.1 Suporte RPG Maker MV/MZ
-
-Depois do MVP por captura de tela, a principal evolucao arquitetural e adicionar
-leitura externa de dados RPG Maker MV/MZ. Essa leitura deve complementar o
-pipeline atual, nao substituir OCR/vision imediatamente.
-
-Fluxo recomendado:
-
-```txt
-Usuario aponta pasta do jogo
-    ↓
-Detector identifica MV/MZ por www/data ou data
-    ↓
-Leitor extrai textos de JSONs conhecidos
-    ↓
-Textos entram em catalogo local e/ou cache SQLite
-    ↓
-Runtime usa OCR para identificar a fala atual
-    ↓
-Pipeline busca traducao conhecida antes de chamar o modelo
-    ↓
-Fallback continua sendo OCR/vision + traducao
-```
-
-Responsabilidades por camada:
-
-```txt
-domain
-  modelos para texto extraido, origem do texto e versao RPG Maker
-  regras puras de normalizacao/matching
-
-application
-  servico de importacao/pre-cache
-  orquestracao entre catalogo, cache e pipeline
-
-infrastructure/rpgmaker
-  detector de pasta MV/MZ
-  parser de JSONs MapXXX, CommonEvents, System e bancos de dados
-
-ui
-  selecao da pasta do jogo
-  status da importacao
-```
-
-Escopo inicial MV/MZ:
-
-```txt
-MapXXX.json
-CommonEvents.json
-comandos 101, 401, 102, 402 e 405
-preservar origem: arquivo, mapa, evento, pagina e indice do comando
-somente leitura; nao modificar arquivos do jogo
-```
-
-Limites conhecidos:
-
-```txt
-plugins podem montar texto por script
-variaveis e codigos de controle precisam ser preservados
-textos em imagem continuam dependendo de OCR
-jogos empacotados ou criptografados podem exigir fallback
-```
-
----
-
-## 15. Banco de dados SQLite
-
-Schema inicial:
-
-```sql
-CREATE TABLE translations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_text TEXT NOT NULL,
-    normalized_source_text TEXT NOT NULL UNIQUE,
-    translated_text TEXT NOT NULL,
-    source_lang TEXT,
-    target_lang TEXT NOT NULL DEFAULT 'pt-BR',
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE image_cache (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    image_hash TEXT NOT NULL UNIQUE,
-    source_text TEXT,
-    translated_text TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE glossary (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_term TEXT NOT NULL,
-    target_term TEXT NOT NULL,
-    note TEXT
-);
-
-CREATE TABLE game_profiles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    window_title TEXT NOT NULL,
-    region_x INTEGER NOT NULL,
-    region_y INTEGER NOT NULL,
-    region_width INTEGER NOT NULL,
-    region_height INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE TABLE settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-```
-
-## Inicialização do schema
-
-O `SQLiteConnectionManager` cria/migra o schema uma única vez por instância, e não
-a cada conexão aberta. A criação de tabelas (`CREATE TABLE IF NOT EXISTS ...`) e a
-introspecção de migração rodam apenas na primeira vez (com lock), enquanto cada
-conexão configura apenas estado barato por conexão, como `PRAGMA foreign_keys`.
-Como todo acesso ao banco abre uma conexão nova via `open()`, manter o DDL fora
-desse caminho reduz o custo de cada operação de cache.
-
----
-
-## 16. Overlay
-
-O overlay deve ser uma implementação de `OverlayRenderer`.
-
-Características:
-
-- sem borda;
-- sempre no topo;
-- fundo transparente ou translúcido;
-- posição configurável;
-- tamanho de fonte configurável;
-- modo legenda;
-- modo caixa sobreposta;
-- modo histórico lateral no futuro.
-
-## Regras
-
-O overlay apenas exibe texto.
-
-Não deve:
-
-- chamar tradutor;
-- consultar banco;
-- capturar tela;
-- montar prompt;
-- conhecer Ollama.
-
----
-
-## 17. Configurações
-
-Use `pydantic-settings` para carregar configurações.
-
-Exemplo:
-
-```python
-from pydantic_settings import BaseSettings
-
-
-class AppSettings(BaseSettings):
-    ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "gemma4:e4b"
-
-    source_language: str = "auto"
-    target_language: str = "pt-BR"
-
-    capture_interval_ms: int = 500
-    translation_timeout_seconds: int = 30
-
-    overlay_font_size: int = 24
-    overlay_opacity: float = 0.85
-
-    database_path: str = "data/app.sqlite3"
-```
-
-Configurações editáveis pela UI devem ser persistidas no SQLite ou em arquivo local do usuário.
-
----
-
-## 18. Logs
-
-Use logs desde o início.
-
-Eventos importantes:
-
-- app iniciado;
-- perfil carregado;
-- região capturada;
-- cache hit/miss;
-- tempo de OCR;
-- tempo de tradução;
-- erro do Ollama;
-- texto extraído;
-- tradução final.
-
-Atenção: permita desligar logs de texto para preservar privacidade.
-
----
-
-## 19. Tratamento de erros
-
-Erros esperados:
-
-- Ollama indisponível;
-- modelo não instalado;
-- resposta inválida do modelo;
-- região de captura inválida;
-- janela do jogo não encontrada;
-- overlay não consegue ficar no topo;
-- SQLite bloqueado ou inacessível.
-
-Cada erro deve ser tratado de forma localizada.
-
-Exemplo:
-
-```txt
-Ollama indisponível → mostrar aviso na UI, manter app aberto
-Região inválida → pedir nova seleção
-Cache falhou → seguir sem cache e registrar log
-```
-
----
-
-## 20. Testes
-
-## Unitários
-
-Prioridade:
-
-- normalização de texto;
-- cache repository;
-- pipeline com mocks;
-- prompt builder;
-- image change detector.
-
-## Integração
-
-Prioridade:
-
-- SQLite real em banco temporário;
-- chamada ao Ollama opcional;
-- captura de região opcional;
-- overlay manual.
-
-## O que evitar testar cedo
-
-Evite gastar muito tempo tentando automatizar testes de overlay e captura de jogo no início. Esses pontos podem ter teste manual guiado.
-
----
-
-## 21. Regras para agentes de código
-
-Ao usar Codex ou Claude Code, peça módulos pequenos.
-
-## Bom pedido
-
-```txt
-Implemente SQLiteTranslationCache seguindo a interface TranslationCache.
-Use sqlite3 padrão do Python.
-Inclua testes unitários com banco temporário.
-Não altere a UI.
-```
-
-## Pedido ruim
-
-```txt
-Crie o app inteiro de tradução em tempo real.
-```
-
-## Ordem recomendada
-
-```txt
-1. domain/models.py
-2. domain/interfaces.py
-3. application/translation_pipeline_service.py
-4. infrastructure/persistence/sqlite repositories
-5. infrastructure/capture/mss_screen_capture.py
-6. infrastructure/translation/ollama client
-7. ui/overlay_window.py
-8. application/capture_loop_service.py
-9. app/bootstrap.py
-10. app/main.py
-```
-
----
-
-## 22. Regras de acoplamento
-
-## Regra 1
-
-UI não acessa infraestrutura diretamente.
-
-```txt
-Errado:
-MainWindow → SQLiteTranslationCache
-```
-
-```txt
-Certo:
-MainWindow → GameProfileService → GameProfileRepository
-```
-
-## Regra 2
-
-Prompt não fica espalhado pelo código.
-
-```txt
-Correto:
-prompt_builder.py
-```
-
-## Regra 3
-
-Banco só é acessado por repositories.
-
-```txt
-Correto:
-translation_cache_repository.py
-settings_repository.py
-```
-
-## Regra 4
-
-Pipeline não deve saber se o overlay é PySide6, console ou outro renderer.
-
-```txt
-Correto:
-overlay.show_text(text)
-```
-
-## Regra 5
-
-Infraestrutura pode depender de bibliotecas externas. Domínio não.
-
----
-
-## 23. Runtime esperado
-
-```txt
-App inicia
-    ↓
-Carrega settings
-    ↓
-Inicializa SQLite
-    ↓
-Verifica Ollama
-    ↓
-Carrega perfil ativo
-    ↓
-Inicializa UI
-    ↓
-Usuário ativa tradução
-    ↓
-CaptureLoopService captura região
-    ↓
-TranslationPipelineService processa imagem
-    ↓
-OverlayRenderer mostra tradução
-```
-
----
-
-## 24. MVP arquitetural
-
-O MVP deve conter:
-
-```txt
-Domain models
-Domain interfaces
-TranslationPipelineService
-MSSScreenCapture
-Ollama vision adapter
-SQLite cache
-OverlayWindow simples
-CaptureLoopService
-Config básica
-```
-
-Não precisa conter ainda:
-
-```txt
-leitor RPG Maker
-OCR dedicado
-UI completa
-histórico lateral
-detecção automática perfeita
-build final
-```
-
----
-
-## 25. Riscos arquiteturais
-
-## Risco 1: UI travar durante tradução
-
-Mitigação:
-
-- worker thread;
-- fila de processamento;
-- timeout no Ollama;
-- não processar novo frame enquanto outro está em andamento.
-
-## Risco 2: agentes criarem dependências cruzadas
-
-Mitigação:
-
-- interfaces primeiro;
-- testes do pipeline;
-- revisar imports;
-- tarefas pequenas.
-
-## Risco 3: cache mal desenhado
-
-Mitigação:
-
-- normalizar texto antes de salvar;
-- cache por imagem e por texto;
-- constraints únicas no SQLite.
-
-## Risco 4: OCR caro demais
-
-Mitigação:
-
-- região pequena;
-- detector de mudança;
-- hash perceptual;
-- OCR dedicado no futuro.
-
----
-
-## 26. Decisão final
-
-A arquitetura final recomendada é:
-
-```txt
-Monólito modular desktop
-com separação leve entre UI, Application, Domain e Infrastructure
-```
-
-Essa escolha maximiza velocidade de desenvolvimento sem sacrificar manutenção, testabilidade e evolução futura.
+## 14. Evolução e limites conhecidos
+
+Mantenha o monólito enquanto o app rodar em uma única máquina. Considere
+separar processos apenas se o OCR/tradução travar a UI de forma irrecuperável,
+ou se o modelo precisar rodar em outra máquina. Primeira evolução possível:
+`Desktop UI → Local Translation Server → Ollama/OCR/Cache`.
+
+Limites conhecidos do modo MV/MZ:
+
+- plugins que montam texto por script não aparecem no catálogo (o bridge
+  runtime cobre parte disso);
+- variáveis e códigos de controle precisam ser preservados (vigiado por
+  `translation_quality`);
+- textos renderizados como imagem continuam dependendo do modo universal;
+- jogos empacotados/criptografados podem exigir fallback para OCR.

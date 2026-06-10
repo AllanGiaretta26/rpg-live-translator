@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
 from typing import Callable
@@ -24,7 +24,7 @@ from live_translator.domain.models import (
     TranslationResult,
 )
 
-from .translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
     should_bypass_rpg_maker_translation,
 )
@@ -118,6 +118,11 @@ class ModeSettingsService:
     patch_message_face_line_limit: int = MESSAGE_FACE_LINE_LIMIT
     patch_description_line_limit: int = DESCRIPTION_LINE_LIMIT
     clock: Clock = monotonic
+    # Memoiza o scope por caminho de projeto: o runtime consulta o scope a cada
+    # fala do bridge e detect() faz I/O de filesystem. Invalidado em
+    # set_rpg_maker_project_path. Falhas de detect nao sao memoizadas, para o
+    # scope voltar sozinho quando o caminho ficar valido de novo.
+    _scope_cache: dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
     def get_active_mode(self) -> OperationMode:
         raw_value = self.settings_repository.get(ACTIVE_MODE_SETTING_KEY)
@@ -139,6 +144,7 @@ class ModeSettingsService:
         return Path(raw_value)
 
     def set_rpg_maker_project_path(self, path: str | Path | None) -> None:
+        self._scope_cache.clear()
         if path is None or not str(path).strip():
             self.settings_repository.delete(RPG_MAKER_PROJECT_PATH_SETTING_KEY)
             return
@@ -153,8 +159,15 @@ class ModeSettingsService:
         if project_path is None:
             return None
 
+        cache_key = str(project_path)
+        memoized = self._scope_cache.get(cache_key)
+        if memoized is not None:
+            return memoized
+
         project = self.rpg_maker_detector.detect(project_path)
-        return str(project.root_path)
+        scope = str(project.root_path)
+        self._scope_cache[cache_key] = scope
+        return scope
 
     def import_rpg_maker_project(self, path: str | Path) -> RpgMakerImportResult:
         project = self.rpg_maker_detector.detect(path)
@@ -251,6 +264,14 @@ class ModeSettingsService:
         cancelled = False
         translation_seconds_total = 0.0
         scope = self.get_rpg_maker_cache_scope()
+        # Prefetch em lote (anti-N+1). O catalogo tem textos duplicados em
+        # origens diferentes: apos cada save_translation o mapa local e
+        # atualizado, para a proxima ocorrencia do mesmo texto contar como
+        # cache hit em vez de ser retraduzida.
+        cached_by_text = self.translation_cache.get_many_by_text(
+            [entry.source_text for entry in entries],
+            scope=scope,
+        )
         self.batch_error_repository.clear_last_batch_errors()
 
         for entry in entries:
@@ -278,10 +299,7 @@ class ModeSettingsService:
                 break
 
             try:
-                cached = self.translation_cache.get_by_text(
-                    entry.source_text,
-                    scope=scope,
-                )
+                cached = cached_by_text.get(entry.source_text)
                 if cached is not None and not looks_like_invalid_translation(
                     entry.source_text,
                     cached.translated_text,
@@ -301,6 +319,7 @@ class ModeSettingsService:
                             self.clock() - translation_started_at
                         )
                     self.translation_cache.save_translation(result, scope=scope)
+                    cached_by_text[entry.source_text] = result
                     translated += 1
             except Exception as error:
                 errors += 1

@@ -16,6 +16,10 @@ from live_translator.domain.interfaces import (
     TranslationCache,
     Translator,
 )
+from live_translator.domain.translation_quality import (
+    looks_like_invalid_translation,
+    looks_like_non_game_text,
+)
 
 
 Clock = Callable[[], float]
@@ -26,27 +30,6 @@ class DefaultTextNormalizer(TextNormalizer):
     def normalize(self, text: str) -> str:
         normalized = unicodedata.normalize("NFKC", text).strip()
         return " ".join(normalized.split())
-
-
-_NON_GAME_TEXT_MARKERS = (
-    "voce e um sistema",
-    "você é um sistema",
-    "sistema de ocr",
-    "ocr e traducao",
-    "ocr e tradução",
-    "traducao para jogos rpg",
-    "tradução para jogos rpg",
-    "responda apenas json",
-    "source_text",
-    "translated_text",
-    "live translator",
-    "aguardando texto",
-)
-
-
-def _looks_like_non_game_text(text: str) -> bool:
-    normalized = text.casefold()
-    return any(marker in normalized for marker in _NON_GAME_TEXT_MARKERS)
 
 
 @dataclass(slots=True)
@@ -96,16 +79,23 @@ class TranslationPipelineService:
             image_hash = self.image_hasher.hash_image(image)
             cached_by_image = self.image_cache.get_by_hash(image_hash)
             if cached_by_image is not None:
-                self._set_diagnostic("cache imagem")
-                self._set_timing_summary(started_at, stage="cache imagem")
-                self.overlay.show_text(cached_by_image.translated_text)
-                return
+                if looks_like_invalid_translation(
+                    cached_by_image.source_text,
+                    cached_by_image.translated_text,
+                ):
+                    # Hit contaminado vira miss: segue para OCR + retraducao.
+                    self._set_diagnostic("cache imagem invalido")
+                else:
+                    self._set_diagnostic("cache imagem")
+                    self._set_timing_summary(started_at, stage="cache imagem")
+                    self.overlay.show_text(cached_by_image.translated_text)
+                    return
 
             ocr_started_at = self.clock()
             extracted = self.text_extractor.extract(image)
             ocr_seconds = self.clock() - ocr_started_at
             normalized_text = self.text_normalizer.normalize(extracted.text)
-            if not normalized_text or _looks_like_non_game_text(normalized_text):
+            if not normalized_text or looks_like_non_game_text(normalized_text):
                 self._set_diagnostic("sem texto")
                 self._set_timing_summary(
                     started_at,
@@ -116,15 +106,22 @@ class TranslationPipelineService:
 
             cached_by_text = self.translation_cache.get_by_text(normalized_text)
             if cached_by_text is not None:
-                self._set_diagnostic("cache texto")
-                self._set_timing_summary(
-                    started_at,
-                    ocr_seconds=ocr_seconds,
-                    stage="cache texto",
-                )
-                self.image_cache.save_image_result(image_hash, cached_by_text)
-                self.overlay.show_text(cached_by_text.translated_text)
-                return
+                if looks_like_invalid_translation(
+                    normalized_text,
+                    cached_by_text.translated_text,
+                ):
+                    # Hit contaminado vira miss e nao propaga para o image_cache.
+                    self._set_diagnostic("cache texto invalido")
+                else:
+                    self._set_diagnostic("cache texto")
+                    self._set_timing_summary(
+                        started_at,
+                        ocr_seconds=ocr_seconds,
+                        stage="cache texto",
+                    )
+                    self.image_cache.save_image_result(image_hash, cached_by_text)
+                    self.overlay.show_text(cached_by_text.translated_text)
+                    return
 
             self._set_diagnostic("traduzindo")
             translation_started_at = self.clock()

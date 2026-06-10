@@ -23,6 +23,10 @@ class OllamaInvalidResponseError(OllamaError):
     """Raised when Ollama returns invalid JSON or unexpected structure."""
 
 
+class OllamaModelNotFoundError(OllamaError):
+    """Raised when the configured model is not installed on the Ollama server."""
+
+
 @dataclass(frozen=True, slots=True)
 class OllamaClient:
     base_url: str = "http://127.0.0.1:11434"
@@ -88,7 +92,13 @@ class OllamaClient:
                 body = response.read().decode("utf-8")
         except TimeoutError as exc:
             raise OllamaTimeoutError("Ollama request timed out") from exc
+        except error.HTTPError as exc:
+            # HTTPError e subclasse de URLError: tratar antes, senao um 404 de
+            # modelo nao instalado viraria "Ollama is unavailable".
+            raise self._classify_http_error(exc) from exc
         except error.URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise OllamaTimeoutError("Ollama request timed out") from exc
             raise OllamaConnectionError("Ollama is unavailable") from exc
 
         try:
@@ -98,3 +108,24 @@ class OllamaClient:
         if not isinstance(parsed, dict):
             raise OllamaInvalidResponseError("Ollama HTTP response must be an object")
         return parsed
+
+    @staticmethod
+    def _classify_http_error(exc: error.HTTPError) -> OllamaError:
+        detail = ""
+        try:
+            parsed = json.loads(exc.read().decode("utf-8", errors="replace"))
+            if isinstance(parsed, dict) and isinstance(parsed.get("error"), str):
+                detail = parsed["error"]
+        except (OSError, ValueError, AttributeError):
+            detail = ""
+
+        if exc.code == 404:
+            message = "Ollama model not found (install it with 'ollama pull')"
+            if detail:
+                message = f"{message}: {detail}"
+            return OllamaModelNotFoundError(message)
+
+        message = f"Ollama returned HTTP {exc.code}"
+        if detail:
+            message = f"{message}: {detail}"
+        return OllamaError(message)

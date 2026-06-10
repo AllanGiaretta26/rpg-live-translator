@@ -15,8 +15,8 @@ python -m venv .venv
 
 # Tests
 .venv\Scripts\python.exe -m pytest
-.venv\Scripts\python.exe -m pytest tests/unit/application/test_translation_quality.py            # single file
-.venv\Scripts\python.exe -m pytest tests/unit/application/test_translation_quality.py::test_name  # single test
+.venv\Scripts\python.exe -m pytest tests/unit/domain/test_translation_quality.py            # single file
+.venv\Scripts\python.exe -m pytest tests/unit/domain/test_translation_quality.py::test_name  # single test
 .venv\Scripts\python.exe -m pytest -k "patch and not batch"                                       # by expression
 
 # Lint / format
@@ -37,7 +37,7 @@ The test suite runs **without** desktop/Ollama dependencies — don't add tests 
 
 Layered monolith under `src/live_translator/`. Dependency rule: **UI and Infrastructure depend on Domain; Domain depends on nothing external.** UI must never touch SQLite, Ollama, MSS, or capture adapters directly — it goes through Application services.
 
-- `domain/` — frozen dataclasses (`models.py`), `Protocol` contracts (`interfaces.py`), errors. **No imports of PySide6, mss, sqlite3, requests, etc.**
+- `domain/` — frozen dataclasses (`models.py`), `Protocol` contracts (`interfaces.py`), translation-quality heuristics (`translation_quality.py`). **No imports of PySide6, mss, sqlite3, requests, etc.**
 - `application/` — use-case orchestration (capture loop, translation pipeline, mode/profile/overlay settings, RPG Maker import/batch/runtime/patch). Pure-ish; depends only on domain Protocols.
 - `infrastructure/` — concrete adapters implementing domain Protocols: `capture/` (MSS, win32), `image/` (hash, change detection, preprocess), `persistence/` (SQLite repositories), `translation/` (Ollama client/translator/vision/prompt), `rpgmaker/` (JSON parser, project detector, HTTP bridge server, and the `plugin/LiveTranslatorBridge.js` runtime plugin).
 - `ui/` — PySide6 main/calibration window, overlay, region selector.
@@ -53,7 +53,7 @@ Layered monolith under `src/live_translator/`. Dependency rule: **UI and Infrast
 
 Universal-mode frame flow, short-circuiting in this order: change detector → image-hash cache → OCR extract + normalize → text cache → translate → save both caches → overlay. It also filters out OCR results that look like the prompt leaking back (`_looks_like_non_game_text`) and records `last_diagnostic` / `last_timing_summary` for the Status panel.
 
-### Translation quality is correctness-critical (`application/translation_quality.py`)
+### Translation quality is correctness-critical (`domain/translation_quality.py`)
 
 This module guards against contaminated/invalid translations and is the heart of MV/MZ patch quality. `looks_like_invalid_translation()` rejects: prompt/context leaks, dropped RPG Maker escape codes (`\N[1]`, `\V[2]`, `\C[3]`, `\I[64]`) and `%1` placeholders, unexpected leading currency markers (`€`/`¥`/`￥`), and over-long names/descriptions. Cached translations that fail these checks are treated as cache misses and re-translated. When changing translation behavior or prompts, update these heuristics and their tests together.
 
@@ -77,4 +77,4 @@ This module guards against contaminated/invalid translations and is the heart of
 
 ## Reference docs
 
-`ARCHITECTURE.md` is the layer-design rationale (partly aspirational — verify against actual code in `app/bootstrap.py`). `README.md` is the end-user guide (pt-BR), including full RPG Maker plugin install steps. `AGENTS.md` mirrors these contributor guidelines. `BRIEFING.md` holds product context; `docs/` has reports and plans.
+`ARCHITECTURE.md` describes the actual architecture (layers, dependency rules, failure-handling map) and is kept in sync with the code — when it drifts, the code wins and `app/bootstrap.py` is the source of truth. `README.md` is the end-user guide (pt-BR), including full RPG Maker plugin install steps. `AGENTS.md` mirrors these contributor guidelines. `BRIEFING.md` holds product context; `docs/` has reports and plans.

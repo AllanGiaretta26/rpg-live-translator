@@ -8,7 +8,7 @@ from live_translator.application.rpg_maker_patch_service import (
     RpgMakerPatchService,
     _visible_width,
 )
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     RPG_MAKER_DESCRIPTION_LINE_LIMIT,
     RPG_MAKER_DESCRIPTION_MAX_LINES,
 )
@@ -41,6 +41,19 @@ class FakeTranslationCache:
             source_text=source_text,
             translated_text=translated,
         )
+
+    def get_many_by_text(
+        self,
+        texts,
+        *,
+        scope: str | None = None,
+    ) -> dict[str, TranslationResult]:
+        found: dict[str, TranslationResult] = {}
+        for text in texts:
+            cached = self.get_by_text(text, scope=scope)
+            if cached is not None:
+                found[text] = cached
+        return found
 
     def save_translation(
         self,

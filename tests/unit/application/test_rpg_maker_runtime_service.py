@@ -103,6 +103,35 @@ class StepClock:
         return value
 
 
+@dataclass
+class BrokenScopeModeSettings:
+    def get_active_mode(self) -> OperationMode:
+        return OperationMode.RPG_MAKER_MV_MZ
+
+    def get_rpg_maker_cache_scope(self) -> str | None:
+        raise ValueError("pasta MV/MZ invalida: data ou www/data nao encontrado")
+
+
+def test_runtime_degrades_with_diagnostic_when_project_detection_fails():
+    translator = FakeTranslator()
+    overlay = FakeOverlay()
+    service = RpgMakerRuntimeService(
+        mode_settings=BrokenScopeModeSettings(),
+        translation_cache=FakeCache(),
+        translator=translator,
+        overlay=overlay,
+    )
+
+    result = service.process_text("Hello")
+
+    assert result is None
+    assert translator.calls == []
+    assert overlay.shown == []
+    assert service.last_diagnostic is not None
+    assert service.last_diagnostic.startswith("projeto MV/MZ inacessivel:")
+    assert "data ou www/data nao encontrado" in service.last_diagnostic
+
+
 def test_runtime_text_ignored_outside_rpg_maker_mode():
     cache = FakeCache()
     translator = FakeTranslator()

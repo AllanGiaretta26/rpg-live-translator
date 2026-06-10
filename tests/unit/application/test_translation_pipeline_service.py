@@ -130,6 +130,57 @@ def test_cache_by_image_avoids_ocr_and_translation():
     assert pipeline.last_timing_summary == "total 0.25s | cache imagem"
 
 
+def test_invalid_image_cache_hit_is_treated_as_miss_and_retranslated():
+    contaminated = TranslationResult(
+        source_text="Hello",
+        translated_text="Responda apenas JSON com translated_text",
+    )
+    extractor = FakeExtractor(text="Hello")
+    translator = FakeTranslator()
+    translation_cache = FakeTranslationCache()
+    image_cache = FakeImageCache(result=contaminated)
+    pipeline, parts = build_pipeline(
+        image_cache=image_cache,
+        text_extractor=extractor,
+        translator=translator,
+        translation_cache=translation_cache,
+    )
+
+    pipeline.process_frame(object())
+
+    assert extractor.calls == 1
+    assert [call[0] for call in translator.calls] == ["Hello"]
+    assert parts["overlay"].shown == ["pt:Hello"]
+    assert len(translation_cache.saved) == 1
+    assert pipeline.last_diagnostic == "traduzido"
+
+
+def test_invalid_text_cache_hit_is_treated_as_miss_and_not_saved_to_image_cache():
+    contaminated = TranslationResult(
+        source_text="Hello \\N[1]",
+        translated_text="Ola",
+    )
+    extractor = FakeExtractor(text="Hello \\N[1]")
+    translator = FakeTranslator()
+    image_cache = FakeImageCache()
+    pipeline, parts = build_pipeline(
+        translation_cache=FakeTranslationCache(result=contaminated),
+        image_cache=image_cache,
+        text_extractor=extractor,
+        translator=translator,
+    )
+
+    pipeline.process_frame(object())
+
+    assert [call[0] for call in translator.calls] == ["Hello \\N[1]"]
+    assert parts["overlay"].shown == ["pt:Hello \\N[1]"]
+    # O hit contaminado nao pode ser propagado para o image_cache; apenas o
+    # resultado fresco da retraducao e salvo.
+    assert all(result.translated_text != "Ola" for _, result in image_cache.saved)
+    assert len(image_cache.saved) == 1
+    assert pipeline.last_diagnostic == "traduzido"
+
+
 def test_cache_by_text_avoids_translation_and_saves_image_cache():
     cached = TranslationResult(source_text="Hello", translated_text="Ola")
     image_cache = FakeImageCache()

@@ -8,7 +8,7 @@ from typing import Callable
 from live_translator.application.translation_pipeline_service import (
     DefaultTextNormalizer,
 )
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
 )
 from live_translator.domain.interfaces import (
@@ -78,7 +78,17 @@ class RpgMakerRuntimeService:
             return None
 
         request_id = self._start_request(normalized_text)
-        cache_scope = self._cache_scope()
+        try:
+            cache_scope = self._cache_scope()
+        except Exception as error:
+            # Caminho do projeto invalido (jogo movido/atualizado) nao pode
+            # virar uma excecao por fala no bridge: degrada com diagnostico.
+            self._set_diagnostics(
+                f"projeto MV/MZ inacessivel: {error}",
+                started_at,
+                stage="erro",
+            )
+            return None
         if force_retranslate:
             self.translation_cache.delete_by_text(normalized_text, scope=cache_scope)
         else:
@@ -128,10 +138,7 @@ class RpgMakerRuntimeService:
         return result
 
     def _cache_scope(self) -> str | None:
-        get_scope = getattr(self.mode_settings, "get_rpg_maker_cache_scope", None)
-        if not callable(get_scope):
-            return None
-        return get_scope()
+        return self.mode_settings.get_rpg_maker_cache_scope()
 
     def reprocess_last_text(self) -> TranslationResult | None:
         with self._lock:

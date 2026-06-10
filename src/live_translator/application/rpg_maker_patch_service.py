@@ -9,7 +9,7 @@ import re
 import shutil
 from typing import Any, Iterable
 
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
 )
 from live_translator.config import defaults
@@ -118,6 +118,18 @@ class RpgMakerPatchService:
             "skipped_speakers": 0,
         }
 
+        entries = list(entries)
+        # Prefetch em lote (anti-N+1): uma consulta para o catalogo inteiro em
+        # vez de um get_by_text (= uma conexao SQLite) por entrada.
+        cached_by_text = self._translation_cache.get_many_by_text(
+            [
+                entry.source_text
+                for entry in entries
+                if entry.text_type in _PATCHABLE_TEXT_TYPES
+            ],
+            scope=self._cache_scope,
+        )
+
         for entry in entries:
             if entry.text_type not in _PATCHABLE_TEXT_TYPES:
                 continue
@@ -127,10 +139,7 @@ class RpgMakerPatchService:
                 skipped.append(_skipped_entry(entry, "speaker disabled"))
                 continue
 
-            cached = self._translation_cache.get_by_text(
-                entry.source_text,
-                scope=self._cache_scope,
-            )
+            cached = cached_by_text.get(entry.source_text)
             if cached is None:
                 counts["missing_cache"] += 1
                 skipped.append(_skipped_entry(entry, "missing cache"))
