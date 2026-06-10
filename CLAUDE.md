@@ -37,7 +37,7 @@ The test suite runs **without** desktop/Ollama dependencies — don't add tests 
 
 Layered monolith under `src/live_translator/`. Dependency rule: **UI and Infrastructure depend on Domain; Domain depends on nothing external.** UI must never touch SQLite, Ollama, MSS, or capture adapters directly — it goes through Application services.
 
-- `domain/` — frozen dataclasses (`models.py`), `Protocol` contracts (`interfaces.py`), errors. **No imports of PySide6, mss, sqlite3, requests, etc.**
+- `domain/` — frozen dataclasses (`models.py`), `Protocol` contracts (`interfaces.py`), translation-quality heuristics (`translation_quality.py`). **No imports of PySide6, mss, sqlite3, requests, etc.**
 - `application/` — use-case orchestration (capture loop, translation pipeline, mode/profile/overlay settings, RPG Maker import/batch/runtime/patch). Pure-ish; depends only on domain Protocols.
 - `infrastructure/` — concrete adapters implementing domain Protocols: `capture/` (MSS, win32), `image/` (hash, change detection, preprocess), `persistence/` (SQLite repositories), `translation/` (Ollama client/translator/vision/prompt), `rpgmaker/` (JSON parser, project detector, HTTP bridge server, and the `plugin/LiveTranslatorBridge.js` runtime plugin).
 - `ui/` — PySide6 main/calibration window, overlay, region selector.

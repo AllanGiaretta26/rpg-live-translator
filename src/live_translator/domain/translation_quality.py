@@ -51,6 +51,30 @@ def looks_like_prompt_leak(translated_text: str) -> bool:
     return any(marker in normalized for marker in _PROMPT_LEAK_MARKERS)
 
 
+# Texto extraido por OCR que na verdade e eco do prompt de visao ou texto do
+# proprio overlay do tradutor — nunca deve ser tratado como fala do jogo.
+# Compartilhado pelo pipeline universal e pelo extrator de visao.
+_NON_GAME_TEXT_MARKERS = (
+    "voce e um sistema",
+    "você é um sistema",
+    "sistema de ocr",
+    "ocr e traducao",
+    "ocr e tradução",
+    "traducao para jogos rpg",
+    "tradução para jogos rpg",
+    "responda apenas json",
+    "source_text",
+    "translated_text",
+    "live translator",
+    "aguardando texto",
+)
+
+
+def looks_like_non_game_text(text: str) -> bool:
+    normalized = text.casefold()
+    return any(marker in normalized for marker in _NON_GAME_TEXT_MARKERS)
+
+
 _RPG_MAKER_ESCAPE_PATTERN = re.compile(r"\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]")
 _RPG_MAKER_PERCENT_PLACEHOLDER_PATTERN = re.compile(r"%\d+")
 _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN = re.compile(
@@ -60,7 +84,9 @@ _RPG_MAKER_LEADING_ESCAPE_SEQUENCE_PATTERN = re.compile(
 _RPG_MAKER_TOKEN_PATTERN = re.compile(r"%\d+|\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]")
 _UNEXPECTED_LEADING_VISUAL_MARKERS = ("€", "¥", "￥")
 
-_NAME_OR_TERM_TYPES = frozenset(
+# Conjuntos compartilhados de tipos de texto MV/MZ. Tambem usados pelo
+# prompt_builder e pelo OllamaTranslator — manter uma definicao unica.
+NAME_OR_TERM_TYPES = frozenset(
     {
         RpgMakerTextType.ITEM_NAME,
         RpgMakerTextType.SKILL_NAME,
@@ -72,7 +98,7 @@ _NAME_OR_TERM_TYPES = frozenset(
         RpgMakerTextType.ACTOR_NAME,
     }
 )
-_DESCRIPTION_TYPES = frozenset(
+DESCRIPTION_TYPES = frozenset(
     {
         RpgMakerTextType.ITEM_DESCRIPTION,
         RpgMakerTextType.SKILL_DESCRIPTION,
@@ -80,7 +106,7 @@ _DESCRIPTION_TYPES = frozenset(
         RpgMakerTextType.ARMOR_DESCRIPTION,
     }
 )
-_BATTLE_MESSAGE_TYPES = frozenset(
+BATTLE_MESSAGE_TYPES = frozenset(
     {
         RpgMakerTextType.SKILL_MESSAGE,
         RpgMakerTextType.STATE_MESSAGE,
@@ -212,7 +238,7 @@ def looks_like_overlong_name_or_term(
     translated_text: str,
     text_type: RpgMakerTextType | None,
 ) -> bool:
-    if text_type not in _NAME_OR_TERM_TYPES:
+    if text_type not in NAME_OR_TERM_TYPES:
         return False
 
     normalized = " ".join(translated_text.split())
@@ -232,7 +258,7 @@ def looks_like_overlong_description(
     translated_text: str,
     text_type: RpgMakerTextType | None,
 ) -> bool:
-    if text_type not in _DESCRIPTION_TYPES:
+    if text_type not in DESCRIPTION_TYPES:
         return False
 
     source_length = len(source_text.strip())

@@ -85,7 +85,6 @@ src/live_translator/
   domain/
     models.py                   # dataclasses frozen com validação em __post_init__
     interfaces.py               # contratos Protocol
-    errors.py                   # erros de domínio
     translation_quality.py      # heurísticas de validação de tradução (crítico)
 
   application/

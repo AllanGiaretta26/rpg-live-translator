@@ -101,7 +101,15 @@ só carga no Ollama. Opções futuras: responder 202 e processar async, ou
 serializar com lock. Não corrigir junto com outras mudanças — comportamento do
 plugin precisa ser testado manualmente.
 
-### 2.9 Código morto e drift (BAIXO)
+### 2.9 Código morto e drift (BAIXO) — RESOLVIDO 2026-06-10
+
+> Resolvido: `domain/errors.py` removido; tabela `glossary` removida do schema;
+> heurística de texto não-jogo unificada em
+> `domain/translation_quality.looks_like_non_game_text` (pipeline + vision);
+> conjuntos de tipos públicos no domain; blocos "Preserve exatamente..."
+> deduplicados; "portugues brasileiro" e limite 95 corrigidos; `getattr`
+> defensivo removido do runtime. Permanece registrado apenas: `application/`
+> importa `config.defaults` no patch service (desvio leve aceito).
 
 - `domain/errors.py`: **nenhuma** das 5 exceções é usada em lugar algum.
   `RpgMakerProjectDetectionError` (infra) herda de `ValueError`, não de

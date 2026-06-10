@@ -93,7 +93,8 @@ def test_compact_description_prompt_preserves_ui_tokens():
         "pt-BR",
     )
 
-    assert "ate duas linhas curtas" in prompt
+    assert "ate 2 linhas curtas" in prompt
+    # Orcamento derivado dos limites de descricao do domain (52 x 2 - 9).
     assert "95 caracteres" in prompt
     assert "Dano sombrio em todos" in prompt
     assert "__LT_RPG_TOKEN_0__" in prompt

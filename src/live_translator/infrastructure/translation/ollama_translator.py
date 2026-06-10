@@ -7,6 +7,7 @@ import re
 from live_translator.domain.interfaces import Translator
 from live_translator.domain.models import RpgMakerTextType, TranslationResult
 from live_translator.domain.translation_quality import (
+    DESCRIPTION_TYPES,
     looks_like_overlong_description,
     looks_like_overlong_name_or_term,
     looks_like_context_leak,
@@ -24,14 +25,6 @@ from .prompt_builder import (
 )
 
 
-_DESCRIPTION_TYPES = frozenset(
-    {
-        RpgMakerTextType.ITEM_DESCRIPTION,
-        RpgMakerTextType.SKILL_DESCRIPTION,
-        RpgMakerTextType.WEAPON_DESCRIPTION,
-        RpgMakerTextType.ARMOR_DESCRIPTION,
-    }
-)
 _MASKABLE_RPG_MAKER_TOKEN_PATTERN = re.compile(
     r"%\d+|\\[A-Za-z]+(?:\[\d+\])?|\\[{}$!.|^<>#\\]"
 )
@@ -79,7 +72,7 @@ class OllamaTranslator(Translator):
                 text_type=text_type,
             ),
         ]
-        if text_type in _DESCRIPTION_TYPES:
+        if text_type in DESCRIPTION_TYPES:
             prompts.append(
                 build_compact_description_prompt(
                     masked_text.text,

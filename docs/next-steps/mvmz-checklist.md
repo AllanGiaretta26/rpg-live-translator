@@ -110,12 +110,17 @@
   traducoes deterministicas e modelo carregado entre frames.
 - [ ] Usar timeout curto dedicado (1-2s) em `is_available()` em vez do timeout
   cheio de requisicao.
-- [ ] Deduplicar `_DESCRIPTION_TYPES` (definido em `ollama_translator.py` e
+- [x] Deduplicar `_DESCRIPTION_TYPES` (definido em `ollama_translator.py` e
   `prompt_builder.py`) e o bloco repetido de instrucoes "Preserve exatamente...".
-- [ ] Corrigir "portugues brasileiro" hardcoded em `build_translation_prompt`,
-  que ignora o parametro `target_language`.
-- [ ] Derivar o limite de 95 caracteres do `build_compact_description_prompt`
-  de `patch_description_line_limit` em vez de hardcode.
+  Feito em 2026-06-10: conjuntos publicos em `domain/translation_quality.py`
+  (`NAME_OR_TERM_TYPES`, `DESCRIPTION_TYPES`, `BATTLE_MESSAGE_TYPES`) e blocos
+  compartilhados `_ESCAPE_CODE_GUARDRAILS`/`_TOKEN_AND_SYMBOL_GUARDRAILS` no
+  `prompt_builder` (o prompt de retry passou a usar a lista completa de codigos).
+- [x] Corrigir "portugues brasileiro" hardcoded em `build_translation_prompt`,
+  que ignora o parametro `target_language`. Feito em 2026-06-10.
+- [x] Derivar o limite de 95 caracteres do `build_compact_description_prompt` —
+  feito em 2026-06-10, derivado dos limites de descricao do domain (52 x 2 - 9),
+  que sao os mesmos usados pela validacao `looks_like_overlong_description`.
 
 ### Resiliencia do Ollama
 

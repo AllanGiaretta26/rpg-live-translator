@@ -138,10 +138,7 @@ class RpgMakerRuntimeService:
         return result
 
     def _cache_scope(self) -> str | None:
-        get_scope = getattr(self.mode_settings, "get_rpg_maker_cache_scope", None)
-        if not callable(get_scope):
-            return None
-        return get_scope()
+        return self.mode_settings.get_rpg_maker_cache_scope()
 
     def reprocess_last_text(self) -> TranslationResult | None:
         with self._lock:
