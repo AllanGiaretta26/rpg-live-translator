@@ -86,11 +86,11 @@ src/live_translator/
     models.py                   # dataclasses frozen com validação em __post_init__
     interfaces.py               # contratos Protocol
     errors.py                   # erros de domínio
+    translation_quality.py      # heurísticas de validação de tradução (crítico)
 
   application/
     capture_loop_service.py     # tick de captura, pause/resume, busy flag, last_error
     translation_pipeline_service.py  # pipeline universal (frame → overlay)
-    translation_quality.py      # heurísticas de validação de tradução (crítico)
     capture_preview_service.py  # salva preview da região capturada
     profile_settings_service.py # perfil ativo (janela + região)
     overlay_settings_service.py # posição/opacidade/fonte do overlay
@@ -269,7 +269,7 @@ de apply/restore.
 
 ## 7. Qualidade de tradução é correção, não estilo
 
-`application/translation_quality.py` é o guardião contra traduções
+`domain/translation_quality.py` é o guardião contra traduções
 contaminadas e é o coração da qualidade do patch MV/MZ.
 `looks_like_invalid_translation()` rejeita:
 
@@ -286,7 +286,7 @@ Regras de robustez:
 - A contagem de "cache hits" do catálogo só conta traduções válidas, alinhada
   ao que lote e patch consideram hit real.
 - Ao mudar prompt ou comportamento de tradução, **atualize as heurísticas e
-  seus testes na mesma mudança** (`tests/unit/application/test_translation_quality.py`).
+  seus testes na mesma mudança** (`tests/unit/domain/test_translation_quality.py`).
 
 ---
 

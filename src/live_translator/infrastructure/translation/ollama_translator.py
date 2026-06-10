@@ -6,7 +6,7 @@ import re
 
 from live_translator.domain.interfaces import Translator
 from live_translator.domain.models import RpgMakerTextType, TranslationResult
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_overlong_description,
     looks_like_overlong_name_or_term,
     looks_like_context_leak,

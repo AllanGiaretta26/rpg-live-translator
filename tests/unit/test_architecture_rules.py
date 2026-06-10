@@ -79,6 +79,19 @@ def test_domain_does_not_import_external_or_upper_layers() -> None:
     assert violations == []
 
 
+def test_infrastructure_does_not_import_application_or_ui() -> None:
+    violations: list[str] = []
+    for path in _python_files(SRC_ROOT / "infrastructure"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for module in _collect_imports(tree, include_function_bodies=True):
+            if module.startswith(("live_translator.application", "live_translator.ui")):
+                violations.append(
+                    f"{path.relative_to(SRC_ROOT)}: infraestrutura importando "
+                    f"camada superior '{module}'"
+                )
+    assert violations == []
+
+
 def test_desktop_imports_only_at_module_level_in_ui_and_capture() -> None:
     violations: list[str] = []
     for path in _python_files(SRC_ROOT):

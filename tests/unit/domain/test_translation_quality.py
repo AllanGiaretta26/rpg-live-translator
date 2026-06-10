@@ -1,4 +1,4 @@
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     adds_unexpected_leading_visual_marker,
     looks_like_invalid_translation,
     looks_like_overlong_description,

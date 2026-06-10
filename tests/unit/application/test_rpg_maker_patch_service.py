@@ -8,7 +8,7 @@ from live_translator.application.rpg_maker_patch_service import (
     RpgMakerPatchService,
     _visible_width,
 )
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     RPG_MAKER_DESCRIPTION_LINE_LIMIT,
     RPG_MAKER_DESCRIPTION_MAX_LINES,
 )

@@ -9,7 +9,7 @@ import re
 import shutil
 from typing import Any, Iterable
 
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
 )
 from live_translator.config import defaults

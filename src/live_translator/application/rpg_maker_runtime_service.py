@@ -8,7 +8,7 @@ from typing import Callable
 from live_translator.application.translation_pipeline_service import (
     DefaultTextNormalizer,
 )
-from live_translator.application.translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
 )
 from live_translator.domain.interfaces import (

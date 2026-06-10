@@ -88,9 +88,10 @@
 
 ### Correcoes infrastructure/translation (analise de 2026-06-10)
 
-- [ ] Mover `application/translation_quality.py` para `domain/` — hoje
-  `ollama_translator.py` (infraestrutura) importa Application, violando a regra
-  de camadas; o teste de arquitetura nao cobre essa regra ainda por causa disso.
+- [x] Mover `application/translation_quality.py` para `domain/` — feito em
+  2026-06-10; `ollama_translator.py` agora importa do Domain e o guard-rail
+  `test_infrastructure_does_not_import_application_or_ui` passou a valer
+  (`tests/unit/test_architecture_rules.py`).
 - [ ] Mover `client.generate(prompt)` para dentro do `try` no loop de retry do
   `OllamaTranslator.translate` — JSON invalido do modelo deve acionar o prompt
   de retry, nao abortar o loop.

@@ -24,7 +24,7 @@ from live_translator.domain.models import (
     TranslationResult,
 )
 
-from .translation_quality import (
+from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
     should_bypass_rpg_maker_translation,
 )
