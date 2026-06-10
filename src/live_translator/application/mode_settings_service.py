@@ -264,6 +264,14 @@ class ModeSettingsService:
         cancelled = False
         translation_seconds_total = 0.0
         scope = self.get_rpg_maker_cache_scope()
+        # Prefetch em lote (anti-N+1). O catalogo tem textos duplicados em
+        # origens diferentes: apos cada save_translation o mapa local e
+        # atualizado, para a proxima ocorrencia do mesmo texto contar como
+        # cache hit em vez de ser retraduzida.
+        cached_by_text = self.translation_cache.get_many_by_text(
+            [entry.source_text for entry in entries],
+            scope=scope,
+        )
         self.batch_error_repository.clear_last_batch_errors()
 
         for entry in entries:
@@ -291,10 +299,7 @@ class ModeSettingsService:
                 break
 
             try:
-                cached = self.translation_cache.get_by_text(
-                    entry.source_text,
-                    scope=scope,
-                )
+                cached = cached_by_text.get(entry.source_text)
                 if cached is not None and not looks_like_invalid_translation(
                     entry.source_text,
                     cached.translated_text,
@@ -314,6 +319,7 @@ class ModeSettingsService:
                             self.clock() - translation_started_at
                         )
                     self.translation_cache.save_translation(result, scope=scope)
+                    cached_by_text[entry.source_text] = result
                     translated += 1
             except Exception as error:
                 errors += 1

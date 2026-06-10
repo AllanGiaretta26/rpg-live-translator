@@ -75,7 +75,7 @@ pelo modelo sobra no texto final. Para códigos `\{`, `\.`, `\^` (mascarados
 mas não cobertos por `missing_rpg_maker_escape_codes`), o lixo passa para
 cache e patch.
 
-### 2.7 N+1 de cache no lote e no export do patch (MÉDIO)
+### 2.7 N+1 de cache no lote e no export do patch (MÉDIO) — RESOLVIDO 2026-06-10
 
 A regra documentada ("não consultar texto a texto") é violada nos dois fluxos
 mais pesados:

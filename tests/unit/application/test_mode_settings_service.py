@@ -499,6 +499,31 @@ def test_translate_catalog_entries_skips_cache_hits():
     assert translator.calls == ["Line 2"]
 
 
+def test_translate_catalog_entries_translates_duplicate_text_only_once():
+    # O catalogo tem o mesmo texto em origens diferentes: a 2a ocorrencia deve
+    # aproveitar a traducao salva pela 1a na mesma execucao (o prefetch em lote
+    # nao pode retraduzir duplicatas).
+    entries = [
+        _typed_entry(1, "Hello there", RpgMakerTextType.MESSAGE),
+        _typed_entry(2, "Hello there", RpgMakerTextType.MESSAGE),
+    ]
+    cache = FakeTranslationCache()
+    translator = FakeTranslator()
+    service = _service(
+        catalog=FakeCatalog(entries),
+        cache=cache,
+        translator=translator,
+    )
+
+    result = service.translate_catalog_entries()
+
+    assert translator.calls == ["Hello there"]
+    assert result.processed == 2
+    assert result.translated == 1
+    assert result.cache_hits == 1
+    assert result.errors == 0
+
+
 def test_translate_catalog_entries_saves_punctuation_without_translator():
     cache = FakeTranslationCache()
     translator = FakeTranslator()

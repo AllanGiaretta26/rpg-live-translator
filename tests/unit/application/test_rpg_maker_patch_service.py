@@ -42,6 +42,19 @@ class FakeTranslationCache:
             translated_text=translated,
         )
 
+    def get_many_by_text(
+        self,
+        texts,
+        *,
+        scope: str | None = None,
+    ) -> dict[str, TranslationResult]:
+        found: dict[str, TranslationResult] = {}
+        for text in texts:
+            cached = self.get_by_text(text, scope=scope)
+            if cached is not None:
+                found[text] = cached
+        return found
+
     def save_translation(
         self,
         result: TranslationResult,
