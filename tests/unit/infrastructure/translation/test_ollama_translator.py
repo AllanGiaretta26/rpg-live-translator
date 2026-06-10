@@ -31,6 +31,54 @@ class SequenceClient:
         return self.payloads.pop(0)
 
 
+class FlakyJsonClient:
+    """Falha com JSON invalido na 1a chamada e responde bem na 2a."""
+
+    def __init__(self, payload: dict[str, str]) -> None:
+        self.payload = payload
+        self.prompts: list[str] = []
+
+    def generate(self, prompt: str):
+        self.prompts.append(prompt)
+        if len(self.prompts) == 1:
+            raise OllamaInvalidResponseError("Ollama returned invalid JSON")
+        return self.payload
+
+
+def test_translator_retries_when_model_returns_invalid_json():
+    client = FlakyJsonClient({"translated_text": "Ola mundo"})
+    translator = OllamaTranslator(client)
+
+    result = translator.translate("Hello world", [])
+
+    assert result.translated_text == "Ola mundo"
+    assert len(client.prompts) == 2
+
+
+def test_translator_rejects_residual_mask_marker():
+    translator = OllamaTranslator(
+        FakeClient({"translated_text": "__LT_RPG_TOKEN_7__ encontrou um item."})
+    )
+
+    with pytest.raises(
+        OllamaInvalidResponseError,
+        match="translated_text contains residual mask markers",
+    ):
+        translator.translate(r"\N[1] found an item.", [])
+
+
+def test_translator_rejects_mutilated_mask_marker():
+    translator = OllamaTranslator(
+        FakeClient({"translated_text": "_lt_rpg_token_0_ encontrou um item."})
+    )
+
+    with pytest.raises(
+        OllamaInvalidResponseError,
+        match="translated_text contains residual mask markers",
+    ):
+        translator.translate(r"\N[1] found an item.", [])
+
+
 def test_translator_returns_translation_result():
     client = FakeClient({"translated_text": "Ola mundo"})
     translator = OllamaTranslator(client)

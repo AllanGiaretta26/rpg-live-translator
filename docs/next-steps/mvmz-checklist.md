@@ -92,17 +92,18 @@
   2026-06-10; `ollama_translator.py` agora importa do Domain e o guard-rail
   `test_infrastructure_does_not_import_application_or_ui` passou a valer
   (`tests/unit/test_architecture_rules.py`).
-- [ ] Mover `client.generate(prompt)` para dentro do `try` no loop de retry do
+- [x] Mover `client.generate(prompt)` para dentro do `try` no loop de retry do
   `OllamaTranslator.translate` — JSON invalido do modelo deve acionar o prompt
-  de retry, nao abortar o loop.
+  de retry, nao abortar o loop. Feito em 2026-06-10.
 - [x] Tratar `error.HTTPError` separado de `error.URLError` no `OllamaClient`,
   lendo o corpo do erro para distinguir "Ollama fora do ar" de "modelo nao
   instalado" (404) — feito em 2026-06-10; 404 vira `OllamaModelNotFoundError`,
   outros status viram `OllamaError` com codigo e detalhe do corpo.
 - [x] Classificar timeout embrulhado em `URLError(reason=TimeoutError)` como
   `OllamaTimeoutError`, nao como erro de conexao — feito em 2026-06-10.
-- [ ] Rejeitar traducao se marcadores `__LT_RPG_TOKEN` (ou variacao mutilada)
-  sobrarem no texto apos o `restore()` da mascara.
+- [x] Rejeitar traducao se marcadores `__LT_RPG_TOKEN` (ou variacao mutilada)
+  sobrarem no texto apos o `restore()` da mascara. Feito em 2026-06-10 —
+  deteccao case-insensitive de `LT_RPG_TOKEN` apos o restore.
 - [ ] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — o
   `translated_text` pedido no prompt e descartado, gastando tokens por frame.
 - [ ] Enviar `options.temperature = 0` e `keep_alive` no `generate()` para

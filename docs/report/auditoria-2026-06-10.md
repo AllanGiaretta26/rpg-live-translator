@@ -55,7 +55,7 @@ sempre (e o hit de texto ainda a propaga para o image_cache).
 movido/atualizado pela Steam) — toda fala vira HTTP 500 sem mensagem útil no
 overlay. Precisa de: cache do scope + degradação com diagnóstico claro.
 
-### 2.4 Retry de prompt não cobre JSON inválido (MÉDIO — já no checklist)
+### 2.4 Retry de prompt não cobre JSON inválido (MÉDIO) — RESOLVIDO 2026-06-10
 
 `ollama_translator.py:89`: `client.generate(prompt)` fora do `try`; um
 `OllamaInvalidResponseError` de JSON malformado aborta o loop em vez de
@@ -68,7 +68,7 @@ acionar o prompt de retry.
 - Timeout embrulhado em `URLError(reason=TimeoutError)` vira
   `OllamaConnectionError` em vez de `OllamaTimeoutError`.
 
-### 2.6 Marcadores de máscara sem validação pós-restore (MÉDIO — já no checklist)
+### 2.6 Marcadores de máscara sem validação pós-restore (MÉDIO) — RESOLVIDO 2026-06-10
 
 `_mask_rpg_maker_tokens`/`restore()`: marcador `__LT_RPG_TOKEN_N__` mutilado
 pelo modelo sobra no texto final. Para códigos `\{`, `\.`, `\^` (mascarados
