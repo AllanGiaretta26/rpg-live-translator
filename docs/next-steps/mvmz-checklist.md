@@ -71,6 +71,78 @@
 - [x] Usar prompts por tipo de texto para nomes, descricoes, termos e mensagens de batalha.
 - [x] Documentar riscos de patch em jogos com plugins customizados.
 
+## Robustez do projeto
+
+### Guard-rails de arquitetura
+
+- [x] Criar teste de arquitetura em pytest que falha se `domain/` importar
+  PySide6, mss, sqlite3, requests ou PIL (checagem da secao 2 da ARCHITECTURE.md).
+  Ver `tests/unit/test_architecture_rules.py`.
+- [x] Criar teste de arquitetura que falha se houver import de topo de modulo de
+  `pyside6`/`mss` fora de `ui/` e `infrastructure/capture/`.
+- [x] Criar teste que garante que `bootstrap()` completo roda sem desktop nem
+  Ollama, com fallbacks `ConsoleOverlay`/`ConsoleUiApp` ativos.
+  Ver `tests/unit/app/test_bootstrap_headless.py`. Nota: `mss` e importado lazy
+  dentro de `capture_region`, entao o fallback `NullScreenCaptureService` nao e
+  acionado pela ausencia da lib — o bootstrap headless funciona mesmo assim.
+
+### Correcoes infrastructure/translation (analise de 2026-06-10)
+
+- [ ] Mover `application/translation_quality.py` para `domain/` — hoje
+  `ollama_translator.py` (infraestrutura) importa Application, violando a regra
+  de camadas; o teste de arquitetura nao cobre essa regra ainda por causa disso.
+- [ ] Mover `client.generate(prompt)` para dentro do `try` no loop de retry do
+  `OllamaTranslator.translate` — JSON invalido do modelo deve acionar o prompt
+  de retry, nao abortar o loop.
+- [ ] Tratar `error.HTTPError` separado de `error.URLError` no `OllamaClient`,
+  lendo o corpo do erro para distinguir "Ollama fora do ar" de "modelo nao
+  instalado" (404).
+- [ ] Classificar timeout embrulhado em `URLError(reason=TimeoutError)` como
+  `OllamaTimeoutError`, nao como erro de conexao.
+- [ ] Rejeitar traducao se marcadores `__LT_RPG_TOKEN` (ou variacao mutilada)
+  sobrarem no texto apos o `restore()` da mascara.
+- [ ] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — o
+  `translated_text` pedido no prompt e descartado, gastando tokens por frame.
+- [ ] Enviar `options.temperature = 0` e `keep_alive` no `generate()` para
+  traducoes deterministicas e modelo carregado entre frames.
+- [ ] Usar timeout curto dedicado (1-2s) em `is_available()` em vez do timeout
+  cheio de requisicao.
+- [ ] Deduplicar `_DESCRIPTION_TYPES` (definido em `ollama_translator.py` e
+  `prompt_builder.py`) e o bloco repetido de instrucoes "Preserve exatamente...".
+- [ ] Corrigir "portugues brasileiro" hardcoded em `build_translation_prompt`,
+  que ignora o parametro `target_language`.
+- [ ] Derivar o limite de 95 caracteres do `build_compact_description_prompt`
+  de `patch_description_line_limit` em vez de hardcode.
+
+### Resiliencia do Ollama
+
+- [ ] Adicionar retry com backoff curto no `OllamaClient` para falhas
+  transitorias (conexao recusada, timeout), sem travar o tick de captura.
+- [ ] Diferenciar na UI "Ollama fora do ar" de "modelo nao instalado".
+- [ ] Expor tempo da ultima resposta do Ollama no painel de Status.
+
+### Persistencia e dados
+
+- [ ] Adicionar versionamento de schema no SQLite (tabela `schema_version`)
+  para migracoes futuras seguras.
+- [ ] Adicionar acao de backup/export do banco de cache (`data/app.sqlite3`).
+- [ ] Tratar banco corrompido na inicializacao: renomear e recriar em vez de
+  quebrar o app.
+
+### Qualidade de traducao
+
+- [ ] Adicionar metrica de rejeicao do `translation_quality` no status do lote
+  (quantas traducoes foram descartadas e por qual regra).
+- [ ] Criar corpus de regressao com pares fonte/traducao reais para validar
+  mudancas de prompt sem rodar o jogo.
+
+### CI e empacotamento
+
+- [ ] Adicionar workflow de CI (GitHub Actions) rodando `ruff check` e `pytest`
+  em Windows.
+- [ ] Avaliar empacotamento com PyInstaller para distribuicao sem Python
+  instalado.
+
 ## Validacao antes de merge
 
 - [x] Rodar `.venv\Scripts\python.exe -m ruff check .`.
