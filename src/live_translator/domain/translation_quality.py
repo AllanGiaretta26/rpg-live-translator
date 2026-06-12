@@ -43,6 +43,12 @@ _PROMPT_LEAK_MARKERS = (
     "nao omita",
     "não omita",
     "incluindo todas as linhas",
+    # Frases distintivas das diretrizes de estilo do prompt principal
+    # (_STYLE_GUIDELINES em infrastructure/translation/prompt_builder.py).
+    "idioma destino",
+    "traducao literal",
+    "tradução literal",
+    "localizados profissionalmente",
 )
 
 

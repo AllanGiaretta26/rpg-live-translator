@@ -1,18 +1,21 @@
 from live_translator.infrastructure.translation.prompt_builder import (
     build_compact_description_prompt,
     build_translation_prompt,
-    build_vision_translation_prompt,
+    build_vision_ocr_prompt,
 )
 from live_translator.domain.models import RpgMakerTextType
 
 
-def test_vision_prompt_requires_expected_json_only():
-    prompt = build_vision_translation_prompt("pt-BR")
+def test_vision_prompt_is_ocr_only():
+    prompt = build_vision_ocr_prompt()
 
     assert "Responda apenas JSON valido" in prompt
     assert "source_text" in prompt
-    assert "translated_text" in prompt
-    assert '{"source_text": "", "translated_text": ""}' in prompt
+    # OCR-only: a traducao acontece em chamada separada; pedir translated_text
+    # aqui gastava tokens por frame e degradava a transcricao.
+    assert "translated_text" not in prompt
+    assert "sem traduzir" in prompt
+    assert '{"source_text": ""}' in prompt
     assert "overlay" in prompt
 
 
@@ -32,6 +35,26 @@ def test_translation_prompt_omits_context_block_when_context_is_empty():
 
     assert "<context_only_do_not_translate>" not in prompt
     assert "Use o contexto apenas" not in prompt
+
+
+def test_translation_prompt_includes_style_guidelines():
+    prompt = build_translation_prompt("Hello", [], "pt-BR")
+
+    assert "Traduza com naturalidade" in prompt
+    assert "evite traducao literal palavra por palavra" in prompt
+    assert "Mantenha o tom da cena" in prompt
+    assert "HP, MP, TP e EXP" in prompt
+
+
+def test_translation_prompt_puts_text_to_translate_after_instructions():
+    prompt = build_translation_prompt("Hello", ["Before"], "pt-BR")
+
+    # Texto por ultimo: modelos locais seguem melhor regras que antecedem o
+    # payload; apenas a linha de formato JSON fecha o prompt. A ancora inclui
+    # o payload porque a tag tambem e citada nas instrucoes.
+    text_block_at = prompt.index("<text_to_translate>\nHello")
+    assert text_block_at > prompt.index("Preserve exatamente codigos RPG Maker")
+    assert text_block_at > prompt.index("<context_only_do_not_translate>")
 
 
 def test_translation_prompt_requires_complete_translation_without_summary():

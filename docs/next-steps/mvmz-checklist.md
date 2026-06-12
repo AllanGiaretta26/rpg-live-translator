@@ -104,12 +104,16 @@
 - [x] Rejeitar traducao se marcadores `__LT_RPG_TOKEN` (ou variacao mutilada)
   sobrarem no texto apos o `restore()` da mascara. Feito em 2026-06-10 —
   deteccao case-insensitive de `LT_RPG_TOKEN` apos o restore.
-- [ ] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — o
-  `translated_text` pedido no prompt e descartado, gastando tokens por frame.
-- [ ] Enviar `options.temperature = 0` e `keep_alive` no `generate()` para
-  traducoes deterministicas e modelo carregado entre frames.
-- [ ] Usar timeout curto dedicado (1-2s) em `is_available()` em vez do timeout
-  cheio de requisicao.
+- [x] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — feito
+  em 2026-06-12; `build_vision_ocr_prompt` pede apenas `source_text` e instrui
+  a transcrever sem traduzir/corrigir (a traducao ja era feita em chamada
+  separada pelo `OllamaTranslator`).
+- [x] Enviar `options.temperature = 0` e `keep_alive` no `generate()` para
+  traducoes deterministicas e modelo carregado entre frames — feito em
+  2026-06-12 (`keep_alive` padrao de 15m, campo do `OllamaClient`).
+- [x] Usar timeout curto dedicado (1-2s) em `is_available()` em vez do timeout
+  cheio de requisicao — feito em 2026-06-12 (2s, limitado pelo timeout
+  configurado se este for menor).
 - [x] Deduplicar `_DESCRIPTION_TYPES` (definido em `ollama_translator.py` e
   `prompt_builder.py`) e o bloco repetido de instrucoes "Preserve exatamente...".
   Feito em 2026-06-10: conjuntos publicos em `domain/translation_quality.py`
@@ -139,6 +143,12 @@
 
 ### Qualidade de traducao
 
+- [x] Melhorar o prompt principal de traducao — feito em 2026-06-12:
+  diretrizes de estilo (`_STYLE_GUIDELINES`: naturalidade, tom da cena,
+  siglas HP/MP/TP/EXP), texto a traduzir movido para o fim do prompt (modelos
+  locais seguem melhor instrucoes que antecedem o payload) e `temperature = 0`
+  no `generate()`. Frases distintivas das diretrizes entraram em
+  `_PROMPT_LEAK_MARKERS` para rejeitar eco do prompt.
 - [ ] Adicionar metrica de rejeicao do `translation_quality` no status do lote
   (quantas traducoes foram descartadas e por qual regra).
 - [ ] Criar corpus de regressao com pares fonte/traducao reais para validar

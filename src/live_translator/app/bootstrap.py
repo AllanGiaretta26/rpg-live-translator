@@ -176,10 +176,7 @@ def bootstrap(
         target_language=resolved_settings.target_language,
     )
     pipeline = TranslationPipelineService(
-        text_extractor=OllamaVisionTextExtractor(
-            ollama_client,
-            target_language=resolved_settings.target_language,
-        ),
+        text_extractor=OllamaVisionTextExtractor(ollama_client),
         translator=translator,
         translation_cache=translation_cache_repository,
         image_cache=image_cache_repository,

@@ -3,12 +3,25 @@ from live_translator.domain.translation_quality import (
     looks_like_invalid_translation,
     looks_like_overlong_description,
     looks_like_overlong_name_or_term,
+    looks_like_prompt_leak,
     missing_rpg_maker_escape_codes,
     missing_percent_placeholders,
     restore_missing_leading_rpg_maker_escape_codes,
     should_bypass_rpg_maker_translation,
 )
 from live_translator.domain.models import RpgMakerTextType
+
+
+def test_prompt_leak_detects_style_guideline_echo():
+    # Frases das diretrizes de estilo (_STYLE_GUIDELINES no prompt_builder)
+    # ecoadas na resposta devem ser rejeitadas como vazamento de prompt.
+    assert looks_like_prompt_leak("Era uma vez.\nEvite traducao literal.")
+    assert looks_like_prompt_leak("Idioma destino: pt-BR.\nEra uma vez.")
+    assert looks_like_prompt_leak("Como em jogos localizados profissionalmente.")
+
+
+def test_prompt_leak_accepts_normal_dialogue():
+    assert not looks_like_prompt_leak("Voce esta atrasado de novo, heroi.")
 
 
 def test_missing_rpg_maker_escape_codes_detects_dropped_actor_placeholder():
