@@ -238,7 +238,10 @@ ou id/campo de banco) — é isso que torna o write-back do patch seguro.
 `translation_quality`, e registra falhas em
 `CatalogTranslationErrorRepository` (limpo a cada novo lote) em vez de abortar.
 `clear_contaminated_catalog_cache()` remove do cache traduções que ficaram
-inválidas segundo as heurísticas atuais.
+inválidas segundo as heurísticas atuais. Traduções de cache descartadas pelo
+`translation_quality` são contadas por regra (`invalid_translation_reason`)
+em `CatalogTranslationResult.rejected_by_rule` e exibidas no status final do
+lote.
 
 O lote é o único fluxo que envia contexto de diálogo ao tradutor:
 `_build_dialogue_contexts()` percorre o catálogo completo (não o filtrado por

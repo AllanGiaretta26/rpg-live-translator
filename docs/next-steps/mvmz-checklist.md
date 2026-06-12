@@ -156,10 +156,17 @@
   evento/pagina, sem vazar entre eventos; lotes filtrados (ex.: so choices)
   ainda recebem as messages vizinhas. Traducao individual segue sem contexto
   (follow-up possivel).
-- [ ] Adicionar metrica de rejeicao do `translation_quality` no status do lote
-  (quantas traducoes foram descartadas e por qual regra).
-- [ ] Criar corpus de regressao com pares fonte/traducao reais para validar
-  mudancas de prompt sem rodar o jogo.
+- [x] Adicionar metrica de rejeicao do `translation_quality` no status do lote
+  (quantas traducoes foram descartadas e por qual regra) — feito em 2026-06-12:
+  `invalid_translation_reason` no domain nomeia a regra; o lote conta os
+  descartes de cache em `CatalogTranslationResult.rejected_by_rule` e o status
+  final na UI mostra "cache descartado por regra: ...".
+- [x] Criar corpus de regressao com pares fonte/traducao reais para validar
+  mudancas de prompt sem rodar o jogo — feito em 2026-06-12:
+  `tests/data/translation_regression_corpus.json` (pares validos que nao podem
+  virar falso positivo + pares invalidos com a regra esperada), rodado por
+  `tests/unit/domain/test_translation_regression_corpus.py`. Ao mudar prompt
+  ou heuristica, adicionar pares novos ao corpus.
 
 ### CI e empacotamento
 

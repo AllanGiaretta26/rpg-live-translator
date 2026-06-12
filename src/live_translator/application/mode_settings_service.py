@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
@@ -26,6 +26,7 @@ from live_translator.domain.models import (
 )
 
 from live_translator.domain.translation_quality import (
+    invalid_translation_reason,
     looks_like_invalid_translation,
     should_bypass_rpg_maker_translation,
 )
@@ -158,6 +159,9 @@ class CatalogTranslationResult:
     cancelled: bool = False
     elapsed_seconds: float = 0.0
     average_translation_seconds: float = 0.0
+    # Traducoes do cache descartadas pelo translation_quality, por regra
+    # (nomes de invalid_translation_reason), em pares (regra, quantidade).
+    rejected_by_rule: tuple[tuple[str, int], ...] = ()
 
 
 ProgressCallback = Callable[[CatalogTranslationProgress], None]
@@ -332,6 +336,7 @@ class ModeSettingsService:
         processed = 0
         cancelled = False
         translation_seconds_total = 0.0
+        rejected_by_rule: Counter[str] = Counter()
         scope = self.get_rpg_maker_cache_scope()
         # Prefetch em lote (anti-N+1). O catalogo tem textos duplicados em
         # origens diferentes: apos cada save_translation o mapa local e
@@ -369,13 +374,20 @@ class ModeSettingsService:
 
             try:
                 cached = cached_by_text.get(entry.source_text)
-                if cached is not None and not looks_like_invalid_translation(
-                    entry.source_text,
-                    cached.translated_text,
-                    text_type=entry.text_type,
-                ):
+                cached_rejection = (
+                    None
+                    if cached is None
+                    else invalid_translation_reason(
+                        entry.source_text,
+                        cached.translated_text,
+                        text_type=entry.text_type,
+                    )
+                )
+                if cached is not None and cached_rejection is None:
                     cache_hits += 1
                 else:
+                    if cached_rejection is not None:
+                        rejected_by_rule[cached_rejection] += 1
                     result = _passthrough_translation(entry)
                     if result is None:
                         translation_started_at = self.clock()
@@ -430,6 +442,7 @@ class ModeSettingsService:
             cancelled=cancelled,
             elapsed_seconds=self.clock() - started_at,
             average_translation_seconds=_average(translation_seconds_total, translated),
+            rejected_by_rule=tuple(sorted(rejected_by_rule.items())),
         )
 
     def list_rpg_maker_entries(

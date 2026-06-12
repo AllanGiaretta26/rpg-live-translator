@@ -55,7 +55,7 @@ Universal-mode frame flow, short-circuiting in this order: change detector → i
 
 ### Translation quality is correctness-critical (`domain/translation_quality.py`)
 
-This module guards against contaminated/invalid translations and is the heart of MV/MZ patch quality. `looks_like_invalid_translation()` rejects: prompt/context leaks, dropped RPG Maker escape codes (`\N[1]`, `\V[2]`, `\C[3]`, `\I[64]`) and `%1` placeholders, unexpected leading currency markers (`€`/`¥`/`￥`), and over-long names/descriptions. Cached translations that fail these checks are treated as cache misses and re-translated. When changing translation behavior or prompts, update these heuristics and their tests together.
+This module guards against contaminated/invalid translations and is the heart of MV/MZ patch quality. `looks_like_invalid_translation()` rejects: prompt/context leaks, dropped RPG Maker escape codes (`\N[1]`, `\V[2]`, `\C[3]`, `\I[64]`) and `%1` placeholders, unexpected leading currency markers (`€`/`¥`/`￥`), and over-long names/descriptions. Cached translations that fail these checks are treated as cache misses and re-translated; the batch counts these discards per rule (`invalid_translation_reason`) in its final status. When changing translation behavior or prompts, update these heuristics and their tests together — including the regression corpus in `tests/data/translation_regression_corpus.json` (real source/translation pairs run by `tests/unit/domain/test_translation_regression_corpus.py`).
 
 ### Caching & scope
 

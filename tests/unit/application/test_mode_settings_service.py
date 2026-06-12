@@ -742,6 +742,45 @@ def test_translate_catalog_entries_retranslates_overlong_skill_description_cache
     assert cache.get_by_text(source_text).translated_text == f"pt:{source_text}"
 
 
+def test_translate_catalog_entries_reports_cache_rejections_by_rule():
+    cache = FakeTranslationCache(
+        results={
+            "Line 1": TranslationResult(
+                source_text="Line 1",
+                translated_text="Linha 1",
+            ),
+            "Line 2": TranslationResult(
+                source_text="Line 2",
+                translated_text="Linha 2. Preserve nomes proprios. Nao explique.",
+            ),
+            "Line 3": TranslationResult(
+                source_text="Line 3",
+                translated_text=(
+                    "Linha 3.\nUma fala extra.\nOutra fala extra.\nMais uma fala."
+                ),
+            ),
+        }
+    )
+    service = _service(catalog=FakeCatalog(_entries(3)), cache=cache)
+
+    result = service.translate_catalog_entries()
+
+    assert result.cache_hits == 1
+    assert result.translated == 2
+    assert result.rejected_by_rule == (
+        ("context_leak", 1),
+        ("prompt_leak", 1),
+    )
+
+
+def test_translate_catalog_entries_reports_no_rejections_for_clean_batch():
+    service = _service(catalog=FakeCatalog(_entries(2)))
+
+    result = service.translate_catalog_entries()
+
+    assert result.rejected_by_rule == ()
+
+
 def test_translate_catalog_entries_waits_while_paused():
     translator = FakeTranslator()
     service = _service(catalog=FakeCatalog(_entries(2)), translator=translator)
