@@ -1424,6 +1424,11 @@ class SettingsWindow:
             f"tempo {self._format_seconds(result.elapsed_seconds)} | "
             f"media traducao {self._format_seconds(result.average_translation_seconds)}"
         )
+        if result.rejected_by_rule:
+            details = ", ".join(
+                f"{rule}: {count}" for rule, count in result.rejected_by_rule
+            )
+            message += f" | cache descartado por regra: {details}"
         self._bulk_status.setText(message)
         self._status.setText(message)
         self._refresh_catalog_cache_status()

@@ -27,3 +27,8 @@ DEFAULT_RPG_MAKER_BRIDGE_PORT = 8765
 DEFAULT_PATCH_MESSAGE_LINE_LIMIT = 58
 DEFAULT_PATCH_MESSAGE_FACE_LINE_LIMIT = 44
 DEFAULT_PATCH_DESCRIPTION_LINE_LIMIT = 52
+
+# Falas anteriores do mesmo bloco (evento/pagina) enviadas como contexto na
+# traducao em lote MV/MZ. 4 linhas cabem com folga no num_ctx de modelos locais
+# classe 4-8B; 0 desativa o contexto.
+DEFAULT_RPG_MAKER_BATCH_CONTEXT_LINES = 4

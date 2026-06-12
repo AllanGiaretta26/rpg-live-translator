@@ -43,6 +43,12 @@ _PROMPT_LEAK_MARKERS = (
     "nao omita",
     "não omita",
     "incluindo todas as linhas",
+    # Frases distintivas das diretrizes de estilo do prompt principal
+    # (_STYLE_GUIDELINES em infrastructure/translation/prompt_builder.py).
+    "idioma destino",
+    "traducao literal",
+    "tradução literal",
+    "localizados profissionalmente",
 )
 
 
@@ -284,6 +290,36 @@ def looks_like_overlong_description(
     )
 
 
+def invalid_translation_reason(
+    source_text: str,
+    translated_text: str,
+    *,
+    text_type: RpgMakerTextType | None = None,
+) -> str | None:
+    """Nome da regra que rejeita a traducao, ou None se ela e valida.
+
+    Os nomes sao estaveis: aparecem na metrica de descartes do lote e no
+    corpus de regressao (tests/data/translation_regression_corpus.json).
+    """
+    if looks_like_context_leak(source_text, translated_text):
+        return "context_leak"
+    if looks_like_non_translatable_expansion(source_text, translated_text):
+        return "non_translatable_expansion"
+    if looks_like_prompt_leak(translated_text):
+        return "prompt_leak"
+    if adds_unexpected_leading_visual_marker(source_text, translated_text):
+        return "leading_visual_marker"
+    if missing_rpg_maker_escape_codes(source_text, translated_text):
+        return "missing_escape_codes"
+    if missing_percent_placeholders(source_text, translated_text):
+        return "missing_percent_placeholders"
+    if looks_like_overlong_name_or_term(translated_text, text_type):
+        return "overlong_name_or_term"
+    if looks_like_overlong_description(source_text, translated_text, text_type):
+        return "overlong_description"
+    return None
+
+
 def looks_like_invalid_translation(
     source_text: str,
     translated_text: str,
@@ -291,15 +327,10 @@ def looks_like_invalid_translation(
     text_type: RpgMakerTextType | None = None,
 ) -> bool:
     return (
-        looks_like_context_leak(
+        invalid_translation_reason(
             source_text,
             translated_text,
+            text_type=text_type,
         )
-        or looks_like_non_translatable_expansion(source_text, translated_text)
-        or looks_like_prompt_leak(translated_text)
-        or adds_unexpected_leading_visual_marker(source_text, translated_text)
-        or missing_rpg_maker_escape_codes(source_text, translated_text)
-        or missing_percent_placeholders(source_text, translated_text)
-        or looks_like_overlong_name_or_term(translated_text, text_type)
-        or looks_like_overlong_description(source_text, translated_text, text_type)
+        is not None
     )

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
-from typing import Callable
+from typing import Callable, Iterable
 
 from live_translator.domain.interfaces import (
     CatalogTranslationErrorRepository,
@@ -25,6 +26,7 @@ from live_translator.domain.models import (
 )
 
 from live_translator.domain.translation_quality import (
+    invalid_translation_reason,
     looks_like_invalid_translation,
     should_bypass_rpg_maker_translation,
 )
@@ -68,6 +70,69 @@ DEFAULT_CATALOG_TRANSLATION_TYPES = frozenset(
         RpgMakerTextType.TROOP_SPEAKER,
     }
 )
+# Tipos narrativos que recebem falas anteriores como contexto no lote. Nomes,
+# descricoes e termos de database sao isolados por natureza e ficam sem contexto.
+_CONTEXT_RECEIVING_TYPES = frozenset(
+    {
+        RpgMakerTextType.MESSAGE,
+        RpgMakerTextType.CHOICE,
+        RpgMakerTextType.SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_MESSAGE,
+        RpgMakerTextType.TROOP_CHOICE,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+    }
+)
+# Tipos que alimentam o contexto: so falas corridas. Escolhas e nomes de quem
+# fala confundem mais do que ajudam como "fala anterior".
+_CONTEXT_PROVIDING_TYPES = frozenset(
+    {
+        RpgMakerTextType.MESSAGE,
+        RpgMakerTextType.SCROLLING_TEXT,
+        RpgMakerTextType.TROOP_MESSAGE,
+        RpgMakerTextType.TROOP_SCROLLING_TEXT,
+    }
+)
+
+
+def _build_dialogue_contexts(
+    entries: Iterable[RpgMakerTextEntry],
+    max_lines: int,
+) -> dict[int, tuple[str, ...]]:
+    """Mapeia id da entrada -> falas fonte anteriores do mesmo bloco.
+
+    O bloco e o evento/pagina (ou objeto de database) de origem: o contexto
+    nunca vaza entre eventos, mapas ou paginas diferentes. Recebe o catalogo
+    completo, na ordem de importacao, para que lotes filtrados por tipo ainda
+    enxerguem as messages vizinhas.
+    """
+    contexts: dict[int, tuple[str, ...]] = {}
+    if max_lines <= 0:
+        return contexts
+
+    recent: deque[str] = deque(maxlen=max_lines)
+    current_block: tuple[object, ...] | None = None
+    for entry in entries:
+        origin = entry.origin
+        block = (
+            origin.file_name,
+            origin.map_id,
+            origin.event_id,
+            origin.page_index,
+            origin.database_id,
+        )
+        if block != current_block:
+            recent.clear()
+            current_block = block
+
+        if (
+            entry.id is not None
+            and entry.text_type in _CONTEXT_RECEIVING_TYPES
+            and recent
+        ):
+            contexts[entry.id] = tuple(recent)
+        if entry.text_type in _CONTEXT_PROVIDING_TYPES and entry.source_text.strip():
+            recent.append(entry.source_text)
+    return contexts
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +159,9 @@ class CatalogTranslationResult:
     cancelled: bool = False
     elapsed_seconds: float = 0.0
     average_translation_seconds: float = 0.0
+    # Traducoes do cache descartadas pelo translation_quality, por regra
+    # (nomes de invalid_translation_reason), em pares (regra, quantidade).
+    rejected_by_rule: tuple[tuple[str, int], ...] = ()
 
 
 ProgressCallback = Callable[[CatalogTranslationProgress], None]
@@ -117,6 +185,8 @@ class ModeSettingsService:
     patch_message_line_limit: int = MESSAGE_LINE_LIMIT
     patch_message_face_line_limit: int = MESSAGE_FACE_LINE_LIMIT
     patch_description_line_limit: int = DESCRIPTION_LINE_LIMIT
+    # Maximo de falas anteriores enviadas como contexto por traducao do lote.
+    batch_context_lines: int = 4
     clock: Clock = monotonic
     # Memoiza o scope por caminho de projeto: o runtime consulta o scope a cada
     # fala do bridge e detect() faz I/O de filesystem. Invalidado em
@@ -247,13 +317,16 @@ class ModeSettingsService:
         if not selected_types:
             raise ValueError("at least one text type must be selected")
 
-        entries = [
-            entry
-            for entry in self.list_rpg_maker_entries()
-            if entry.text_type in selected_types
-        ]
+        all_entries = self.list_rpg_maker_entries()
+        entries = [entry for entry in all_entries if entry.text_type in selected_types]
         if limit is not None:
             entries = entries[:limit]
+        # Contexto construido sobre o catalogo completo: um lote filtrado (por
+        # exemplo so choices) ainda recebe as messages vizinhas como contexto.
+        context_by_entry_id = _build_dialogue_contexts(
+            all_entries,
+            self.batch_context_lines,
+        )
 
         started_at = self.clock()
         total = len(entries)
@@ -263,6 +336,7 @@ class ModeSettingsService:
         processed = 0
         cancelled = False
         translation_seconds_total = 0.0
+        rejected_by_rule: Counter[str] = Counter()
         scope = self.get_rpg_maker_cache_scope()
         # Prefetch em lote (anti-N+1). O catalogo tem textos duplicados em
         # origens diferentes: apos cada save_translation o mapa local e
@@ -300,19 +374,26 @@ class ModeSettingsService:
 
             try:
                 cached = cached_by_text.get(entry.source_text)
-                if cached is not None and not looks_like_invalid_translation(
-                    entry.source_text,
-                    cached.translated_text,
-                    text_type=entry.text_type,
-                ):
+                cached_rejection = (
+                    None
+                    if cached is None
+                    else invalid_translation_reason(
+                        entry.source_text,
+                        cached.translated_text,
+                        text_type=entry.text_type,
+                    )
+                )
+                if cached is not None and cached_rejection is None:
                     cache_hits += 1
                 else:
+                    if cached_rejection is not None:
+                        rejected_by_rule[cached_rejection] += 1
                     result = _passthrough_translation(entry)
                     if result is None:
                         translation_started_at = self.clock()
                         result = self.translator.translate(
                             entry.source_text,
-                            [],
+                            list(context_by_entry_id.get(entry.id, ())),
                             text_type=entry.text_type,
                         )
                         translation_seconds_total += (
@@ -361,6 +442,7 @@ class ModeSettingsService:
             cancelled=cancelled,
             elapsed_seconds=self.clock() - started_at,
             average_translation_seconds=_average(translation_seconds_total, translated),
+            rejected_by_rule=tuple(sorted(rejected_by_rule.items())),
         )
 
     def list_rpg_maker_entries(

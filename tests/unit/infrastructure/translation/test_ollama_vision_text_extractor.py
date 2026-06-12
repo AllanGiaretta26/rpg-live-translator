@@ -18,7 +18,7 @@ class FakeClient:
 
 def test_vision_extractor_returns_empty_text_for_prompt_echo():
     extractor = OllamaVisionTextExtractor(
-        FakeClient({"source_text": "Voce e um sistema de OCR e traducao para jogos RPG."})
+        FakeClient({"source_text": "Voce e um sistema de OCR para jogos RPG."})
     )
 
     assert extractor.extract(object()).text == ""

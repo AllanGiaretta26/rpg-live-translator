@@ -4,6 +4,40 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ## Unreleased
 
+## [0.6.0] - 2026-06-12
+
+### Added
+
+- Contexto de dialogo na traducao em lote MV/MZ: ate `batch_context_lines`
+  falas anteriores do mesmo bloco evento/pagina sao enviadas como contexto
+  (default 4, env `LIVE_TRANSLATOR_RPG_MAKER_BATCH_CONTEXT_LINES`, 0 desativa).
+  O contexto e montado sobre o catalogo completo (lotes filtrados, ex. so
+  choices, ainda recebem as messages vizinhas), nunca cruza eventos/paginas e
+  so falas corridas o alimentam. Traducao individual por ID segue sem contexto.
+- Metrica de descartes do `translation_quality` no status do lote:
+  `invalid_translation_reason` nomeia a regra que rejeitou e o resultado do
+  lote expoe `rejected_by_rule` (exibido na UI como "cache descartado por
+  regra: ...").
+- Corpus de regressao de qualidade de traducao
+  (`tests/data/translation_regression_corpus.json`): pares fonte/traducao no
+  formato real do jogo validam mudancas de prompt e heuristicas sem rodar o
+  jogo — pares bons nao podem virar falso positivo e pares ruins precisam cair
+  na regra esperada.
+
+### Changed
+
+- Prompt principal de traducao reestruturado: diretrizes de estilo
+  (naturalidade, tom da cena, siglas HP/MP/TP/EXP preservadas) e texto a
+  traduzir movido para o fim do prompt; frases distintivas das diretrizes
+  entraram nos marcadores de vazamento de prompt.
+- Prompt de visao agora e OCR-only: transcreve o texto da imagem sem traduzir
+  (a traducao ja era feita em chamada separada), melhorando a fidelidade da
+  transcricao no modo universal.
+- `OllamaClient.generate()` envia `options.temperature = 0` (traducoes
+  deterministicas) e `keep_alive` (default 15m) para manter o modelo carregado
+  entre frames; `is_available()` usa timeout dedicado de 2s em vez do timeout
+  cheio de requisicao.
+
 ## [0.5.0] - 2026-06-10
 
 ### Added

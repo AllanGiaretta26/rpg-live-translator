@@ -104,12 +104,16 @@
 - [x] Rejeitar traducao se marcadores `__LT_RPG_TOKEN` (ou variacao mutilada)
   sobrarem no texto apos o `restore()` da mascara. Feito em 2026-06-10 —
   deteccao case-insensitive de `LT_RPG_TOKEN` apos o restore.
-- [ ] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — o
-  `translated_text` pedido no prompt e descartado, gastando tokens por frame.
-- [ ] Enviar `options.temperature = 0` e `keep_alive` no `generate()` para
-  traducoes deterministicas e modelo carregado entre frames.
-- [ ] Usar timeout curto dedicado (1-2s) em `is_available()` em vez do timeout
-  cheio de requisicao.
+- [x] Simplificar prompt do `OllamaVisionTextExtractor` para OCR-only — feito
+  em 2026-06-12; `build_vision_ocr_prompt` pede apenas `source_text` e instrui
+  a transcrever sem traduzir/corrigir (a traducao ja era feita em chamada
+  separada pelo `OllamaTranslator`).
+- [x] Enviar `options.temperature = 0` e `keep_alive` no `generate()` para
+  traducoes deterministicas e modelo carregado entre frames — feito em
+  2026-06-12 (`keep_alive` padrao de 15m, campo do `OllamaClient`).
+- [x] Usar timeout curto dedicado (1-2s) em `is_available()` em vez do timeout
+  cheio de requisicao — feito em 2026-06-12 (2s, limitado pelo timeout
+  configurado se este for menor).
 - [x] Deduplicar `_DESCRIPTION_TYPES` (definido em `ollama_translator.py` e
   `prompt_builder.py`) e o bloco repetido de instrucoes "Preserve exatamente...".
   Feito em 2026-06-10: conjuntos publicos em `domain/translation_quality.py`
@@ -139,10 +143,30 @@
 
 ### Qualidade de traducao
 
-- [ ] Adicionar metrica de rejeicao do `translation_quality` no status do lote
-  (quantas traducoes foram descartadas e por qual regra).
-- [ ] Criar corpus de regressao com pares fonte/traducao reais para validar
-  mudancas de prompt sem rodar o jogo.
+- [x] Melhorar o prompt principal de traducao — feito em 2026-06-12:
+  diretrizes de estilo (`_STYLE_GUIDELINES`: naturalidade, tom da cena,
+  siglas HP/MP/TP/EXP), texto a traduzir movido para o fim do prompt (modelos
+  locais seguem melhor instrucoes que antecedem o payload) e `temperature = 0`
+  no `generate()`. Frases distintivas das diretrizes entraram em
+  `_PROMPT_LEAK_MARKERS` para rejeitar eco do prompt.
+- [x] Enviar falas anteriores como contexto na traducao em lote MV/MZ — feito
+  em 2026-06-12: `_build_dialogue_contexts` no `ModeSettingsService` acumula
+  ate `batch_context_lines` falas (default 4, env
+  `LIVE_TRANSLATOR_RPG_MAKER_BATCH_CONTEXT_LINES`, 0 desativa) do mesmo bloco
+  evento/pagina, sem vazar entre eventos; lotes filtrados (ex.: so choices)
+  ainda recebem as messages vizinhas. Traducao individual segue sem contexto
+  (follow-up possivel).
+- [x] Adicionar metrica de rejeicao do `translation_quality` no status do lote
+  (quantas traducoes foram descartadas e por qual regra) — feito em 2026-06-12:
+  `invalid_translation_reason` no domain nomeia a regra; o lote conta os
+  descartes de cache em `CatalogTranslationResult.rejected_by_rule` e o status
+  final na UI mostra "cache descartado por regra: ...".
+- [x] Criar corpus de regressao com pares fonte/traducao reais para validar
+  mudancas de prompt sem rodar o jogo — feito em 2026-06-12:
+  `tests/data/translation_regression_corpus.json` (pares validos que nao podem
+  virar falso positivo + pares invalidos com a regra esperada), rodado por
+  `tests/unit/domain/test_translation_regression_corpus.py`. Ao mudar prompt
+  ou heuristica, adicionar pares novos ao corpus.
 
 ### CI e empacotamento
 

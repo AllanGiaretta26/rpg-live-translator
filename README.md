@@ -164,7 +164,9 @@ O runtime MV/MZ valida traduções vindas do cache. Entradas antigas que parecem
 - `Ver erros do último lote`: abre a lista de falhas salvas do lote mais recente, com origem e mensagem de erro;
 - `Cache: X/Y entradas já traduzidas`: mostra quantos textos do catálogo atual já possuem tradução válida no cache. Traduções contaminadas não entram na contagem.
 
-No lote MV/MZ, cache existente só conta como hit quando a tradução parece válida. Se a entrada em cache parecer conter contexto ou instrução de prompt, o lote tenta traduzir novamente e sobrescrever. O status final mostra processados, traduzidos, cache hits, erros, tempo total e média por tradução real.
+No lote MV/MZ, cache existente só conta como hit quando a tradução parece válida. Se a entrada em cache parecer conter contexto ou instrução de prompt, o lote tenta traduzir novamente e sobrescrever. O status final mostra processados, traduzidos, cache hits, erros, tempo total, média por tradução real e, quando houver, quantas traduções de cache foram descartadas e por qual regra de validação.
+
+O lote também envia as falas anteriores do mesmo evento como contexto para o modelo, melhorando pronomes, tom e sentido das traduções. O contexto nunca mistura eventos ou páginas diferentes. O padrão são 4 falas; ajuste com `LIVE_TRANSLATOR_RPG_MAKER_BATCH_CONTEXT_LINES` no `.env` (use `0` para desativar).
 
 Textos que contêm apenas pontuação ou controle, como `...`, são mantidos como estão e não são enviados ao modelo. Se um cache antigo expandiu esse tipo de texto para uma fala inventada, `Limpar cache contaminado` remove a entrada e o próximo lote salva o passthrough correto.
 

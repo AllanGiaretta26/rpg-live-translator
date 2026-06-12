@@ -238,7 +238,21 @@ ou id/campo de banco) — é isso que torna o write-back do patch seguro.
 `translation_quality`, e registra falhas em
 `CatalogTranslationErrorRepository` (limpo a cada novo lote) em vez de abortar.
 `clear_contaminated_catalog_cache()` remove do cache traduções que ficaram
-inválidas segundo as heurísticas atuais.
+inválidas segundo as heurísticas atuais. Traduções de cache descartadas pelo
+`translation_quality` são contadas por regra (`invalid_translation_reason`)
+em `CatalogTranslationResult.rejected_by_rule` e exibidas no status final do
+lote.
+
+O lote é o único fluxo que envia contexto de diálogo ao tradutor:
+`_build_dialogue_contexts()` percorre o catálogo completo (não o filtrado por
+tipo) e acumula as falas anteriores do mesmo bloco (`file_name`, `map_id`,
+`event_id`, `page_index`, `database_id`) em um `deque` limitado por
+`batch_context_lines` (default 4, configurável via
+`LIVE_TRANSLATOR_RPG_MAKER_BATCH_CONTEXT_LINES`; 0 desativa). Só tipos
+narrativos recebem contexto (messages, choices e textos rolantes) e só falas
+corridas o alimentam — choices e speakers não entram como "fala anterior".
+O contexto nunca cruza eventos/páginas. Tradução individual
+(`translate_catalog_entry`/`retranslate_catalog_entry`) segue sem contexto.
 
 ### 6.3 Runtime bridge (fala ao vivo, sem OCR)
 

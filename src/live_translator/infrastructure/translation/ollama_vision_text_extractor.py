@@ -7,17 +7,16 @@ from live_translator.domain.models import ExtractedText
 from live_translator.domain.translation_quality import looks_like_non_game_text
 
 from .ollama_client import OllamaClient, OllamaInvalidResponseError
-from .prompt_builder import build_vision_translation_prompt
+from .prompt_builder import build_vision_ocr_prompt
 
 
 @dataclass(frozen=True, slots=True)
 class OllamaVisionTextExtractor(TextExtractor):
     client: OllamaClient
-    target_language: str = "pt-BR"
 
     def extract(self, image: object) -> ExtractedText:
         payload = self.client.generate(
-            build_vision_translation_prompt(self.target_language),
+            build_vision_ocr_prompt(),
             images=[self.client.encode_image(image)],
         )
         source_text = payload.get("source_text")

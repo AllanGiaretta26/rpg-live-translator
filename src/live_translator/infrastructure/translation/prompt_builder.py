@@ -31,20 +31,32 @@ _TOKEN_AND_SYMBOL_GUARDRAILS = (
     "Nao adicione simbolos decorativos ou de moeda como €, ¥ ou ￥ se eles "
     "nao existirem no texto original.\n"
 )
+# Diretrizes de estilo do prompt principal. Frases distintivas daqui tambem
+# entram em _PROMPT_LEAK_MARKERS (domain/translation_quality.py) para que um
+# eco do prompt na resposta seja rejeitado — manter os dois em sincronia.
+_STYLE_GUIDELINES = (
+    "Traduza com naturalidade, como em jogos localizados profissionalmente; "
+    "evite traducao literal palavra por palavra.\n"
+    "Mantenha o tom da cena (formal, informal, dramatico ou comico) e a "
+    "personalidade de quem fala.\n"
+    "Mantenha siglas e termos de jogo consagrados como HP, MP, TP e EXP.\n"
+)
 
 
-def build_vision_translation_prompt(target_language: str = "pt-BR") -> str:
+def build_vision_ocr_prompt() -> str:
+    # OCR-only: a traducao e feita em chamada separada pelo OllamaTranslator.
+    # Pedir traducao aqui gastava tokens por frame e dividia a atencao do
+    # modelo entre ler e traduzir, degradando a fidelidade da transcricao.
     return (
-        "Voce e um sistema de OCR e traducao para jogos RPG.\n"
-        "Leia o texto visivel na imagem, ignore elementos decorativos e traduza "
-        f"para {target_language}.\n"
-        "Leia apenas texto de dialogo, menus ou UI do jogo. Ignore qualquer texto "
-        "do proprio overlay do tradutor.\n"
-        'Se nao houver texto legivel do jogo, responda exatamente {"source_text": "", '
-        '"translated_text": ""}.\n'
-        "Preserve nomes proprios. Nao explique.\n"
-        'Responda apenas JSON valido no formato: {"source_text": "...", '
-        '"translated_text": "..."}'
+        "Voce e um sistema de OCR para jogos RPG.\n"
+        "Transcreva exatamente o texto visivel na imagem, sem traduzir, sem "
+        "corrigir e sem completar frases.\n"
+        "Leia apenas texto de dialogo, menus ou UI do jogo. Ignore elementos "
+        "decorativos e qualquer texto do proprio overlay do tradutor.\n"
+        "Se nao houver texto legivel do jogo, responda exatamente "
+        '{"source_text": ""}.\n'
+        "Nao explique.\n"
+        'Responda apenas JSON valido no formato: {"source_text": "..."}'
     )
 
 
@@ -55,7 +67,9 @@ def build_translation_prompt(
     *,
     text_type: RpgMakerTextType | None = None,
 ) -> str:
-    context_text = "\n".join(item for item in context[-5:] if item.strip())
+    # Quem chama ja limita o tamanho do contexto (deque no lote MV/MZ);
+    # runtime e modo universal passam contexto vazio.
+    context_text = "\n".join(item for item in context if item.strip())
     context_section = ""
     if context_text:
         context_section = (
@@ -64,17 +78,20 @@ def build_translation_prompt(
             f"<context_only_do_not_translate>\n{context_text}\n"
             "</context_only_do_not_translate>\n"
         )
+    # Instrucoes primeiro, texto a traduzir por ultimo: modelos locais seguem
+    # melhor as regras quando o payload fecha o prompt.
     return (
-        "Voce e um tradutor de dialogos de RPG.\n"
+        "Voce e um tradutor profissional de jogos RPG.\n"
         f"Idioma destino: {target_language}.\n"
-        f"{context_section}"
-        f"<text_to_translate>\n{text}\n"
-        "</text_to_translate>\n"
+        f"{_STYLE_GUIDELINES}"
         "Preserve nomes proprios. Nao explique.\n"
         f"{_ESCAPE_CODE_GUARDRAILS}"
         f"{_TOKEN_AND_SYMBOL_GUARDRAILS}"
         f"{_translation_profile_instructions(text_type)}"
         f"{_translation_completion_instructions(text_type)}"
+        f"{context_section}"
+        f"<text_to_translate>\n{text}\n"
+        "</text_to_translate>\n"
         'Responda apenas JSON valido no formato: {"translated_text": "..."}'
     )
 
