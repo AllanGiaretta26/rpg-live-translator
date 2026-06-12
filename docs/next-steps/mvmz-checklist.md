@@ -149,6 +149,13 @@
   locais seguem melhor instrucoes que antecedem o payload) e `temperature = 0`
   no `generate()`. Frases distintivas das diretrizes entraram em
   `_PROMPT_LEAK_MARKERS` para rejeitar eco do prompt.
+- [x] Enviar falas anteriores como contexto na traducao em lote MV/MZ — feito
+  em 2026-06-12: `_build_dialogue_contexts` no `ModeSettingsService` acumula
+  ate `batch_context_lines` falas (default 4, env
+  `LIVE_TRANSLATOR_RPG_MAKER_BATCH_CONTEXT_LINES`, 0 desativa) do mesmo bloco
+  evento/pagina, sem vazar entre eventos; lotes filtrados (ex.: so choices)
+  ainda recebem as messages vizinhas. Traducao individual segue sem contexto
+  (follow-up possivel).
 - [ ] Adicionar metrica de rejeicao do `translation_quality` no status do lote
   (quantas traducoes foram descartadas e por qual regra).
 - [ ] Criar corpus de regressao com pares fonte/traducao reais para validar

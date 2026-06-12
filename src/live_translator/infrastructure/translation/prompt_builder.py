@@ -67,7 +67,9 @@ def build_translation_prompt(
     *,
     text_type: RpgMakerTextType | None = None,
 ) -> str:
-    context_text = "\n".join(item for item in context[-5:] if item.strip())
+    # Quem chama ja limita o tamanho do contexto (deque no lote MV/MZ);
+    # runtime e modo universal passam contexto vazio.
+    context_text = "\n".join(item for item in context if item.strip())
     context_section = ""
     if context_text:
         context_section = (

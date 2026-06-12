@@ -164,6 +164,7 @@ class FakeTranslationCache:
 class FakeTranslator:
     calls: list[str] = field(default_factory=list)
     text_types: list[RpgMakerTextType | None] = field(default_factory=list)
+    contexts: list[list[str]] = field(default_factory=list)
     failures: set[str] = field(default_factory=set)
 
     def translate(
@@ -175,6 +176,7 @@ class FakeTranslator:
     ) -> TranslationResult:
         self.calls.append(text)
         self.text_types.append(text_type)
+        self.contexts.append(list(context))
         if text in self.failures:
             raise RuntimeError(f"failed {text}")
         return TranslationResult(source_text=text, translated_text=f"pt:{text}")
@@ -877,6 +879,150 @@ def test_clear_contaminated_catalog_cache_keeps_other_project_scope():
     assert cache.deleted_scopes == [active_scope]
     assert cache.get_by_text("Line 1", scope=active_scope) is None
     assert cache.get_by_text("Line 1", scope=other_scope) is not None
+
+
+def _dialogue_entry(
+    entry_id: int,
+    source_text: str,
+    *,
+    text_type: RpgMakerTextType = RpgMakerTextType.MESSAGE,
+    file_name: str = "Map001.json",
+    map_id: int | None = 1,
+    event_id: int | None = 2,
+    page_index: int | None = 0,
+) -> RpgMakerTextEntry:
+    return RpgMakerTextEntry(
+        id=entry_id,
+        source_text=source_text,
+        text_type=text_type,
+        origin=RpgMakerTextOrigin(
+            file_name=file_name,
+            origin_key=f"{file_name}|{map_id}|{event_id}|{page_index}|{entry_id}|0",
+            map_id=map_id,
+            event_id=event_id,
+            page_index=page_index,
+            command_index=entry_id,
+            parameter_index=0,
+        ),
+    )
+
+
+def test_translate_catalog_entries_passes_previous_lines_as_context():
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [
+            _dialogue_entry(1, "First line"),
+            _dialogue_entry(2, "Second line"),
+            _dialogue_entry(3, "Third line"),
+        ]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entries()
+
+    assert translator.calls == ["First line", "Second line", "Third line"]
+    assert translator.contexts == [
+        [],
+        ["First line"],
+        ["First line", "Second line"],
+    ]
+
+
+def test_translate_catalog_entries_resets_context_across_events_and_pages():
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [
+            _dialogue_entry(1, "Event one line", event_id=1),
+            _dialogue_entry(2, "Other event line", event_id=2),
+            _dialogue_entry(3, "Other page line", event_id=2, page_index=1),
+        ]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entries()
+
+    # Cada entrada abre um bloco novo, entao nenhuma recebe contexto.
+    assert translator.contexts == [[], [], []]
+
+
+def test_translate_catalog_entries_choice_batch_gets_message_context():
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [
+            _dialogue_entry(1, "Will you come with me?"),
+            _dialogue_entry(2, "Yes", text_type=RpgMakerTextType.CHOICE),
+        ]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entries(text_types={RpgMakerTextType.CHOICE})
+
+    # Mesmo com o lote filtrado por choice, a message vizinha vira contexto.
+    assert translator.calls == ["Yes"]
+    assert translator.contexts == [["Will you come with me?"]]
+
+
+def test_translate_catalog_entries_choices_do_not_feed_context():
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [
+            _dialogue_entry(1, "Pick one."),
+            _dialogue_entry(2, "Yes", text_type=RpgMakerTextType.CHOICE),
+            _dialogue_entry(3, "Good choice."),
+        ]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entries()
+
+    # A choice recebe contexto, mas nao entra como "fala anterior".
+    assert translator.contexts == [[], ["Pick one."], ["Pick one."]]
+
+
+def test_translate_catalog_entries_database_types_get_no_context():
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [
+            _dialogue_entry(1, "A long day ends."),
+            _typed_entry(2, "Potion", RpgMakerTextType.ITEM_NAME),
+        ]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entries()
+
+    assert translator.contexts == [[], []]
+
+
+def test_translate_catalog_entries_caps_context_at_batch_context_lines():
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [_dialogue_entry(index, f"Line {index}") for index in range(1, 7)]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entries()
+
+    # batch_context_lines padrao = 4: a sexta fala ve apenas as 4 anteriores.
+    assert translator.contexts[-1] == ["Line 2", "Line 3", "Line 4", "Line 5"]
+
+
+def test_translate_catalog_entry_single_stays_without_context():
+    # Decisao atual: traducao/retraducao individual nao usa contexto
+    # (follow-up possivel). So o lote monta o contexto de dialogo.
+    translator = FakeTranslator()
+    catalog = FakeCatalog(
+        [
+            _dialogue_entry(1, "First line"),
+            _dialogue_entry(2, "Second line"),
+        ]
+    )
+    service = _service(catalog=catalog, translator=translator)
+
+    service.translate_catalog_entry(2)
+    service.retranslate_catalog_entry(2)
+
+    assert translator.contexts == [[], []]
 
 
 def test_clear_contaminated_catalog_cache_deletes_expanded_punctuation_text():

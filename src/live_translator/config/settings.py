@@ -62,6 +62,11 @@ if BaseSettings is not None:
             gt=0,
         )
 
+        rpg_maker_batch_context_lines: int = Field(
+            default=defaults.DEFAULT_RPG_MAKER_BATCH_CONTEXT_LINES,
+            ge=0,
+        )
+
         model_config = SettingsConfigDict(
             env_prefix="LIVE_TRANSLATOR_",
             env_file=".env",
@@ -91,4 +96,7 @@ else:
         )
         patch_description_line_limit: int = (
             defaults.DEFAULT_PATCH_DESCRIPTION_LINE_LIMIT
+        )
+        rpg_maker_batch_context_lines: int = (
+            defaults.DEFAULT_RPG_MAKER_BATCH_CONTEXT_LINES
         )

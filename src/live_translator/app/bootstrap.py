@@ -195,6 +195,7 @@ def bootstrap(
         patch_message_line_limit=resolved_settings.patch_message_line_limit,
         patch_message_face_line_limit=resolved_settings.patch_message_face_line_limit,
         patch_description_line_limit=resolved_settings.patch_description_line_limit,
+        batch_context_lines=resolved_settings.rpg_maker_batch_context_lines,
     )
     rpg_maker_runtime_service = RpgMakerRuntimeService(
         mode_settings=mode_settings_service,
