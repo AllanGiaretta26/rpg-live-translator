@@ -54,6 +54,57 @@ def test_generate_parses_nested_json_response(monkeypatch):
     assert payload == {"translated_text": "Ola"}
 
 
+def test_generate_sends_deterministic_options_and_keep_alive(monkeypatch):
+    captured: dict = {}
+
+    def fake_urlopen(request, timeout):
+        captured.update(json.loads(request.data.decode("utf-8")))
+        return FakeResponse({"response": '{"translated_text": "Ola"}'})
+
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
+
+    OllamaClient(timeout_seconds=1).generate("prompt")
+
+    assert captured["options"] == {"temperature": 0}
+    assert captured["keep_alive"] == "15m"
+
+
+def test_is_available_uses_short_dedicated_timeout(monkeypatch):
+    captured: dict = {}
+
+    def fake_urlopen(request, timeout):
+        captured["timeout"] = timeout
+        return FakeResponse({})
+
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
+
+    assert OllamaClient(timeout_seconds=30).is_available() is True
+    assert captured["timeout"] == 2.0
+
+
+def test_generate_uses_full_request_timeout(monkeypatch):
+    captured: dict = {}
+
+    def fake_urlopen(request, timeout):
+        captured["timeout"] = timeout
+        return FakeResponse({"response": '{"translated_text": "Ola"}'})
+
+    monkeypatch.setattr(
+        "live_translator.infrastructure.translation.ollama_client.request.urlopen",
+        fake_urlopen,
+    )
+
+    OllamaClient(timeout_seconds=30).generate("prompt")
+
+    assert captured["timeout"] == 30
+
+
 def test_generate_rejects_invalid_nested_json(monkeypatch):
     def fake_urlopen(request, timeout):
         return FakeResponse({"response": "not-json"})

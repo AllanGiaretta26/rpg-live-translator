@@ -27,15 +27,30 @@ class OllamaModelNotFoundError(OllamaError):
     """Raised when the configured model is not installed on the Ollama server."""
 
 
+# is_available() roda no tick de status da UI: precisa responder rapido mesmo
+# quando o timeout cheio de requisicao (usado para gerar traducoes) e longo.
+_AVAILABILITY_TIMEOUT_SECONDS = 2.0
+
+
 @dataclass(frozen=True, slots=True)
 class OllamaClient:
     base_url: str = "http://127.0.0.1:11434"
     model: str = "gemma4:e4b"
     timeout_seconds: float = 10.0
+    # Mantem o modelo carregado entre frames/lotes; o padrao do Ollama (5m)
+    # descarrega o modelo em pausas longas de dialogo e o frame seguinte paga
+    # o custo de recarga inteira.
+    keep_alive: str = "15m"
 
     def is_available(self) -> bool:
         try:
-            self._request_json("/api/tags", {"method": "GET"})
+            self._request_json(
+                "/api/tags",
+                {"method": "GET"},
+                timeout_seconds=min(
+                    self.timeout_seconds, _AVAILABILITY_TIMEOUT_SECONDS
+                ),
+            )
         except OllamaError:
             return False
         return True
@@ -52,6 +67,10 @@ class OllamaClient:
             "prompt": prompt,
             "format": "json",
             "stream": False,
+            # Temperatura zero: a mesma fala deve produzir sempre a mesma
+            # traducao, e amostragem criativa so aumenta alucinacao aqui.
+            "options": {"temperature": 0},
+            "keep_alive": self.keep_alive,
         }
         if images:
             payload["images"] = images
@@ -84,11 +103,19 @@ class OllamaClient:
             return base64.b64encode(buffer.getvalue()).decode("ascii")
         raise TypeError("image must expose save() for Ollama vision requests")
 
-    def _request_json(self, path: str, options: dict[str, Any]) -> dict[str, Any]:
+    def _request_json(
+        self,
+        path: str,
+        options: dict[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         url = f"{self.base_url.rstrip('/')}{path}"
         req = request.Request(url, **options)
         try:
-            with request.urlopen(req, timeout=self.timeout_seconds) as response:
+            with request.urlopen(
+                req, timeout=timeout_seconds or self.timeout_seconds
+            ) as response:
                 body = response.read().decode("utf-8")
         except TimeoutError as exc:
             raise OllamaTimeoutError("Ollama request timed out") from exc
