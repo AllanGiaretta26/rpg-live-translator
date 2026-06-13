@@ -241,7 +241,7 @@ A suíte cobre cache SQLite, pipeline de tradução, loop de captura, utilitári
 
 ## Licença
 
-Este projeto usa a licença MIT. Consulte `LICENSE` para os termos completos.
+Este projeto usa a licença MIT. Consulte [`LICENSE`](LICENSE) para os termos completos.
 
 ---
 Desenvolvido por [Allan Giaretta](https://github.com/AllanGiaretta26)
