@@ -993,7 +993,7 @@ Expected: no prompt echo; no blank overlay; diagnostics distinguish cache/empty/
 
 **Files:**
 - Modify: `CHANGELOG.md`
-- Create: `docs/report/report-v3.md`
+- Create: `docs/relatorios/relatorio-v03-confiabilidade-calibracao.md`
 
 - [ ] **Step 1: Update changelog**
 
@@ -1010,16 +1010,16 @@ Add an `Unreleased` entry or top release note:
 
 - [ ] **Step 2: Create report**
 
-Create `docs/report/report-v3.md`:
+Create `docs/relatorios/relatorio-v03-confiabilidade-calibracao.md`:
 
 ```markdown
-# Report V3
+# Relatório V03 — Confiabilidade da calibração
 
-## Summary
+## Resumo
 
 This checkpoint improves calibration reliability. The overlay is treated as translated output only, the source text region is easier to select, and the app warns when overlay placement can contaminate OCR.
 
-## Completed
+## Entregas
 
 - Added rectangle overlap detection for text region and overlay placement.
 - Added in-app overlap warning.
@@ -1028,12 +1028,12 @@ This checkpoint improves calibration reliability. The overlay is treated as tran
 - Strengthened translation prompts and blank-result validation.
 - Added clearer diagnostics for translation failure.
 
-## Validation
+## Validação
 
 - Automated tests: `python -m pytest`
 - Manual checks: region selection, capture preview, overlay resize, overlap warning, multi-line dialogue translation.
 
-## Remaining Risks
+## Pendências e riscos
 
 - Translation completeness still depends on OCR quality and model behavior.
 - Window-relative capture remains a future improvement.
@@ -1045,7 +1045,7 @@ This checkpoint improves calibration reliability. The overlay is treated as tran
 Run:
 
 ```powershell
-git add CHANGELOG.md docs\report\report-v3.md
+git add CHANGELOG.md docs\relatorios\relatorio-v03-confiabilidade-calibracao.md
 git commit -m "Document calibration fixes"
 ```
 

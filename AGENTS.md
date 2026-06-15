@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Windows-first Python desktop app for live translation of RPG Maker games. Project context lives in `BRIEFING.md`, and the layer design lives in `ARCHITECTURE.md`.
+This is a Windows-first Python desktop app for live translation of RPG Maker games. Product context lives in `docs/BRIEFING.md`, and the current layer design lives in `ARCHITECTURE.md`.
 
 - `src/live_translator/ui/` for windows, overlays, hotkeys, and user-facing state.
 - `src/live_translator/application/` for capture, OCR, translate, cache, and display orchestration.

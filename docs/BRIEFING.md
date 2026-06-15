@@ -1,4 +1,17 @@
-# BRIEFING.md — RPG Live Translator
+# Briefing do RPG Live Translator
+
+> Status: documento de produto e planejamento inicial. Para a arquitetura atual,
+> use [`../ARCHITECTURE.md`](../ARCHITECTURE.md). Para instalação e uso, use
+> [`../README.md`](../README.md).
+
+## Estado atual
+
+Este briefing preserva a intenção original do produto. Ele não é contrato técnico atual. Em 2026-06, o app já opera em dois modos:
+
+- **Universal**: captura de região da tela, OCR via Ollama vision, tradução via Ollama e overlay PySide6.
+- **RPG Maker MV/MZ**: importação read-only de JSONs, bridge HTTP local via `LiveTranslatorBridge.js`, tradução/cache por projeto e geração explícita de patch com backup.
+
+Algumas seções abaixo citam nomes planejados que mudaram no código, como módulos de OCR/tradução e schema SQLite inicial. Use-as como histórico de decisão, não como referência de implementação.
 
 ## 1. Visão geral
 
@@ -1351,7 +1364,7 @@ O MVP estará pronto quando:
 
 ### Status em 2026-05-27
 
-O MVP esta funcionalmente concluido para o fluxo externo por captura de tela:
+O MVP está funcionalmente concluído para o fluxo externo por captura de tela:
 
 ```txt
 regiao selecionavel
@@ -1364,9 +1377,9 @@ pausa/retomada
 diagnostico de pipeline e tempo
 ```
 
-Validacoes manuais indicaram melhora de latencia apos desligar contexto recente
-por padrao e resolucao aparente da contaminacao de falas anteriores. O projeto
-deve entrar em fase de estabilizacao e evolucao especifica, em vez de expandir o
+Validações manuais indicaram melhora de latência após desligar contexto recente
+por padrão e resolução aparente da contaminação de falas anteriores. O projeto
+deve entrar em fase de estabilização e evolução específica, em vez de expandir o
 MVP com novas features grandes.
 
 Não precisa ter ainda:
@@ -1380,8 +1393,8 @@ suporte Linux
 UI bonita
 ```
 
-O proximo eixo tecnico recomendado e suporte especifico a RPG Maker MV/MZ por
-leitura dos arquivos do jogo, mantendo OCR/vision como fallback.
+O próximo eixo técnico recomendado é suporte específico a RPG Maker MV/MZ por
+leitura dos arquivos do jogo, mantendo OCR/visão como fallback.
 
 ---
 
