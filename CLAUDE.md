@@ -77,4 +77,4 @@ This module guards against contaminated/invalid translations and is the heart of
 
 ## Reference docs
 
-`ARCHITECTURE.md` describes the actual architecture (layers, dependency rules, failure-handling map) and is kept in sync with the code — when it drifts, the code wins and `app/bootstrap.py` is the source of truth. `README.md` is the end-user guide (pt-BR), including full RPG Maker plugin install steps. `AGENTS.md` mirrors these contributor guidelines. `BRIEFING.md` holds product context; `docs/` has reports and plans.
+`ARCHITECTURE.md` describes the actual architecture (layers, dependency rules, failure-handling map) and is kept in sync with the code — when it drifts, the code wins and `app/bootstrap.py` is the source of truth. `README.md` is the end-user guide (pt-BR), including full RPG Maker plugin install steps. `docs/README.md` is the documentation index and style guide. `AGENTS.md` mirrors these contributor guidelines. `docs/BRIEFING.md` holds product context; `docs/` has reports and plans.

@@ -1,8 +1,22 @@
 # Changelog
 
-Todas as mudancas relevantes deste projeto serao registradas aqui.
+Todas as mudanças relevantes deste projeto serão registradas aqui.
 
 ## Unreleased
+
+### Added
+
+- Índice de documentação em `docs/README.md`, separando documentos ativos, histórico e padrão para novas páginas.
+- Auditoria de documentação em `docs/auditorias/auditoria-documentacao-2026-06-15.md`.
+- Relatórios históricos movidos de `docs/report/report-v*.md` para `docs/relatorios/relatorio-vNN-*.md`, com títulos e conteúdo padronizados em português brasileiro.
+- Auditorias movidas para `docs/auditorias/`, separando achados técnicos de checkpoints de versão.
+
+### Changed
+
+- `README.md` reorganizado com sumário, tabela de variáveis `LIVE_TRANSLATOR_*`, mapa da documentação e troubleshooting rápido.
+- `ARCHITECTURE.md`, `docs/BRIEFING.md`, `AGENTS.md`, `CLAUDE.md` e o checklist MV/MZ padronizados para apontar aos documentos atuais e usar português consistente.
+- `README.md` agora documenta a recuperação do plugin MV/MZ quando uma atualização ou verificação da Steam sobrescreve `plugins.js`.
+- Documentação do modo MV/MZ ajustada para separar fluxos read-only de ações explícitas de patch com backup, e para citar `data/` e `www/data/` de forma consistente.
 
 ## [0.6.0] - 2026-06-12
 
@@ -51,7 +65,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   apenas lazy fora de `ui/` e `infrastructure/capture/`.
 - Teste de bootstrap headless (`tests/unit/app/test_bootstrap_headless.py`)
   garantindo os fallbacks `ConsoleOverlay`/`ConsoleUiApp` sem GUI instalada.
-- Auditoria completa do projeto em `docs/report/auditoria-2026-06-10.md`, com
+- Auditoria completa do projeto em `docs/auditorias/auditoria-projeto-2026-06-10.md`, com
   mapa de interdependencias e ordem de execucao das correcoes.
 - Novo erro `OllamaModelNotFoundError` distinguindo "modelo nao instalado"
   (HTTP 404, com instrucao de `ollama pull`) de "Ollama fora do ar".
@@ -101,9 +115,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 
 ### Added
 
-- Relatorio V14 com a auditoria de otimizacao e tratamento de bugs (persistencia
+- Relatório V14 com a auditoria de otimizacao e tratamento de bugs (persistencia
   SQLite, contagem de cache, validacao de traducao e bridge runtime).
-- Relatorio V15 com as correcoes de quebra de linha, overflow e codigos de escape
+- Relatório V15 com as correcoes de quebra de linha, overflow e codigos de escape
   na geracao de patch MV/MZ.
 - Limites de largura do patch MV/MZ configuraveis por settings/ambiente
   (`LIVE_TRANSLATOR_PATCH_MESSAGE_LINE_LIMIT`,
@@ -150,9 +164,9 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Tema visual escuro coeso na janela principal, com grupos em cartoes
   arredondados, campos e tabela destacados e botoes de acao principal em
   destaque (`Salvar`, `Importar`, `Traduzir`, `Gerar patch`).
-- Relatorio V12 com fechamento do suporte inicial a database MV/MZ no catalogo
+- Relatório V12 com fechamento do suporte inicial a database MV/MZ no catalogo
   e no patch.
-- Relatorio V13 com fechamento das correcoes de qualidade para lote/cache e
+- Relatório V13 com fechamento das correcoes de qualidade para lote/cache e
   quebra visual do patch MV/MZ.
 - Catalogacao e patch MV/MZ para `Weapons.json`, `Armors.json`, `States.json`,
   `Classes.json`, `Enemies.json` e eventos de batalha em `Troops.json`.
@@ -179,29 +193,29 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   para o modo Universal/OCR.
 - Migracao SQLite idempotente para armazenar origem de database no catalogo
   existente e escopo na tabela `translations`.
-- Relatorio V11 com fechamento do exportador/aplicador de patch JSON MV/MZ.
+- Relatório V11 com fechamento do exportador/aplicador de patch JSON MV/MZ.
 - Area `Patch de traducao` no modo RPG Maker MV/MZ para gerar patch, aplicar
   patch e restaurar o ultimo backup.
 - Exportacao de patch traduzido para `Map*.json` e `CommonEvents.json`, usando
   traducoes ja cacheadas.
 - Backup automatico dos JSON originais antes de aplicar um patch MV/MZ.
-- Relatorio V10 com fechamento da separacao visual entre modo Universal e
+- Relatório V10 com fechamento da separacao visual entre modo Universal e
   RPG Maker MV/MZ.
 - Helper testavel para decidir quais controles da janela principal ficam ativos
   em cada modo.
-- Relatorio V9 com fechamento de paginacao do catalogo, busca por ID e
+- Relatório V9 com fechamento de paginacao do catalogo, busca por ID e
   retraducao forcada.
 - Navegacao do catalogo MV/MZ em paginas de 500 entradas.
 - Busca de entrada do catalogo MV/MZ por ID persistido no banco.
 - Acao `Retraduzir ID` para apagar cache antigo, chamar Ollama novamente e
   salvar a nova traducao.
-- Relatorio V8 com fechamento dos controles avancados de traducao em lote MV/MZ.
+- Relatório V8 com fechamento dos controles avancados de traducao em lote MV/MZ.
 - Filtro de traducao em lote MV/MZ por `message`, `choice`, `speaker` e
   `scrolling_text`.
 - Controles para pausar e retomar o lote MV/MZ sem perder progresso na sessao
   atual.
 - Status final do lote MV/MZ com tempo total e media por traducao real.
-- Relatorio V7 com fechamento dos controles de cache, erros de lote e
+- Relatório V7 com fechamento dos controles de cache, erros de lote e
   diagnostico MV/MZ.
 - Botao `Limpar cache contaminado` para remover traducoes invalidas do cache do
   catalogo MV/MZ ativo.
@@ -211,7 +225,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
   `entry_id`, origem, texto fonte e mensagem do erro.
 - Botao `Ver erros do ultimo lote` para consultar falhas de traducao em lote.
 - Contagem de entradas do catalogo MV/MZ que ja possuem traducao cacheada.
-- Relatorio V6 com fechamento parcial da evolucao MV/MZ, diagnosticos e riscos
+- Relatório V6 com fechamento parcial da evolucao MV/MZ, diagnosticos e riscos
   restantes.
 - Traducao em lote do catalogo MV/MZ com limite de 100, 500 ou todos os textos.
 - Progresso, contagem de cache hits, contagem de erros e cancelamento para o
@@ -310,7 +324,7 @@ Todas as mudancas relevantes deste projeto serao registradas aqui.
 - Aviso na UI quando o overlay cruza a area capturada pelo OCR.
 - Helpers testaveis para sobreposicao de retangulos, geometria de overlay e selecao de monitor.
 - Testes unitarios para redimensionamento do overlay, selecao de tela e validacao do tradutor Ollama.
-- Relatorio V5 sobre fechamento do MVP e proxima evolucao RPG Maker MV/MZ.
+- Relatório V5 sobre fechamento do MVP e proxima evolucao RPG Maker MV/MZ.
 - `ruff` no extra de desenvolvimento para alinhar o ambiente ao comando documentado.
 
 ### Changed

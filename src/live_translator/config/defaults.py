@@ -21,9 +21,9 @@ DEFAULT_RPG_MAKER_BRIDGE_ENABLED = True
 DEFAULT_RPG_MAKER_BRIDGE_HOST = "127.0.0.1"
 DEFAULT_RPG_MAKER_BRIDGE_PORT = 8765
 
-# Patch line-wrapping limits, in visible characters. These are game/theme
-# dependent, so they are configurable; the defaults match the previous hardcoded
-# values used by the MV/MZ patch exporter.
+# Limites de quebra de linha do patch, em caracteres visíveis. Dependem do
+# jogo/tema, por isso são configuráveis; os padrões mantêm os valores antes
+# fixos no exportador de patch MV/MZ.
 DEFAULT_PATCH_MESSAGE_LINE_LIMIT = 58
 DEFAULT_PATCH_MESSAGE_FACE_LINE_LIMIT = 44
 DEFAULT_PATCH_DESCRIPTION_LINE_LIMIT = 52

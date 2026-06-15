@@ -121,7 +121,7 @@ class OllamaClient:
             raise OllamaTimeoutError("Ollama request timed out") from exc
         except error.HTTPError as exc:
             # HTTPError e subclasse de URLError: tratar antes, senao um 404 de
-            # modelo nao instalado viraria "Ollama is unavailable".
+            # modelo nao instalado viraria erro generico de Ollama indisponivel.
             raise self._classify_http_error(exc) from exc
         except error.URLError as exc:
             if isinstance(exc.reason, TimeoutError):

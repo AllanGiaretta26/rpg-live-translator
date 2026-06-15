@@ -119,8 +119,8 @@ def test_invalid_translation_rejects_added_leading_visual_marker():
 
 
 def test_visual_marker_allows_extra_translated_lines_without_marker():
-    # A translation that wraps a single source line into several lines must not
-    # be rejected just because the extra lines have no source counterpart.
+    # Uma tradução que quebra uma única linha de origem em várias linhas não
+    # deve ser rejeitada só porque as linhas extras não têm contraparte.
     assert not adds_unexpected_leading_visual_marker(
         "The Empire manipulated countries and laws over many years.",
         "O Imperio manipulava\npaises e leis\nao longo de muitos anos.",

@@ -9,8 +9,8 @@ from typing import Callable, Protocol
 
 logger = logging.getLogger(__name__)
 
-# Bound the request body. The bridge only ever receives short dialogue lines, so
-# anything larger is malformed or hostile and must not be buffered into memory.
+# Limita o corpo da requisição. A bridge só recebe falas curtas; qualquer coisa
+# maior é malformada ou hostil e não deve ser armazenada em memória.
 MAX_REQUEST_BODY_BYTES = 1024 * 1024
 
 

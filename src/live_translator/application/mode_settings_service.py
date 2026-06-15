@@ -341,7 +341,7 @@ class ModeSettingsService:
         # Prefetch em lote (anti-N+1). O catalogo tem textos duplicados em
         # origens diferentes: apos cada save_translation o mapa local e
         # atualizado, para a proxima ocorrencia do mesmo texto contar como
-        # cache hit em vez de ser retraduzida.
+        # acerto de cache em vez de ser retraduzida.
         cached_by_text = self.translation_cache.get_many_by_text(
             [entry.source_text for entry in entries],
             scope=scope,
@@ -490,8 +490,8 @@ class ModeSettingsService:
             cached = cached_by_text.get(entry.source_text)
             if cached is None:
                 continue
-            # A contaminated cache entry is not a real hit: the batch and the
-            # patch flow both retranslate it, so it must not inflate the count.
+            # Entrada contaminada no cache não é acerto real: lote e patch a
+            # retraduzem, então ela não pode inflar a contagem.
             if looks_like_invalid_translation(
                 entry.source_text,
                 cached.translated_text,

@@ -1,10 +1,15 @@
-# ARCHITECTURE.md
-
-# RPG Live Translator — Arquitetura do Projeto
+# Arquitetura do RPG Live Translator
 
 Este documento descreve a arquitetura **real** do código em `src/live_translator/`.
-Quando houver dúvida entre este documento e o código, o código vence — e o ponto
-de partida para conferir é sempre `app/bootstrap.py` (composition root).
+Quando houver dúvida entre este documento e o código, o código vence. O ponto de
+partida para conferir qualquer fluxo é sempre `app/bootstrap.py` (composition root).
+
+Documentação relacionada:
+
+- [`README.md`](README.md): instalação, uso e diagnóstico para usuários.
+- [`docs/README.md`](docs/README.md): índice e padrão da documentação.
+- [`docs/BRIEFING.md`](docs/BRIEFING.md): contexto de produto e planejamento inicial.
+- [`CLAUDE.md`](CLAUDE.md) e [`AGENTS.md`](AGENTS.md): guia rápido para agentes de código.
 
 ---
 
@@ -17,7 +22,7 @@ RPG Maker para pt-BR em tempo real. Existem **dois modos de operação**
 | Modo | Como funciona | Quando usar |
 | --- | --- | --- |
 | `UNIVERSAL` | Captura de tela (MSS) → OCR via Ollama vision → tradução via Ollama → overlay PySide6 | Qualquer jogo/janela |
-| `RPG_MAKER_MV_MZ` | Lê o catálogo JSON do jogo + recebe a fala atual via bridge HTTP local (plugin `LiveTranslatorBridge.js`) — **sem OCR** | Jogos MV/MZ com acesso à pasta `data/` |
+| `RPG_MAKER_MV_MZ` | Lê o catálogo JSON do jogo + recebe a fala atual via bridge HTTP local (plugin `LiveTranslatorBridge.js`) — **sem OCR** | Jogos MV/MZ com acesso a `data/` ou `www/data/` |
 
 Resultados são cacheados em SQLite (por texto normalizado e por hash perceptual
 de imagem). O estilo arquitetural é um **monólito modular desktop** em quatro
@@ -214,7 +219,7 @@ Status da UI — diagnóstico é parte do contrato, não detalhe interno.
 
 ## 6. Modo RPG Maker MV/MZ
 
-Três fluxos independentes, todos orquestrados por `ModeSettingsService`:
+Três fluxos independentes, todos orquestrados por `ModeSettingsService`. Importação, lote e runtime são read-only em relação ao jogo; somente `apply_patch` e `restore_latest_backup` escrevem na pasta do projeto.
 
 ### 6.1 Importação de catálogo (somente leitura)
 

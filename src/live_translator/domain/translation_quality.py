@@ -217,9 +217,9 @@ def adds_unexpected_leading_visual_marker(
         translated_lines = [translated_text]
 
     for index, translated_line in enumerate(translated_lines):
-        # Only compare lines that have a matching source line. A translation that
-        # legitimately wraps into more lines must not be rejected just because the
-        # extra lines have no source counterpart to compare against.
+        # Compare apenas linhas que têm linha-fonte correspondente. Uma tradução
+        # que legitimamente quebra em mais linhas não deve ser rejeitada só
+        # porque as linhas extras não têm contraparte de origem para comparar.
         if index >= len(source_lines):
             break
         source_line = source_lines[index]

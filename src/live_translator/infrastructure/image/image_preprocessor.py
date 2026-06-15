@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-try:  # pragma: no cover - Pillow is optional in the test environment.
+try:  # pragma: no cover - Pillow é opcional no ambiente de testes.
     from PIL import Image as PILImage  # type: ignore
     from PIL import ImageEnhance  # type: ignore
-except ImportError:  # pragma: no cover - Pillow is optional.
+except ImportError:  # pragma: no cover - Pillow é opcional.
     PILImage = None
     ImageEnhance = None
 

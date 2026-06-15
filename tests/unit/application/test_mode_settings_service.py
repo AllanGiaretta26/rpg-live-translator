@@ -866,7 +866,7 @@ def test_count_cached_catalog_entries_excludes_contaminated_translations():
     )
     service = _service(catalog=FakeCatalog(_entries(3)), cache=cache)
 
-    # Line 1 is valid, Line 2 is contaminated, Line 3 has no cache entry.
+    # Linha 1 é válida, linha 2 está contaminada, linha 3 não tem cache.
     assert service.count_cached_catalog_entries() == 1
 
 
@@ -996,7 +996,7 @@ def test_translate_catalog_entries_choice_batch_gets_message_context():
 
     service.translate_catalog_entries(text_types={RpgMakerTextType.CHOICE})
 
-    # Mesmo com o lote filtrado por choice, a message vizinha vira contexto.
+    # Mesmo com o lote filtrado por escolha, a mensagem vizinha vira contexto.
     assert translator.calls == ["Yes"]
     assert translator.contexts == [["Will you come with me?"]]
 
@@ -1014,7 +1014,7 @@ def test_translate_catalog_entries_choices_do_not_feed_context():
 
     service.translate_catalog_entries()
 
-    # A choice recebe contexto, mas nao entra como "fala anterior".
+    # A escolha recebe contexto, mas nao entra como "fala anterior".
     assert translator.contexts == [[], ["Pick one."], ["Pick one."]]
 
 
