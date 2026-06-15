@@ -7,6 +7,7 @@ partida para conferir qualquer fluxo é sempre `app/bootstrap.py` (composition r
 Documentação relacionada:
 
 - [`README.md`](README.md): instalação, uso e diagnóstico para usuários.
+- [`docs/rpg-maker-mvmz.md`](docs/rpg-maker-mvmz.md): guia completo do modo RPG Maker MV/MZ.
 - [`docs/README.md`](docs/README.md): índice e padrão da documentação.
 - [`docs/BRIEFING.md`](docs/BRIEFING.md): contexto de produto e planejamento inicial.
 - [`CLAUDE.md`](CLAUDE.md) e [`AGENTS.md`](AGENTS.md): guia rápido para agentes de código.

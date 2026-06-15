@@ -10,6 +10,8 @@ Todas as mudanças relevantes deste projeto serão registradas aqui.
 - Auditoria de documentação em `docs/auditorias/auditoria-documentacao-2026-06-15.md`.
 - Relatórios históricos movidos de `docs/report/report-v*.md` para `docs/relatorios/relatorio-vNN-*.md`, com títulos e conteúdo padronizados em português brasileiro.
 - Auditorias movidas para `docs/auditorias/`, separando achados técnicos de checkpoints de versão.
+- Guia completo do modo RPG Maker MV/MZ em `docs/rpg-maker-mvmz.md` (instalação do plugin, recuperação após atualização/Steam, diagnóstico e patch de tradução).
+- Seções "Demonstração", "Status do projeto" e "Como contribuir" no `README.md`.
 
 ### Changed
 
@@ -17,6 +19,7 @@ Todas as mudanças relevantes deste projeto serão registradas aqui.
 - `ARCHITECTURE.md`, `docs/BRIEFING.md`, `AGENTS.md`, `CLAUDE.md` e o checklist MV/MZ padronizados para apontar aos documentos atuais e usar português consistente.
 - `README.md` agora documenta a recuperação do plugin MV/MZ quando uma atualização ou verificação da Steam sobrescreve `plugins.js`.
 - Documentação do modo MV/MZ ajustada para separar fluxos read-only de ações explícitas de patch com backup, e para citar `data/` e `www/data/` de forma consistente.
+- `README.md`: a seção "Modo RPG Maker MV/MZ" foi resumida a uma visão geral e um início rápido, com o detalhe operacional movido para `docs/rpg-maker-mvmz.md`.
 
 ## [0.6.0] - 2026-06-12
 

@@ -8,6 +8,7 @@ Este diretório reúne contexto de produto, planos, relatórios e checklists. A 
 |---|---|
 | Instalar, rodar ou configurar o app | [`../README.md`](../README.md) |
 | Entender camadas, dependências e falhas | [`../ARCHITECTURE.md`](../ARCHITECTURE.md) |
+| Instalar o plugin MV/MZ, diagnosticar ou gerar patch | [`rpg-maker-mvmz.md`](rpg-maker-mvmz.md) |
 | Entender o produto e o plano inicial | [`BRIEFING.md`](BRIEFING.md) |
 | Ver próximos passos MV/MZ | [`next-steps/mvmz-checklist.md`](next-steps/mvmz-checklist.md) |
 | Consultar histórico de versões | [`../CHANGELOG.md`](../CHANGELOG.md) |
@@ -16,8 +17,9 @@ Este diretório reúne contexto de produto, planos, relatórios e checklists. A 
 
 ## Documentos ativos
 
-- [`../README.md`](../README.md): guia do usuário, requisitos, instalação, configuração, MV/MZ, troubleshooting e links principais.
+- [`../README.md`](../README.md): guia do usuário, requisitos, instalação, configuração, visão geral dos modos, troubleshooting e links principais.
 - [`../ARCHITECTURE.md`](../ARCHITECTURE.md): fonte atual para arquitetura, regras de dependência e estratégia de testes.
+- [`rpg-maker-mvmz.md`](rpg-maker-mvmz.md): guia completo do modo RPG Maker MV/MZ — instalação do plugin, recuperação após atualização, diagnóstico e patch de tradução.
 - [`BRIEFING.md`](BRIEFING.md): briefing de produto e planejamento inicial. Use como contexto, não como contrato técnico quando divergir do código.
 - [`next-steps/mvmz-checklist.md`](next-steps/mvmz-checklist.md): backlog/checklist operacional para evolução do modo MV/MZ.
 
