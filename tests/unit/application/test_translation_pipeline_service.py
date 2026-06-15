@@ -174,7 +174,7 @@ def test_invalid_text_cache_hit_is_treated_as_miss_and_not_saved_to_image_cache(
 
     assert [call[0] for call in translator.calls] == ["Hello \\N[1]"]
     assert parts["overlay"].shown == ["pt:Hello \\N[1]"]
-    # O hit contaminado nao pode ser propagado para o image_cache; apenas o
+    # O acerto contaminado nao pode ser propagado para o image_cache; apenas o
     # resultado fresco da retraducao e salvo.
     assert all(result.translated_text != "Ola" for _, result in image_cache.saved)
     assert len(image_cache.saved) == 1

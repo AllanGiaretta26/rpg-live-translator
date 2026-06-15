@@ -44,7 +44,7 @@ _STYLE_GUIDELINES = (
 
 
 def build_vision_ocr_prompt() -> str:
-    # OCR-only: a traducao e feita em chamada separada pelo OllamaTranslator.
+    # Somente OCR: a traducao e feita em chamada separada pelo OllamaTranslator.
     # Pedir traducao aqui gastava tokens por frame e dividia a atencao do
     # modelo entre ler e traduzir, degradando a fidelidade da transcricao.
     return (

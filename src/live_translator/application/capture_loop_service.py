@@ -105,7 +105,7 @@ class CaptureLoopService:
 
         try:
             worker = self._thread_factory(self._run_cycle)
-        except Exception as error:  # pragma: no cover - defensive safety.
+        except Exception as error:  # pragma: no cover - segurança defensiva.
             with self._state_lock:
                 self._in_flight = False
                 self._next_capture_at = previous_next_capture_at
@@ -114,7 +114,7 @@ class CaptureLoopService:
 
         try:
             worker.start()
-        except Exception as error:  # pragma: no cover - defensive safety.
+        except Exception as error:  # pragma: no cover - segurança defensiva.
             with self._state_lock:
                 self._in_flight = False
                 self._next_capture_at = previous_next_capture_at
@@ -143,5 +143,5 @@ class CaptureLoopService:
 
         try:
             self._error_handler(error)
-        except Exception:  # pragma: no cover - defensive safety.
+        except Exception:  # pragma: no cover - segurança defensiva.
             logger.exception("capture loop error handler failed")

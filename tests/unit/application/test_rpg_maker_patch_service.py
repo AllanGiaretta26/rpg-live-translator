@@ -1170,7 +1170,8 @@ def test_export_patch_does_not_duplicate_font_size_code_on_wrapped_lines(tmp_pat
 
     lines = _patched_message_lines(result)
     assert len(lines) > 1
-    # The cumulative font-size code must appear exactly once, not on every line.
+    # O código cumulativo de tamanho de fonte deve aparecer exatamente uma vez,
+    # não em toda linha.
     assert sum(line.count(r"\{") for line in lines) == 1
     assert all(_visible_width(line) <= MESSAGE_LINE_LIMIT for line in lines)
 
@@ -1199,7 +1200,7 @@ def test_export_patch_repeats_only_hash_prefix_not_other_codes(tmp_path):
 
 
 def test_export_patch_uses_visible_width_so_color_codes_do_not_split_early(tmp_path):
-    # Raw length exceeds the limit, but the visible width fits on one line.
+    # O tamanho bruto excede o limite, mas a largura visível cabe em uma linha.
     translated = r"\C[3]Vermelho\C[0] e \C[2]verde\C[0] e \C[4]azul\C[0] num so balao."
     assert len(translated) > MESSAGE_LINE_LIMIT
     assert _visible_width(translated) <= MESSAGE_LINE_LIMIT

@@ -479,7 +479,8 @@ def test_rpg_maker_catalog_saves_large_batch(connection_manager, tmp_path):
 
     assert saved == 50
     assert repository.count_project_entries(project) == 50
-    # Re-running with a subset replaces the project's entries (executemany path).
+    # Reexecutar com um subconjunto substitui as entradas do projeto
+    # (caminho executemany).
     assert repository.replace_project_entries(project, entries[:10]) == 10
     assert repository.count_project_entries(project) == 10
 

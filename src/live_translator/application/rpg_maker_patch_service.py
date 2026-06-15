@@ -342,20 +342,20 @@ _PATCHABLE_TEXT_TYPES = frozenset(
     }
 )
 
-# Estimated rendered width, in characters, for codes that expand to dynamic text
-# at runtime (actor/party names and variable values). It is conservative so that
-# wrapped lines do not overflow when these codes resolve to longer strings.
+# Largura renderizada estimada, em caracteres, para códigos que expandem para
+# texto dinâmico em runtime (nomes de ator/grupo e valores de variável). É
+# conservadora para evitar overflow quando esses códigos viram textos maiores.
 _DYNAMIC_CODE_VISIBLE_WIDTH = 8
 _DYNAMIC_CODE_LETTERS = frozenset({"N", "P", "V"})
 
-# Matches RPG Maker MV/MZ escape codes: a literal backslash, lettered codes such
-# as \C[3], \N[1], \V[2], \I[64], \FS[24], and single-symbol codes such as \{ \}
-# \$ \. \| \! \^ \> \< \#.
+# Casa códigos de escape RPG Maker MV/MZ: barra invertida literal, códigos com
+# letras como \C[3], \N[1], \V[2], \I[64], \FS[24], e códigos de símbolo único
+# como \{ \} \$ \. \| \! \^ \> \< \#.
 _RPG_MAKER_CODE_PATTERN = re.compile(r"\\\\|\\[A-Za-z]+(?:\[[^\]]*\])?|\\[{}$.|!^<>#]")
 
-# Only \# is treated as a per-line marker that is repeated on every wrapped line.
-# Stateful codes such as \{ (font size up) must NOT be repeated, otherwise their
-# effect accumulates line by line.
+# Apenas \# é tratado como marcador por linha repetido em toda linha quebrada.
+# Códigos com estado, como \{ (aumentar fonte), NÃO devem ser repetidos; caso
+# contrário, o efeito acumula linha a linha.
 _REPEATED_LINE_PREFIX_PATTERN = re.compile(
     r"^(?P<prefix>(?:\\#)+)(?P<rest>.*)$",
     flags=re.DOTALL,

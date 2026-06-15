@@ -11,7 +11,7 @@ def test_vision_prompt_is_ocr_only():
 
     assert "Responda apenas JSON valido" in prompt
     assert "source_text" in prompt
-    # OCR-only: a traducao acontece em chamada separada; pedir translated_text
+    # Somente OCR: a traducao acontece em chamada separada; pedir translated_text
     # aqui gastava tokens por frame e degradava a transcricao.
     assert "translated_text" not in prompt
     assert "sem traduzir" in prompt

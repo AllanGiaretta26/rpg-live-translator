@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc Sends RPG Maker MV/MZ dialogue text to RPG Live Translator.
+ * @plugindesc Envia texto de diálogo RPG Maker MV/MZ ao RPG Live Translator.
  * @author RPG Live Translator
  *
  * @param Endpoint
@@ -9,8 +9,8 @@
  * @default http://127.0.0.1:8765/rpgmaker/text
  *
  * @help
- * Copy this file to the game's js/plugins folder, enable it in Plugin Manager,
- * and keep RPG Live Translator running in RPG Maker MV/MZ mode.
+ * Copie este arquivo para a pasta js/plugins do jogo, habilite-o no Plugin
+ * Manager e mantenha o RPG Live Translator rodando em modo RPG Maker MV/MZ.
  */
 (() => {
   "use strict";

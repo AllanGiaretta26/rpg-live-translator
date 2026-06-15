@@ -43,10 +43,10 @@ class TranslationPipelineService:
     overlay: OverlayRenderer
     text_normalizer: TextNormalizer = field(default_factory=DefaultTextNormalizer)
     clock: Clock = monotonic
-    # Recent context is intentionally kept empty: the pipeline never feeds prior
-    # lines back to the translator, to avoid leaking earlier dialogue into the
-    # current translation. The property is exposed so tests can guard that the
-    # context never accumulates (see translate(..., []) below).
+    # O contexto recente fica intencionalmente vazio: o pipeline nunca envia
+    # linhas anteriores ao tradutor, para evitar vazamento de diálogo anterior na
+    # tradução atual. A propriedade é exposta para os testes garantirem que o
+    # contexto nunca acumula (veja translate(..., []) abaixo).
     _context: list[str] = field(default_factory=list, init=False, repr=False)
     _last_diagnostic: str | None = field(default=None, init=False, repr=False)
     _last_timing_summary: str | None = field(default=None, init=False, repr=False)
@@ -83,7 +83,7 @@ class TranslationPipelineService:
                     cached_by_image.source_text,
                     cached_by_image.translated_text,
                 ):
-                    # Hit contaminado vira miss: segue para OCR + retraducao.
+                    # Acerto contaminado vira erro: segue para OCR + retraducao.
                     self._set_diagnostic("cache imagem invalido")
                 else:
                     self._set_diagnostic("cache imagem")
@@ -110,7 +110,7 @@ class TranslationPipelineService:
                     normalized_text,
                     cached_by_text.translated_text,
                 ):
-                    # Hit contaminado vira miss e nao propaga para o image_cache.
+                    # Acerto contaminado vira erro e nao propaga para o image_cache.
                     self._set_diagnostic("cache texto invalido")
                 else:
                     self._set_diagnostic("cache texto")

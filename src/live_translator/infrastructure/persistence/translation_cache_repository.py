@@ -10,7 +10,7 @@ from live_translator.domain.models import TranslationResult
 from .sqlite_connection import SQLiteConnectionManager
 
 
-# Stay well under SQLite's bound-parameter limit (the scope occupies one slot).
+# Mantém folga abaixo do limite de parâmetros do SQLite (o escopo ocupa um slot).
 _QUERY_CHUNK_SIZE = 500
 
 
@@ -73,8 +73,8 @@ class SQLiteTranslationCacheRepository(TranslationCache):
         *,
         scope: str | None = None,
     ) -> dict[str, TranslationResult]:
-        # Map each requested (original) text to its normalized cache key, keeping
-        # only the ones that normalize to something non-empty.
+        # Mapeia cada texto solicitado (original) para sua chave normalizada de
+        # cache, mantendo apenas os que normalizam para algo não vazio.
         normalized_by_text: dict[str, str] = {}
         for text in texts:
             key = _normalize_text(text)
